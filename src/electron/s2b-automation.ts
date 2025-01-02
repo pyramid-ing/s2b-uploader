@@ -344,8 +344,7 @@ export class S2BAutomation {
     this.browser = await puppeteer.launch({
       headless: false,
       defaultViewport: null,
-      executablePath: this.chromePath,  // Chrome 실행 파일 경로 지정
-      // userDataDir: this.userDataDir,
+      executablePath: this.chromePath, // Chrome 실행 파일 경로 지정
       args: ['--no-sandbox', '--disable-setuid-sandbox'],
     })
 
@@ -354,9 +353,8 @@ export class S2BAutomation {
     // Dialog 이벤트 처리
     this.page.on('dialog', async (dialog) => {
       if (dialog.type() === 'alert') {
-
         // 특정 메시지 필터링
-        if (dialog.message().includes("S2B의 “견적정보 등록”은 지방자치단체를 당사자로 하는 계약에 관한 법률 시행령 제30조")) {
+        if (dialog.message().includes('S2B의 “견적정보 등록”은 지방자치단체를 당사자로 하는 계약에 관한 법률 시행령 제30조')) {
           await dialog.accept() // "확인" 버튼 자동 클릭
         } else {
           await dialog.dismiss() // 선택적으로 무시
@@ -364,44 +362,57 @@ export class S2BAutomation {
       }
     })
 
-    // 팝업 감지 및 자동 종료
+    // 팝업 감지 및 처리
     this.browser.on('targetcreated', async (target) => {
       const page = await target.page()
       if (!page) return // 페이지가 없는 경우 무시
 
       const url = target.url()
+      console.log(`Detected popup with URL: ${url}`)
 
-      // 특정 URL별 처리
+      // 팝업 URL별 처리
       if (url.includes('certificateInfo_pop.jsp')) {
         // certificateInfo_pop.jsp 팝업은 바로 닫기
+        console.log('Closing popup for certificateInfo_pop.jsp.')
         await page.close()
       } else if (url.includes('mygPreviewerThumb.jsp')) {
-        // mygPreviewerThumb.jsp 팝업에서만 내용 검사
-
+        // mygPreviewerThumb.jsp 팝업에서 특정 텍스트 검사
         try {
-          // 페이지 로드 대기: 특정 요소 로드까지 대기
           await page.waitForSelector('#reSizeStatus', {timeout: 5000})
 
-          // 필요한 텍스트를 포함한 특정 요소 검사
           const pageContent = await page.evaluate(() => {
-            const targetElement = document.querySelector('body') // 대상 요소
+            const targetElement = document.querySelector('body')
             return targetElement ? targetElement.innerText.trim() : ''
           })
 
-          // 텍스트가 여전히 빈 문자열인 경우 확인 로그 추가
-          if (!pageContent) {
-            console.log('Popup content is empty or not loaded yet.')
-          }
-
-          // 특정 텍스트 포함 여부 확인
           if (pageContent.includes('pass')) {
             console.log('Popup contains target text. Closing popup.')
-            await page.close() // 팝업 닫기
+            await page.close()
           }
         } catch (error) {
           console.error('Error while checking popup content:', error)
-          // 에러 발생 시 팝업 닫기
-          await page.close()
+          await page.close() // 에러 발생 시 팝업 닫기
+        }
+      } else if (url.includes('rema100_statusWaitPopup.jsp')) {
+        // rema100_statusWaitPopup.jsp 팝업 처리
+        try {
+          console.log('Interacting with rema100_statusWaitPopup.jsp popup.')
+
+          // 팝업 로드 대기 및 버튼 클릭
+          await page.waitForSelector('[onclick^="fnConfirm("]', {timeout: 5000})
+
+          await page.evaluate(() => {
+            const confirmButton = document.querySelector('[onclick^="fnConfirm(\'1\')"]')
+            if (confirmButton instanceof HTMLElement) {
+              confirmButton.click() // 버튼 클릭
+              console.log('Confirm button clicked.')
+            } else {
+              throw new Error('Confirm button not found.')
+            }
+          })
+        } catch (error) {
+          console.error('Error interacting with rema100_statusWaitPopup.jsp:', error)
+          await page.close() // 에러 발생 시 팝업 닫기
         }
       } else {
         console.log('Popup URL does not match any criteria. Leaving it open.')
