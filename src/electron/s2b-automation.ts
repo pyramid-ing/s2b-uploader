@@ -366,57 +366,52 @@ export class S2BAutomation {
 
     // 팝업 감지 및 자동 종료
     this.browser.on('targetcreated', async (target) => {
-      const page = await target.page();
-      if (!page) return; // 페이지가 없는 경우 무시
+      const page = await target.page()
+      if (!page) return // 페이지가 없는 경우 무시
 
-      const url = target.url();
-      console.log(`Detected popup with URL: ${url}`);
+      const url = target.url()
 
       // 특정 URL별 처리
       if (url.includes('certificateInfo_pop.jsp')) {
         // certificateInfo_pop.jsp 팝업은 바로 닫기
-        console.log('Closing popup for certificateInfo_pop.jsp.');
-        await page.close();
+        await page.close()
       } else if (url.includes('mygPreviewerThumb.jsp')) {
         // mygPreviewerThumb.jsp 팝업에서만 내용 검사
-        console.log('Checking content for mygPreviewerThumb.jsp popup.');
 
         try {
           // 페이지 로드 대기: 특정 요소 로드까지 대기
-          await page.waitForSelector('#reSizeStatus', { timeout: 5000 });
+          await page.waitForSelector('#reSizeStatus', {timeout: 5000})
 
           // 필요한 텍스트를 포함한 특정 요소 검사
           const pageContent = await page.evaluate(() => {
-            const targetElement = document.querySelector('body'); // 대상 요소
-            return targetElement ? targetElement.innerText.trim() : '';
-          });
+            const targetElement = document.querySelector('body') // 대상 요소
+            return targetElement ? targetElement.innerText.trim() : ''
+          })
 
           // 텍스트가 여전히 빈 문자열인 경우 확인 로그 추가
           if (!pageContent) {
-            console.log('Popup content is empty or not loaded yet.');
+            console.log('Popup content is empty or not loaded yet.')
           }
 
           // 특정 텍스트 포함 여부 확인
           if (pageContent.includes('pass')) {
-            console.log('Popup contains target text. Closing popup.');
-            await page.close(); // 팝업 닫기
-          } else {
-            console.log('Popup does not contain target text. Leaving it open.');
+            console.log('Popup contains target text. Closing popup.')
+            await page.close() // 팝업 닫기
           }
         } catch (error) {
-          console.error('Error while checking popup content:', error);
+          console.error('Error while checking popup content:', error)
           // 에러 발생 시 팝업 닫기
-          await page.close();
+          await page.close()
         }
       } else {
-        console.log('Popup URL does not match any criteria. Leaving it open.');
+        console.log('Popup URL does not match any criteria. Leaving it open.')
       }
-    });
+    })
 
     // 페이지 로드 타임아웃 설정 (선택사항)
     if (this.page) {
-      await this.page.setDefaultNavigationTimeout(30000)
-      await this.page.setDefaultTimeout(30000)
+      this.page.setDefaultNavigationTimeout(30000)
+      this.page.setDefaultTimeout(30000)
     }
   }
 
@@ -677,7 +672,7 @@ export class S2BAutomation {
     if (!this.page) return
 
     // iframe 내부의 에디터에 접근
-    const se2Frame = await this.page.frames().find(f =>
+    const se2Frame = this.page.frames().find(f =>
       f.url().includes('SmartEditor2Skin.html'),
     )
 
