@@ -3,7 +3,6 @@ import * as XLSX from 'xlsx'
 import path from 'node:path'
 import fs from 'fs/promises'
 import * as fsSync from 'fs'
-import {dtsDtsxOrDtsDtsxMapRegex} from 'ts-loader/dist/constants' // 동기적 작업을 위한 fs 추가
 
 interface ProductData {
   // 등록구분을 위한 텍스트 값
@@ -352,6 +351,68 @@ export class S2BAutomation {
 
     this.page = await this.browser.newPage()
 
+    // Dialog 이벤트 처리
+    this.page.on('dialog', async (dialog) => {
+      if (dialog.type() === 'alert') {
+
+        // 특정 메시지 필터링
+        if (dialog.message().includes("S2B의 “견적정보 등록”은 지방자치단체를 당사자로 하는 계약에 관한 법률 시행령 제30조")) {
+          await dialog.accept() // "확인" 버튼 자동 클릭
+        } else {
+          await dialog.dismiss() // 선택적으로 무시
+        }
+      }
+    })
+
+    // 팝업 감지 및 자동 종료
+    this.browser.on('targetcreated', async (target) => {
+      const page = await target.page();
+      if (!page) return; // 페이지가 없는 경우 무시
+
+      const url = target.url();
+      console.log(`Detected popup with URL: ${url}`);
+
+      // 특정 URL별 처리
+      if (url.includes('certificateInfo_pop.jsp')) {
+        // certificateInfo_pop.jsp 팝업은 바로 닫기
+        console.log('Closing popup for certificateInfo_pop.jsp.');
+        await page.close();
+      } else if (url.includes('mygPreviewerThumb.jsp')) {
+        // mygPreviewerThumb.jsp 팝업에서만 내용 검사
+        console.log('Checking content for mygPreviewerThumb.jsp popup.');
+
+        try {
+          // 페이지 로드 대기: 특정 요소 로드까지 대기
+          await page.waitForSelector('#reSizeStatus', { timeout: 5000 });
+
+          // 필요한 텍스트를 포함한 특정 요소 검사
+          const pageContent = await page.evaluate(() => {
+            const targetElement = document.querySelector('body'); // 대상 요소
+            return targetElement ? targetElement.innerText.trim() : '';
+          });
+
+          // 텍스트가 여전히 빈 문자열인 경우 확인 로그 추가
+          if (!pageContent) {
+            console.log('Popup content is empty or not loaded yet.');
+          }
+
+          // 특정 텍스트 포함 여부 확인
+          if (pageContent.includes('pass')) {
+            console.log('Popup contains target text. Closing popup.');
+            await page.close(); // 팝업 닫기
+          } else {
+            console.log('Popup does not contain target text. Leaving it open.');
+          }
+        } catch (error) {
+          console.error('Error while checking popup content:', error);
+          // 에러 발생 시 팝업 닫기
+          await page.close();
+        }
+      } else {
+        console.log('Popup URL does not match any criteria. Leaving it open.');
+      }
+    });
+
     // 페이지 로드 타임아웃 설정 (선택사항)
     if (this.page) {
       await this.page.setDefaultNavigationTimeout(30000)
@@ -383,7 +444,7 @@ export class S2BAutomation {
       await this.setDeliveryFee(data)
 
       // 상세설명 HTML 설정
-      // await this.setDetailHtml(data.detailHtml)
+      await this.setDetailHtml(data.detailHtml)
 
       // 이미지 업로드
       await this.uploadAllImages(data)
@@ -616,27 +677,54 @@ export class S2BAutomation {
     if (!this.page) return
 
     // iframe 내부의 에디터에 접근
-    const frame = await this.page.frames().find(f =>
+    const se2Frame = await this.page.frames().find(f =>
       f.url().includes('SmartEditor2Skin.html'),
     )
 
-    if (!frame) throw new Error('Editor iframe not found')
+    if (!se2Frame) throw new Error('Editor iframe not found')
 
-    // 에디터 내용 설정
-    await frame.evaluate((content: string) => {
-      const editor = document.querySelector('.se2_input_area')
-      if (editor) {
-        editor.innerHTML = content
-      }
-    }, html)
+    try {
+      // 메인 페이지에서 HTML 버튼 클릭
+      await se2Frame.evaluate(() => {
+        const htmlButton = document.querySelector('.se2_to_html')
+        if (htmlButton instanceof HTMLButtonElement) {
+          htmlButton.click()
+        } else {
+          throw new Error('HTML button not found')
+        }
+      })
 
-    // 원본 textarea에도 내용 설정
-    await this.page.evaluate((content: string) => {
-      const textarea = document.querySelector('#f_goods_explain') as HTMLTextAreaElement
-      if (textarea) {
-        textarea.value = content
+      // 버튼 클릭 후 약간의 대기 시간
+      await delay(500)
+
+
+// 편집기 영역 선택
+      await se2Frame.waitForSelector('.se2_input_htmlsrc') // 편집기 컨테이너
+      const $editorArea = await se2Frame.$('.se2_input_htmlsrc')
+      if (!$editorArea) {
+        throw new Error('Editor area not found')
       }
-    }, html)
+
+// 편집기에 포커스 설정
+      await $editorArea.click()
+
+// 텍스트 입력 (키보드 방식)
+      await this.page.keyboard.type(html)
+
+      // 메인 페이지에서 Editor 버튼 클릭하여 다시 에디터 모드로 전환
+      await se2Frame.evaluate(() => {
+        const editorButton = document.querySelector('.se2_to_editor')
+        if (editorButton instanceof HTMLButtonElement) {
+          editorButton.click()
+        } else {
+          throw new Error('Editor button not found')
+        }
+      })
+
+    } catch (error) {
+      console.error('Failed to set detail HTML:', error)
+      throw error
+    }
   }
 
   // KC 인증 정보 설정 메서드
