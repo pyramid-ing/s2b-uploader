@@ -187,7 +187,7 @@ export class S2BAutomation {
 
 
   constructor(baseImagePath: string) {
-    // this.userDataDir = path.join(__dirname, '../../chrome-data')
+    this.userDataDir = path.join(__dirname, '../../chrome-data')
     this.baseImagePath = baseImagePath
 
     // OS별 Chrome 기본 설치 경로 설정
