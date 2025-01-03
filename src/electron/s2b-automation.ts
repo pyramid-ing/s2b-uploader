@@ -306,6 +306,24 @@ export class S2BAutomation {
           // 인증정보
           womanCert: row['여성기업']?.toString() || 'N',
           disabledCompanyCert: row['장애인기업']?.toString() || 'N',
+          foundationCert: row['창업기업']?.toString() || 'N',
+          disabledCert: row['장애인표준사업장']?.toString() || 'N',
+          severalCert: row['중증장애인생산품']?.toString() || 'N',
+          cooperationCert: row['사회적협동조합']?.toString() || 'N',
+          societyCert: row['우수재활용제품']?.toString() || 'N',
+          recycleCert: row['우수재활용제품']?.toString() || 'N',
+          environmentCert: row['환경표지']?.toString() || 'N',
+          lowCarbonCert: row['저탄소제품']?.toString() || 'N',
+          swQualityCert: row['SW품질인증']?.toString() || 'N',
+          nepCert: row['신제품인증(NEP)']?.toString() || 'N',
+          netCert: row['신제품인증(NET)']?.toString() || 'N',
+          greenProductCert: row['녹색기술인증제품']?.toString() || 'N',
+          epcCert: row['성능인증제품(EPC)']?.toString() || 'N',
+          procureCert: row['우수조달제품']?.toString() || 'N',
+          seoulTownCert: row['마을기업']?.toString() || 'N',
+          seoulSelfCert: row['자활기업']?.toString() || 'N',
+          seoulCollaborationCert: row['협동조합']?.toString() || 'N',
+          seoulReserveCert: row['예비사회적기업']?.toString() || 'N',
         }
       },
     )
@@ -678,9 +696,26 @@ export class S2BAutomation {
     if (!this.page) return
 
     const certFields = [
-      {name: 'f_woman_cert', value: data.womanCert},
-      {name: 'f_disabledCompany_cert', value: data.disabledCompanyCert},
-      // ... 다른 인증정보 필드들
+      { name: 'f_woman_cert', value: data.womanCert },
+      { name: 'f_disabledCompany_cert', value: data.disabledCompanyCert },
+      { name: 'f_foundation_cert', value: data.foundationCert },
+      { name: 'f_disabled_cert', value: data.disabledCert },
+      { name: 'f_several_cert', value: data.severalCert },
+      { name: 'f_cooperation_cert', value: data.cooperationCert },
+      { name: 'f_society_cert', value: data.societyCert },
+      { name: 'f_recycle_cert', value: data.recycleCert },
+      { name: 'f_environment_cert', value: data.environmentCert },
+      { name: 'f_lowCarbon_cert', value: data.lowCarbonCert },
+      { name: 'f_swQuality_cert', value: data.swQualityCert },
+      { name: 'f_nep_cert', value: data.nepCert },
+      { name: 'f_net_cert', value: data.netCert },
+      { name: 'f_greenProduct_cert', value: data.greenProductCert },
+      { name: 'f_epc_cert', value: data.epcCert },
+      { name: 'f_procure_cert', value: data.procureCert },
+      { name: 'f_seoulTown_cert', value: data.seoulTownCert },
+      { name: 'f_seoulSelf_cert', value: data.seoulSelfCert },
+      { name: 'f_seoulCollaboration_cert', value: data.seoulCollaborationCert },
+      { name: 'f_seoulReserve_cert', value: data.seoulReserveCert },
     ]
 
     for (const cert of certFields) {
