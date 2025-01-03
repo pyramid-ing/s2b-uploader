@@ -5,6 +5,7 @@
   "main": "dist/electron/main.js",
   "build": {
     "appId": "s2b-uploader",
+    "publish": null,
     "mac": {
       "icon": "build/icon.icns",
       "category": "your.app.category.type"
@@ -40,7 +41,7 @@
     "build:renderer": "cross-env NODE_ENV=production webpack --config webpack.config.js --mode production",
     "package": "yarn build && electron-builder",
     "package-mac": "yarn build && electron-builder --mac",
-    "package-win": "yarn build && electron-builder --win"
+    "package-win": "yarn build && electron-builder --win --publish never"
   },
   "dependencies": {
     "@ant-design/icons": "^5.5.1",
