@@ -1,4 +1,4 @@
-name: Build and Release Electron App
+name: Build and Release S2B AUTO Electron App
 
 on:
   push:
@@ -36,12 +36,16 @@ jobs:
           yarn config set network-timeout 600000
           yarn install
 
-      # 5. Electron 빌드 (package-win 스크립트 실행)
+      # 5. GH_TOKEN 설정
+      - name: Set GitHub Token
+        run: echo "GH_TOKEN=${{ secrets.GH_TOKEN }}" >> $GITHUB_ENV
+
+      # 6. Electron 빌드 (package-win 스크립트 실행)
       - name: Build Windows App
         run: |
           yarn package-win
 
-      # 6. 아티팩트 업로드 (빌드된 파일 저장)
+      # 7. 아티팩트 업로드 (빌드된 파일 저장)
       - name: Upload Artifacts
         uses: actions/upload-artifact@v3
         with:
