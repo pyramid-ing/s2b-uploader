@@ -20,19 +20,30 @@ jobs:
         with:
           node-version: 20
 
-      # 3. 의존성 설치
+      # 3. 캐시 활성화
+      - name: Cache Node Modules
+        uses: actions/cache@v3
+        with:
+          path: ~/.yarn/cache
+          key: ${{ runner.os }}-yarn-${{ hashFiles('yarn.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-yarn-
+
+      # 4. Yarn 설정 및 의존성 설치
       - name: Install dependencies
         run: |
+          yarn config set registry https://registry.npmjs.org
+          yarn config set network-timeout 600000
           yarn install
 
-      # 4. Electron 빌드 (package-win 스크립트 실행)
+      # 5. Electron 빌드 (package-win 스크립트 실행)
       - name: Build Windows App
         run: |
           yarn package-win
 
-      # 5. 아티팩트 업로드 (빌드된 파일 저장)
+      # 6. 아티팩트 업로드 (빌드된 파일 저장)
       - name: Upload Artifacts
         uses: actions/upload-artifact@v3
         with:
           name: electron-app
-          path: dist/  # 빌드된 파일 경로
+          path: dist/
