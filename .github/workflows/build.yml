@@ -1,0 +1,38 @@
+name: Build and Release Electron App
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      # 1. 리포지토리 클론
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      # 2. Node.js 환경 설정
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 20
+
+      # 3. 의존성 설치
+      - name: Install dependencies
+        run: |
+          yarn install
+
+      # 4. Electron 빌드 (package-win 스크립트 실행)
+      - name: Build Windows App
+        run: |
+          yarn package-win
+
+      # 5. 아티팩트 업로드 (빌드된 파일 저장)
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: electron-app
+          path: dist/  # 빌드된 파일 경로

@@ -21,6 +21,7 @@
       "files/**/*"
     ],
     "files": [
+      "build/**/*",
       "dist/electron/**/*",
       "dist/renderer/**/*",
       "package.json"
