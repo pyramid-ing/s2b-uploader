@@ -4,7 +4,7 @@
   "description": "",
   "main": "dist/electron/main.js",
   "build": {
-    "appId": "s2b-auto",
+    "appId": "s2b-uploader",
     "mac": {
       "icon": "build/icon.icns",
       "category": "your.app.category.type"
