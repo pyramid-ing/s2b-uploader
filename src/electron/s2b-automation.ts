@@ -19,6 +19,8 @@ interface ProductData {
   returnFee: string; // 반품배송비
   exchangeFee: string; // 교환배송비
 
+  estimateValidity?: string; // 견적서 유효기간
+
   // 납품가능기간
   deliveryLimitText: DeliveryLimitType;  // 텍스트 형태의 납품가능기간
   deliveryLimit: string; // 납품가능기간
@@ -98,6 +100,7 @@ interface ProductData {
   salesUnit: string; // 판매단위: "개", "세트", "박스" 등
   taxType: string;   // 과세여부: "과세(세금계산서)", "비과세(계산서)", "비과세(영수증)"
 
+  approvalRequest: string; // 승인관련 요청사항
 }
 
 type SaleType = '물품' | '용역';
@@ -248,6 +251,8 @@ export class S2BAutomation {
           returnFee: row['반품배송비']?.toString() || '',
           exchangeFee: row['교환배송비']?.toString() || '',
 
+          estimateValidity: row['견적서 유효기간']?.toString() || '30일', // 기본값은 "30일"
+
           // 등록구분 매핑 추가
           saleTypeText,
           saleType: SALE_TYPE_MAP[saleTypeText],
@@ -324,6 +329,8 @@ export class S2BAutomation {
           seoulSelfCert: row['자활기업']?.toString() || 'N',
           seoulCollaborationCert: row['협동조합']?.toString() || 'N',
           seoulReserveCert: row['예비사회적기업']?.toString() || 'N',
+
+          approvalRequest: row['승인관련 요청사항']?.toString() || '',
         }
       },
     )
@@ -463,34 +470,24 @@ export class S2BAutomation {
     try {
       // 기본 정보 입력
       await this.setBasicInfo(data)
-
-      // 카테고리 선택
-      await this.selectCategory(data)
-
-      // 인증정보 설정
-      await this.setCertifications(data)
-
-      // KC 인증 정보 설정
-      await this.setKcCertifications(data)
-
-      // 배송비 설정
-      await this.setDeliveryFee(data)
-
-      // 상세설명 HTML 설정
-      await this.setDetailHtml(data.detailHtml)
-
       // 이미지 업로드
       await this.uploadAllImages(data)
-
+      // 카테고리 선택
+      await this.selectCategory(data)
+      // 인증정보 설정
+      await this.setCertifications(data)
+      // KC 인증 정보 설정
+      await this.setKcCertifications(data)
+      // 배송비 설정
+      await this.setDeliveryFee(data)
+      // 상세설명 HTML 설정
+      await this.setDetailHtml(data.detailHtml)
       // 판매단위와 과세여부 설정
       await this.setSalesUnitAndTax(data)
-
       // 반품/교환 배송비 입력
       await this.setReturnExchangeFee(data)
-
       // 원산지 정보 설정 (자동입력 기능 포함)
       await this.setOriginInfo(data)
-
       // 청렴서약서 동의 및 등록
       await this.submitRegistration()
 
@@ -535,6 +532,28 @@ export class S2BAutomation {
         select.dispatchEvent(new Event('change', {bubbles: true}))
       }
     }, {code: data.deliveryLimit})
+
+    // 승인관련 요청사항 입력
+    if (data.approvalRequest) {
+      await this.page.type('input[name="f_memo"]', data.approvalRequest);
+    }
+
+    // 견적서 유효기간 선택
+    if (data.estimateValidity) {
+      const validityMap: { [key: string]: string } = {
+        '30일': 'ZD000004',
+        '15일': 'ZD000003',
+        '10일': 'ZD000002',
+        '7일': 'ZD000001',
+      };
+
+      const optionValue = validityMap[data.estimateValidity];
+      if (optionValue) {
+        await this.page.select('select[name="f_estimate_validate_code"]', optionValue);
+      } else {
+        console.error(`Invalid estimate validity: ${data.estimateValidity}`);
+      }
+    }
   }
 
   private async setReturnExchangeFee(data: ProductData) {
@@ -819,9 +838,6 @@ export class S2BAutomation {
     } else if (data.broadcastingKcType === 'F' && data.broadcastingKcFile) {
       await this.uploadImage('#f_kcCertBroadcastingImg_file', path.join(this.baseImagePath, data.broadcastingKcFile))
     }
-
-    // 각 인증 등록 후 적절한 대기 시간 추가
-    await delay(1000)
   }
 
   private async uploadImage(inputSelector: string, filePath: string) {
