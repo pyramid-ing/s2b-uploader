@@ -61,8 +61,8 @@ function setupIpcHandlers() {
   ipcMain.handle('load-excel-data', async (_, {excelPath, imageDir}) => {
     try {
       // 경로 확인 및 유효성 체크
-      const resolvedExcelPath = path.resolve(excelPath)
-      const resolvedImageDir = path.resolve(imageDir)
+      const resolvedExcelPath = path.normalize(path.resolve(excelPath))
+      const resolvedImageDir = path.normalize(path.resolve(imageDir))
 
       if (!fsSync.existsSync(resolvedExcelPath)) {
         throw new Error(`Excel file does not exist: ${resolvedExcelPath}`)
@@ -105,7 +105,7 @@ function setupIpcHandlers() {
       await automation.registerProduct(productData) // 상품 등록 로직
 
       // 등록 성공 메시지 추가
-      const workbook = XLSX.readFile(excelPath)
+      const workbook = XLSX.readFile(excelPath, {type: 'binary'})
       const sheet = workbook.Sheets[workbook.SheetNames[0]]
       const rows: any[] = XLSX.utils.sheet_to_json(sheet, {header: 1})
 
@@ -140,7 +140,7 @@ function setupIpcHandlers() {
 
       // 에러 메시지 추가
       try {
-        const workbook = XLSX.readFile(excelPath)
+        const workbook = XLSX.readFile(excelPath, {type: 'binary'})
         const sheet = workbook.Sheets[workbook.SheetNames[0]]
         const rows: any[] = XLSX.utils.sheet_to_json(sheet, {header: 1})
 

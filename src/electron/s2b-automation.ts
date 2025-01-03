@@ -207,6 +207,9 @@ export class S2BAutomation {
     if (!fsSync.existsSync(this.chromePath)) {
       throw new Error('Chrome 브라우저를 찾을 수 없습니다. Chrome이 설치되어 있는지 확인해주세요.')
     }
+    if (!this.chromePath || !fsSync.existsSync(this.chromePath)) {
+      throw new Error('Chrome 실행 파일 경로를 찾을 수 없습니다. Windows 환경에서 Chrome이 설치되어 있는지 확인하세요.');
+    }
   }
 
   async login(id: string, password: string) {

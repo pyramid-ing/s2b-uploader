@@ -102,7 +102,7 @@ const Upload: React.FC = () => {
               productData: product.originalData,
               excelPath: settings.excelPath,
             })
-            message.success(`상품 "${product.goodsName}"이 성공적으로 등록되었습니다.`)
+            message.success(`상품 "${product.goodsName}" 처리완료`)
           } catch (error) {
             console.error(`Failed to register product: ${product.goodsName}`, error)
             message.error(`상품 "${product.goodsName}" 등록에 실패했습니다.`)

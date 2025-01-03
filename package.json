@@ -17,7 +17,7 @@
         "zip"
       ]
     },
-    "asar": false,
+    "asar": true,
     "asarUnpack": [
       "files/**/*"
     ],
