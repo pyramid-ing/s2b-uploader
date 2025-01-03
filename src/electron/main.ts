@@ -39,6 +39,7 @@ function createWindow() {
       nodeIntegration: true,
       contextIsolation: false,
     },
+    icon: path.join(__dirname, '../../build/icon.png'), // 개발 모드용 아이콘 경로
   })
 // main.ts 내부
   if (process.env.ELECTRON_DEBUG) {

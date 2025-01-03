@@ -180,13 +180,11 @@ const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 export class S2BAutomation {
   private browser: puppeteer.Browser | null = null
   private page: puppeteer.Page | null = null
-  private userDataDir: string
   private baseImagePath: string // 이미지 기본 경로
   private chromePath: string  // Chrome 실행 파일 경로 추가
   private dialogErrorMessage: string | null = null // dialog 에러 메시지 추적
 
   constructor(baseImagePath: string) {
-    this.userDataDir = path.join(__dirname, '../../chrome-data')
     this.baseImagePath = baseImagePath
 
     // OS별 Chrome 기본 설치 경로 설정
@@ -206,9 +204,6 @@ export class S2BAutomation {
     if (!fsSync.existsSync(this.chromePath)) {
       throw new Error('Chrome 브라우저를 찾을 수 없습니다. Chrome이 설치되어 있는지 확인해주세요.')
     }
-
-    // chrome-data 디렉토리 생성
-    fsSync.mkdirSync(this.userDataDir, {recursive: true})
   }
 
   async login(id: string, password: string) {

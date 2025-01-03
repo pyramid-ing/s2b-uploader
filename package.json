@@ -4,11 +4,13 @@
   "description": "",
   "main": "dist/electron/main.js",
   "build": {
-    "appId": "s2buploader",
+    "appId": "s2b-auto",
     "mac": {
+      "icon": "build/icon.icns",
       "category": "your.app.category.type"
     },
     "win": {
+      "icon": "build/icon.ico",
       "target": [
         "nsis",
         "zip"
