@@ -183,7 +183,7 @@ export class S2BAutomation {
   private userDataDir: string
   private baseImagePath: string // 이미지 기본 경로
   private chromePath: string  // Chrome 실행 파일 경로 추가
-
+  private dialogErrorMessage: string | null = null // dialog 에러 메시지 추적
 
   constructor(baseImagePath: string) {
     this.userDataDir = path.join(__dirname, '../../chrome-data')
@@ -353,11 +353,18 @@ export class S2BAutomation {
     // Dialog 이벤트 처리
     this.page.on('dialog', async (dialog) => {
       if (dialog.type() === 'alert') {
-        // 특정 메시지 필터링
-        if (dialog.message().includes('S2B의 “견적정보 등록”은 지방자치단체를 당사자로 하는 계약에 관한 법률 시행령 제30조')) {
+        const message = dialog.message()
+
+        // 특정 메시지 필터링: 성공 처리 메시지
+        if (message.includes('S2B의 “견적정보 등록”은 지방자치단체를 당사자로 하는 계약에 관한 법률 시행령 제30조')) {
           await dialog.accept() // "확인" 버튼 자동 클릭
+        } else if (message.includes('등록대기 상태로 변경되었으며')) {
+          console.log('Registration successful: "등록대기 상태로 변경되었으며".')
+          await dialog.accept() // 성공으로 처리
         } else {
-          await dialog.dismiss() // 선택적으로 무시
+          console.error('Registration Error:', message)
+          this.dialogErrorMessage = message // 에러 메시지 저장
+          await dialog.dismiss() // Alert 닫기
         }
       }
     })
@@ -376,21 +383,26 @@ export class S2BAutomation {
         console.log('Closing popup for certificateInfo_pop.jsp.')
         await page.close()
       } else if (url.includes('mygPreviewerThumb.jsp')) {
-        // mygPreviewerThumb.jsp 팝업에서 특정 텍스트 검사
+        // mygPreviewerThumb.jsp 팝업에서 iframe 내 상태 검사
         try {
-          await page.waitForSelector('#reSizeStatus', {timeout: 5000})
+          await delay(1000)
+          // iframe 로드 대기
+          await page.waitForSelector('#MpreviewerImg', {timeout: 20000})
+          const iframeElement = await page.$('#MpreviewerImg')
+          if (!iframeElement) throw new Error('Iframe not found.')
 
-          const pageContent = await page.evaluate(() => {
-            const targetElement = document.querySelector('body')
-            return targetElement ? targetElement.innerText.trim() : ''
-          })
+          const iframe = await iframeElement.contentFrame()
+          await iframe.waitForSelector('#reSizeStatus', {timeout: 20000})
+          const resizeStatus = await iframe.$eval('#reSizeStatus', (element) => element.textContent?.trim())
 
-          if (pageContent.includes('pass')) {
-            console.log('Popup contains target text. Closing popup.')
-            await page.close()
+          if (resizeStatus === 'pass') {
+            console.log('Upload passed. Closing popup.')
+            await page.close() // 조건 충족 시 팝업 닫기
+          } else {
+            console.log(`Upload status: ${resizeStatus}. Popup remains open.`)
           }
         } catch (error) {
-          console.error('Error while checking popup content:', error)
+          console.error('Error while interacting with mygPreviewerThumb.jsp:', error)
           await page.close() // 에러 발생 시 팝업 닫기
         }
       } else if (url.includes('rema100_statusWaitPopup.jsp')) {
@@ -430,8 +442,10 @@ export class S2BAutomation {
   async registerProduct(data: ProductData) {
     if (!this.page) throw new Error('Browser not initialized')
 
+    this.dialogErrorMessage = null // 초기화
+
     await this.page.goto('https://www.s2b.kr/S2BNVendor/rema100.do?forwardName=goRegistView')
-    await delay(2000)
+    await this.page.waitForSelector('select[name="sale_type"]')
 
     try {
       // 기본 정보 입력
@@ -461,13 +475,16 @@ export class S2BAutomation {
       // 반품/교환 배송비 입력
       await this.setReturnExchangeFee(data)
 
-      await delay(1000)
       // 원산지 정보 설정 (자동입력 기능 포함)
       await this.setOriginInfo(data)
 
       // 청렴서약서 동의 및 등록
       await this.submitRegistration()
 
+      // Dialog에서 에러 메시지가 발생했는지 확인
+      if (this.dialogErrorMessage) {
+        throw new Error(this.dialogErrorMessage) // 에러 발생 시 throw
+      }
     } catch (error) {
       console.error('상품 등록 중 오류 발생:', error)
       throw error

@@ -18,7 +18,7 @@ interface ProductData {
 const Upload: React.FC = () => {
   const [data, setData] = useState<ProductData[]>([])
   const [loading, setLoading] = useState(false)
-  const [selectedKey, setSelectedKey] = useState<React.Key | null>(null)
+  const [selectedKeys, setSelectedKeys] = useState<React.Key[]>([])
 
   useEffect(() => {
     loadExcelData()
@@ -31,7 +31,6 @@ const Upload: React.FC = () => {
         message.warning('Excel 파일 경로가 설정되지 않았습니다.')
         return
       }
-
       if (!settings?.imageDir) {
         message.warning('이미지 디렉토리가 설정되지 않았습니다.')
         return
@@ -39,19 +38,20 @@ const Upload: React.FC = () => {
 
       setLoading(true)
 
-      // Excel 데이터 로드 (main process에서 처리)
       const products = await ipcRenderer.invoke('load-excel-data', {
         excelPath: settings.excelPath,
         imageDir: settings.imageDir,
       })
 
-      setData(products.map((p: any, index: number) => ({
+      const loadedData = products.map((p: any, index: number) => ({
         key: index.toString(),
         goodsName: p.goodsName,
         spec: p.spec,
         modelName: p.modelName,
         originalData: p,
-      })))
+      }))
+      setData(loadedData)
+      setSelectedKeys(loadedData.map((item) => item.key))
 
       message.success('Excel 데이터를 성공적으로 불러왔습니다.')
     } catch (error) {
@@ -62,9 +62,20 @@ const Upload: React.FC = () => {
     }
   }
 
+  const rowSelection: TableRowSelection<ProductData> = {
+    type: 'checkbox',
+    selectedRowKeys: selectedKeys,
+    onChange: (selectedRowKeys) => {
+      setSelectedKeys(selectedRowKeys)
+    },
+    getCheckboxProps: (record) => ({
+      disabled: loading,
+    }),
+  }
+
   const handleUpload = async () => {
     try {
-      if (selectedKey === null) {
+      if (selectedKeys.length === 0) {
         message.warning('등록할 상품을 선택해주세요.')
         return
       }
@@ -77,32 +88,31 @@ const Upload: React.FC = () => {
 
       setLoading(true)
 
-      // 자동화 시작
       await ipcRenderer.invoke('start-automation', {
         loginId: settings.loginId,
         loginPw: settings.loginPw,
       })
 
-      // 선택된 상품 등록
-      const index = data.findIndex(item => item.key === selectedKey)
-      if (index !== -1) {
-        const product = data[index]
+      for (const key of selectedKeys) {
+        const product = data.find((item) => item.key === key)
 
-        try {
-          // 상품 등록 실행 (main process에서 처리)
-          await ipcRenderer.invoke('register-product', product.originalData)
-          message.success(`상품 "${product.goodsName}"이 성공적으로 등록되었습니다.`)
-        } catch (error) {
-          console.error(`Failed to register product: ${product.goodsName}`, error)
-          message.error(`상품 "${product.goodsName}" 등록에 실패했습니다.`)
+        if (product) {
+          try {
+            await ipcRenderer.invoke('register-product', {
+              productData: product.originalData,
+              excelPath: settings.excelPath,
+            })
+            message.success(`상품 "${product.goodsName}"이 성공적으로 등록되었습니다.`)
+          } catch (error) {
+            console.error(`Failed to register product: ${product.goodsName}`, error)
+            message.error(`상품 "${product.goodsName}" 등록에 실패했습니다.`)
+          }
         }
       }
     } catch (error) {
       console.error('Upload process failed:', error)
       message.error('상품 등록 과정에서 오류가 발생했습니다.')
     } finally {
-      // 자동화 종료
-      // await ipcRenderer.invoke('close-automation')
       setLoading(false)
     }
   }
@@ -125,21 +135,10 @@ const Upload: React.FC = () => {
     },
   ]
 
-  const rowSelection: TableRowSelection<ProductData> = {
-    type: 'radio',
-    selectedRowKeys: selectedKey ? [selectedKey] : [],
-    onChange: (selectedRowKeys) => {
-      setSelectedKey(selectedRowKeys[0] || null)
-    },
-    getCheckboxProps: (record) => ({
-      disabled: loading,
-    }),
-  }
-
-  const downloadSampleExcel = () => {
+  const downloadSampleExcel = async () => {
     const excelFilePath = path.join(__dirname, '../../files/상품등록_형식포함_예시양식.xlsx')
-    ipcRenderer.invoke('download-file', excelFilePath)
-    message.success('엑셀 파일 다운로드가 시작되었습니다.')
+    await ipcRenderer.invoke('download-file', excelFilePath)
+    await message.success('엑셀 파일 다운로드가 시작되었습니다.')
   }
 
   return (
@@ -159,7 +158,7 @@ const Upload: React.FC = () => {
             icon={<UploadOutlined/>}
             onClick={handleUpload}
             loading={loading}
-            disabled={selectedKey === null}
+            disabled={selectedKeys.length === 0}
           >
             선택 상품 등록
           </Button>

@@ -4,6 +4,7 @@ import Store from 'electron-store'
 import {S2BAutomation} from './s2b-automation'
 import fs from 'fs/promises'
 import * as fsSync from 'fs'
+import * as XLSX from 'xlsx'
 
 interface StoreSchema {
   settings: {
@@ -44,8 +45,8 @@ function createWindow() {
     console.log('Loading dev server at http://localhost:8080')
     mainWindow.loadURL('http://localhost:8080')
   } else {
-    const indexPath = path.resolve(app.getAppPath(), 'dist/renderer/index.html');
-    mainWindow.loadFile(indexPath);
+    const indexPath = path.resolve(app.getAppPath(), 'dist/renderer/index.html')
+    mainWindow.loadFile(indexPath)
   }
 }
 
@@ -56,27 +57,27 @@ function setupIpcHandlers() {
 
   // Excel 데이터 로드 및 automation 초기화
 
-  ipcMain.handle('load-excel-data', async (_, { excelPath, imageDir }) => {
+  ipcMain.handle('load-excel-data', async (_, {excelPath, imageDir}) => {
     try {
       // 경로 확인 및 유효성 체크
-      const resolvedExcelPath = path.resolve(excelPath);
-      const resolvedImageDir = path.resolve(imageDir);
+      const resolvedExcelPath = path.resolve(excelPath)
+      const resolvedImageDir = path.resolve(imageDir)
 
       if (!fsSync.existsSync(resolvedExcelPath)) {
-        throw new Error(`Excel file does not exist: ${resolvedExcelPath}`);
+        throw new Error(`Excel file does not exist: ${resolvedExcelPath}`)
       }
       if (!fsSync.existsSync(resolvedImageDir)) {
-        throw new Error(`Image directory does not exist: ${resolvedImageDir}`);
+        throw new Error(`Image directory does not exist: ${resolvedImageDir}`)
       }
 
-      const automation = new S2BAutomation(resolvedImageDir);
-      const data = await automation.readExcelFile(resolvedExcelPath);
-      return data;
+      const automation = new S2BAutomation(resolvedImageDir)
+      const data = await automation.readExcelFile(resolvedExcelPath)
+      return data
     } catch (error) {
-      console.error('Error loading Excel data:', error);
-      throw error;
+      console.error('Error loading Excel data:', error)
+      throw error
     }
-  });
+  })
   // 자동화 시작
   ipcMain.handle('start-automation', async (_, {loginId, loginPw}) => {
     try {
@@ -94,17 +95,83 @@ function setupIpcHandlers() {
     }
   })
 
-  // 상품 등록
-  ipcMain.handle('register-product', async (_, productData) => {
+  ipcMain.handle('register-product', async (_, {productData, excelPath}) => {
     try {
       if (!automation) {
         throw new Error('Automation not initialized')
       }
-      await automation.registerProduct(productData)
-      return true
+
+      await automation.registerProduct(productData) // 상품 등록 로직
+
+      // 등록 성공 메시지 추가
+      const workbook = XLSX.readFile(excelPath)
+      const sheet = workbook.Sheets[workbook.SheetNames[0]]
+      const rows: any[] = XLSX.utils.sheet_to_json(sheet, {header: 1})
+
+      const headers = rows[0] // 첫 번째 행은 헤더
+      const productIndex = rows.findIndex((row) => row.includes(productData.goodsName))
+
+      if (productIndex !== -1) {
+        const resultColumnKey = '결과' // "결과" 열 이름
+
+        // 결과열 확인: 없으면 첫 번째 열(A 열)에 추가
+        let resultColumnIndex = headers.indexOf(resultColumnKey)
+        if (resultColumnIndex === -1) {
+          headers.unshift(resultColumnKey) // 첫 번째 열로 추가
+          resultColumnIndex = 0 // A 열로 설정
+          rows.forEach((row, index) => {
+            if (index > 0) row.unshift('') // 데이터 행도 맞춰서 빈 값 추가
+          })
+        }
+
+        // 성공 메시지 작성
+        rows[productIndex][resultColumnIndex] = '성공'
+
+        // 시트 업데이트 및 저장
+        const updatedSheet = XLSX.utils.aoa_to_sheet(rows)
+        workbook.Sheets[workbook.SheetNames[0]] = updatedSheet
+        XLSX.writeFile(workbook, excelPath)
+      }
+
+      return {success: true}
     } catch (error) {
       console.error('Failed to register product:', error)
-      throw error
+
+      // 에러 메시지 추가
+      try {
+        const workbook = XLSX.readFile(excelPath)
+        const sheet = workbook.Sheets[workbook.SheetNames[0]]
+        const rows: any[] = XLSX.utils.sheet_to_json(sheet, {header: 1})
+
+        const headers = rows[0]
+        const productIndex = rows.findIndex((row) => row.includes(productData.goodsName))
+
+        if (productIndex !== -1) {
+          const resultColumnKey = '결과'
+
+          // 결과열 확인: 없으면 첫 번째 열(A 열)에 추가
+          let resultColumnIndex = headers.indexOf(resultColumnKey)
+          if (resultColumnIndex === -1) {
+            headers.unshift(resultColumnKey) // 첫 번째 열로 추가
+            resultColumnIndex = 0 // A 열로 설정
+            rows.forEach((row, index) => {
+              if (index > 0) row.unshift('') // 데이터 행도 맞춰서 빈 값 추가
+            })
+          }
+
+          // 에러 메시지 작성
+          rows[productIndex][resultColumnIndex] = error.message || '알 수 없는 에러'
+
+          // 시트 업데이트 및 저장
+          const updatedSheet = XLSX.utils.aoa_to_sheet(rows)
+          workbook.Sheets[workbook.SheetNames[0]] = updatedSheet
+          XLSX.writeFile(workbook, excelPath)
+        }
+      } catch (excelError) {
+        console.error('Failed to update Excel with error message:', excelError)
+      }
+
+      return {success: false, error: error.message}
     }
   })
 
