@@ -34,7 +34,7 @@
     "start:renderer": "cross-env NODE_ENV=development webpack serve --config webpack.config.js",
     "debug": "rimraf dist/* && concurrently \"yarn debug:renderer\" \"wait-on tcp:8080 && yarn debug:main\"",
     "debug:main": "tsc -p tsconfig.electron.json && cross-env ELECTRON_DEBUG=true electron --inspect=9229 .",
-    "debug:renderer": "cross-env ELECTRON_DEBUG=true NODE_ENV=development node --inspect=9233 ./node_modules/.bin/webpack serve --config webpack.config.js",
+    "debug:renderer": "cross-env ELECTRON_DEBUG=true NODE_ENV=development node --inspect=9228 ./node_modules/webpack/bin/webpack.js serve --config webpack.config.js",
     "clean": "rimraf dist/*",
     "build": "yarn clean && yarn build:main && yarn build:renderer",
     "build:main": "tsc -p tsconfig.electron.json",
