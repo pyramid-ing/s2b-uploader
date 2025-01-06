@@ -7,7 +7,7 @@
     "forceConsistentCasingInFileNames": true,
     "outDir": "./dist/electron",
     "rootDir": "./src/electron",
-    "sourceMap": true,
+    "sourceMap": false,
     "noImplicitAny": false,
     "strict": false
   },

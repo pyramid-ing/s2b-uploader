@@ -1,9 +1,8 @@
 import React, {useEffect, useState} from 'react'
 import {Button, Card, message, Space, Table} from 'antd'
-import {DownloadOutlined, ReloadOutlined, UploadOutlined} from '@ant-design/icons'
+import {ReloadOutlined, UploadOutlined} from '@ant-design/icons'
 import type {ColumnsType} from 'antd/es/table'
 import {TableRowSelection} from 'antd/es/table/interface'
-import path from 'node:path'
 
 const {ipcRenderer} = window.require('electron')
 
@@ -135,12 +134,6 @@ const Upload: React.FC = () => {
     },
   ]
 
-  const downloadSampleExcel = async () => {
-    const excelFilePath = path.join(__dirname, '../../files/상품등록_형식포함_예시양식.xlsx')
-    await ipcRenderer.invoke('download-file', excelFilePath)
-    await message.success('엑셀 파일 다운로드가 시작되었습니다.')
-  }
-
   return (
     <Card
       title="상품 등록"
@@ -161,13 +154,6 @@ const Upload: React.FC = () => {
             disabled={selectedKeys.length === 0}
           >
             선택 상품 등록
-          </Button>
-          <Button
-            type="primary"
-            icon={<DownloadOutlined/>}
-            onClick={downloadSampleExcel}
-          >
-            엑셀 예시 다운로드
           </Button>
         </Space>
       }

@@ -52,6 +52,10 @@ const config = {
                     to: path.join(__dirname, 'dist', 'electron', 'files'),
                     toType: 'dir',
                 },
+                {
+                    from: path.resolve(__dirname, '필독.txt'), // 소스 파일 경로
+                    to: path.resolve(__dirname, 'dist/필독.txt'), // 빌드 출력 경로
+                },
             ],
         }),
     ],

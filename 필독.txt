@@ -1,0 +1,4 @@
+아래 프로그램 설치가 필수적입니다.
+
+크롬 브라우저
+https://www.google.com/intl/ko/chrome/
