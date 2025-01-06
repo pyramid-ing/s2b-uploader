@@ -1,4 +1,4 @@
-name: Build and Release S2B AUTO Electron App
+name: Build and Release S2B Uploader Electron App
 
 on:
   push:
@@ -48,11 +48,11 @@ jobs:
       # 7. 압축
       - name: Compress Artifacts
         run: |
-          tar -czf electron-app.tar.gz -C dist .
+          tar -czf s2b-uploader.tar.gz -C dist .
 
       # 8. 아티팩트 업로드 (압축된 파일 저장)
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: electron-app
-          path: electron-app.tar.gz
+          name: s2b-uploader
+          path: s2b-uploader.tar.gz
