@@ -85,8 +85,8 @@ interface ProductData {
 
   // 상세설명 및 이미지
   detailHtml: string; // 상세설명 HTML
-  mainImage?: string; // 대표이미지 파일경로
-  optionImage?: string; // 옵션이미지 파일경로
+  image1?: string; // 기본이미지1 파일경로
+  image2?: string; // 기본이미지2 파일경로
   addImage1?: string; // 추가이미지1 파일경로
   addImage2?: string; // 추가이미지2 파일경로
   detailImage?: string; // 상세이미지 파일경로
@@ -208,7 +208,7 @@ export class S2BAutomation {
       throw new Error('Chrome 브라우저를 찾을 수 없습니다. Chrome이 설치되어 있는지 확인해주세요.')
     }
     if (!this.chromePath || !fsSync.existsSync(this.chromePath)) {
-      throw new Error('Chrome 실행 파일 경로를 찾을 수 없습니다. Windows 환경에서 Chrome이 설치되어 있는지 확인하세요.');
+      throw new Error('Chrome 실행 파일 경로를 찾을 수 없습니다. Windows 환경에서 Chrome이 설치되어 있는지 확인하세요.')
     }
   }
 
@@ -292,12 +292,12 @@ export class S2BAutomation {
           broadcastingKcFile: row['방송통신KC성적서']?.toString(),
 
           // 이미지 및 상세설명
-          detailHtml: row['상세설명HTML']?.toString() || '',
-          mainImage: row['대표이미지']?.toString(),
-          optionImage: row['옵션이미지']?.toString(),
+          image1: row['기본이미지1']?.toString(),
+          image2: row['기본이미지2']?.toString(),
           addImage1: row['추가이미지1']?.toString(),
           addImage2: row['추가이미지2']?.toString(),
           detailImage: row['상세이미지']?.toString(),
+          detailHtml: row['상세설명HTML']?.toString() || '',
 
           // 납품가능기간
           deliveryLimitText,
@@ -538,7 +538,7 @@ export class S2BAutomation {
 
     // 승인관련 요청사항 입력
     if (data.approvalRequest) {
-      await this.page.type('input[name="f_memo"]', data.approvalRequest);
+      await this.page.type('input[name="f_memo"]', data.approvalRequest)
     }
 
     // 견적서 유효기간 선택
@@ -548,13 +548,13 @@ export class S2BAutomation {
         '15일': 'ZD000003',
         '10일': 'ZD000002',
         '7일': 'ZD000001',
-      };
+      }
 
-      const optionValue = validityMap[data.estimateValidity];
+      const optionValue = validityMap[data.estimateValidity]
       if (optionValue) {
-        await this.page.select('select[name="f_estimate_validate_code"]', optionValue);
+        await this.page.select('select[name="f_estimate_validate_code"]', optionValue)
       } else {
-        console.error(`Invalid estimate validity: ${data.estimateValidity}`);
+        console.error(`Invalid estimate validity: ${data.estimateValidity}`)
       }
     }
   }
@@ -718,26 +718,26 @@ export class S2BAutomation {
     if (!this.page) return
 
     const certFields = [
-      { name: 'f_woman_cert', value: data.womanCert },
-      { name: 'f_disabledCompany_cert', value: data.disabledCompanyCert },
-      { name: 'f_foundation_cert', value: data.foundationCert },
-      { name: 'f_disabled_cert', value: data.disabledCert },
-      { name: 'f_several_cert', value: data.severalCert },
-      { name: 'f_cooperation_cert', value: data.cooperationCert },
-      { name: 'f_society_cert', value: data.societyCert },
-      { name: 'f_recycle_cert', value: data.recycleCert },
-      { name: 'f_environment_cert', value: data.environmentCert },
-      { name: 'f_lowCarbon_cert', value: data.lowCarbonCert },
-      { name: 'f_swQuality_cert', value: data.swQualityCert },
-      { name: 'f_nep_cert', value: data.nepCert },
-      { name: 'f_net_cert', value: data.netCert },
-      { name: 'f_greenProduct_cert', value: data.greenProductCert },
-      { name: 'f_epc_cert', value: data.epcCert },
-      { name: 'f_procure_cert', value: data.procureCert },
-      { name: 'f_seoulTown_cert', value: data.seoulTownCert },
-      { name: 'f_seoulSelf_cert', value: data.seoulSelfCert },
-      { name: 'f_seoulCollaboration_cert', value: data.seoulCollaborationCert },
-      { name: 'f_seoulReserve_cert', value: data.seoulReserveCert },
+      {name: 'f_woman_cert', value: data.womanCert},
+      {name: 'f_disabledCompany_cert', value: data.disabledCompanyCert},
+      {name: 'f_foundation_cert', value: data.foundationCert},
+      {name: 'f_disabled_cert', value: data.disabledCert},
+      {name: 'f_several_cert', value: data.severalCert},
+      {name: 'f_cooperation_cert', value: data.cooperationCert},
+      {name: 'f_society_cert', value: data.societyCert},
+      {name: 'f_recycle_cert', value: data.recycleCert},
+      {name: 'f_environment_cert', value: data.environmentCert},
+      {name: 'f_lowCarbon_cert', value: data.lowCarbonCert},
+      {name: 'f_swQuality_cert', value: data.swQualityCert},
+      {name: 'f_nep_cert', value: data.nepCert},
+      {name: 'f_net_cert', value: data.netCert},
+      {name: 'f_greenProduct_cert', value: data.greenProductCert},
+      {name: 'f_epc_cert', value: data.epcCert},
+      {name: 'f_procure_cert', value: data.procureCert},
+      {name: 'f_seoulTown_cert', value: data.seoulTownCert},
+      {name: 'f_seoulSelf_cert', value: data.seoulSelfCert},
+      {name: 'f_seoulCollaboration_cert', value: data.seoulCollaborationCert},
+      {name: 'f_seoulReserve_cert', value: data.seoulReserveCert},
     ]
 
     for (const cert of certFields) {
@@ -843,7 +843,7 @@ export class S2BAutomation {
     }
   }
 
-  private async uploadImage(inputSelector: string, filePath: string) {
+  private async uploadImage(inputSelector: string, filePath: string, statusSelector?: string) {
     if (!this.page) return
 
     try {
@@ -864,49 +864,59 @@ export class S2BAutomation {
           }
         }, inputSelector)
 
-        // 업로드 완료 대기
-        await delay(1000)
+        if (statusSelector) {
+          // 상태 셀렉터가 제공된 경우, 업로드 완료 상태 확인
+          await this.page.waitForFunction(
+            (selector) => {
+              const element = document.querySelector(selector)
+              return element && element.textContent?.trim() === '이미지 용량 확인 완료'
+            },
+            {timeout: 20000},
+            statusSelector,
+          )
+          console.log(`Image uploaded successfully: ${filePath}`)
+        } else {
+          // 상태 셀렉터가 없는 경우 2000ms 대기
+          console.log(`No status selector provided, waiting 2000ms for ${filePath}`)
+          await new Promise((resolve) => setTimeout(resolve, 2000))
+        }
       }
     } catch (error) {
       console.error(`Failed to upload image ${filePath}:`, error)
+      throw error
     }
   }
 
   private async uploadAllImages(data: ProductData) {
     if (!this.page) return
 
-    if (data.mainImage) {
-      const mainImagePath = path.join(this.baseImagePath, data.mainImage)
-      await this.uploadImage('#f_img1_file', mainImagePath)
-
+    if (data.image1) {
+      const mainImagePath = path.join(this.baseImagePath, data.image1)
+      await this.uploadImage('#f_img1_file', mainImagePath, '#f_img1_file_size_ck')
       await delay(1000)
     }
 
-    if (data.optionImage) {
-      const optionImagePath = path.join(this.baseImagePath, data.optionImage)
-      await this.uploadImage('#f_img2_file', optionImagePath)
-
+    if (data.image2) {
+      const optionImagePath = path.join(this.baseImagePath, data.image2)
+      await this.uploadImage('#f_img2_file', optionImagePath, '#f_img2_file_size_ck')
       await delay(1000)
     }
 
     if (data.addImage1) {
       const addImage1Path = path.join(this.baseImagePath, data.addImage1)
-      await this.uploadImage('#f_img3_file', addImage1Path)
-
+      await this.uploadImage('#f_img3_file', addImage1Path, '#f_img3_file_size_ck')
       await delay(1000)
     }
 
     if (data.addImage2) {
       const addImage2Path = path.join(this.baseImagePath, data.addImage2)
-      await this.uploadImage('#f_img4_file', addImage2Path)
-
+      await this.uploadImage('#f_img4_file', addImage2Path, '#f_img4_file_size_ck')
       await delay(1000)
     }
 
     if (data.detailImage) {
       const detailImagePath = path.join(this.baseImagePath, data.detailImage)
-      await this.uploadImage('#f_goods_explain_img_file', detailImagePath)
-
+      await this.uploadImage('#f_goods_explain_img_file', detailImagePath, '#f_goods_explain_img_file_size_ck')
       await delay(1000)
     }
 
