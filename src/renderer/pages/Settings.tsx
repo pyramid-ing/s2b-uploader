@@ -100,7 +100,7 @@ const Settings: React.FC = () => {
       >
         {/* 기존 Form.Items는 그대로 유지 */}
         <Form.Item
-          label="이미지 디렉토리"
+          label="이미지 폴더 경로"
           name="imageDir"
           rules={[{required: true, message: '이미지 디렉토리를 선택해주세요'}]}
         >
@@ -120,7 +120,7 @@ const Settings: React.FC = () => {
         </Form.Item>
 
         <Form.Item
-          label="Excel 파일"
+          label="등록용 Excel 파일 경로"
           name="excelPath"
           rules={[{required: true, message: 'Excel 파일을 선택해주세요'}]}
         >
