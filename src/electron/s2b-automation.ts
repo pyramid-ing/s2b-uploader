@@ -382,8 +382,7 @@ export class S2BAutomation {
         if (message.includes('S2B의 “견적정보 등록”은 지방자치단체를 당사자로 하는 계약에 관한 법률 시행령 제30조')) {
           await dialog.accept() // "확인" 버튼 자동 클릭
         } else if (message.includes('등록대기 상태로 변경되었으며')) {
-          console.log('Registration successful: "등록대기 상태로 변경되었으며".')
-          await dialog.accept() // 성공으로 처리
+          // register
         } else {
           console.error('Registration Error:', message)
           this.dialogErrorMessage = message // 에러 메시지 저장
@@ -992,7 +991,44 @@ export class S2BAutomation {
       })
     }
 
+    // Dialog 메시지 대기 Promise
+    const dialogPromise = new Promise<void>((resolve, reject) => {
+      const timeout = setTimeout(() => reject(new Error('Dialog message not received')), 20000);
+
+      const onDialog = async (dialog: puppeteer.Dialog) => {
+        try {
+          const message = dialog.message();
+
+          if (message.includes('등록대기 상태로 변경되었으며')) {
+            console.log('Registration successful: "등록대기 상태로 변경되었으며".');
+            await dialog.accept();
+            clearTimeout(timeout);
+            this.page?.off('dialog', onDialog); // 이벤트 제거
+            resolve();
+          } else {
+            console.error('Unexpected dialog message:', message);
+            await dialog.dismiss();
+          }
+        } catch (error) {
+          console.error('Dialog 처리 중 오류:', error);
+          reject(error);
+        }
+      };
+
+      this.page?.on('dialog', onDialog);
+    });
+
     // 임시저장 버튼 클릭
-    await this.page.click('a[href="javascript:register(\'1\');"]')
+    await this.page.click('a[href="javascript:register(\'1\');"]');
+    console.log('Register button clicked.');
+
+    // Dialog 처리 완료 대기
+    try {
+      await dialogPromise;
+      console.log('Dialog 처리 완료.');
+    } catch (error) {
+      console.error('Dialog 처리 중 오류 발생:', error);
+      throw error;
+    }
   }
 }
