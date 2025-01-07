@@ -105,7 +105,7 @@ interface ProductData {
 
 type SaleType = '물품' | '용역';
 type DeliveryFeeType = '무료' | '유료' | '조건부무료';
-type HomeType = '국내' | '해외';
+type HomeType = '국내' | '국외';
 type DeliveryLimitType = '3일' | '5일' | '7일' | '15일' | '30일' | '45일';
 
 const DELIVERY_LIMIT_MAP: Record<DeliveryLimitType, string> = {
@@ -132,7 +132,7 @@ const DELIVERY_TYPE_MAP: Record<DeliveryFeeType, string> = {
 
 const HOME_DIVI_MAP: Record<HomeType, string> = {
   '국내': '1',
-  '해외': '2',
+  '국외': '2',
 }
 
 const REGION_CODE_MAP = {
@@ -305,7 +305,7 @@ export class S2BAutomation {
 
           // 원산지 정보 매핑 (자동입력)
           originType: row['원산지구분']?.toString() || '국내',
-          originLocal: row['국내원산지']?.toString() || '경기',
+          originLocal: row['국내원산지']?.toString() || '서울',
           originForeign: row['해외원산지']?.toString() || '',
 
           // 판매단위와 과세여부
@@ -593,7 +593,7 @@ export class S2BAutomation {
           select.dispatchEvent(new Event('change', {bubbles: true}))
         }
       }, data.originLocal)
-    } else if (data.originType === '해외' && data.originForeign) {
+    } else if (data.originType === '국외' && data.originForeign) {
       await this.page.evaluate((foreignName) => {
         const select = document.querySelector('#select_home_02') as HTMLSelectElement
         const options = Array.from(select.options)
