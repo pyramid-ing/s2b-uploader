@@ -3,6 +3,7 @@ import * as XLSX from 'xlsx'
 import path from 'node:path'
 import fs from 'fs/promises'
 import * as fsSync from 'fs'
+import dayjs from 'dayjs'
 
 interface ProductData {
   // 등록구분을 위한 텍스트 값
@@ -108,6 +109,10 @@ interface ProductData {
   safetyCheckKcCertId?: string; // 안전확인대상 생활화학제품 신고번호
   safetyCheckKcFile?: string; // 안전확인대상 생활화학제품 첨부 파일
 
+  ppsContractYn?: string; // 조달청 계약 여부 (Y/N)
+  ppsContractStartDate?: string; // 조달청 계약 시작일
+  ppsContractEndDate?: string; // 조달청 계약 종료일
+
   // 카테고리별 입력사항
   selPower?: string;             // 정격전압/소비전력
   selWeight?: string;            // 크기 및 무게
@@ -205,7 +210,6 @@ const UNIT_MAP = {
   '박스': 'ZD000303',
   '세트': 'ZD000244',
 }
-
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
@@ -370,6 +374,10 @@ export class S2BAutomation {
           safetyCheckKcCertId: row['안전확인대상신고번호']?.toString(),
           safetyCheckKcFile: row['안전확인대상첨부파일']?.toString(),
 
+          ppsContractYn: row['조달청계약여부']?.toString() || 'N',
+          ppsContractStartDate: row['계약시작일'] ? dayjs(row['계약시작일'].toString()).format('YYYYMMDD') : '',
+          ppsContractEndDate: row['계약종료일'] ? dayjs(row['계약종료일'].toString()).format('YYYYMMDD') : '',
+
           selPower: row['정격전압/소비전력']?.toString() || '',
           selWeight: row['크기및무게']?.toString() || '',
           selSameDate: row['동일모델출시년월']?.toString() || '',
@@ -532,7 +540,9 @@ export class S2BAutomation {
       // KC 인증 정보 설정
       await this.setKcCertifications(data)
       // 기타첨부서류
-      await this.setOtherAttachments(data);
+      await this.setOtherAttachments(data)
+      // 조달청 계약여부
+      await this.setPpsContract(data)
       // 배송비 설정
       await this.setDeliveryFee(data)
       // 상세설명 HTML 설정
@@ -918,26 +928,53 @@ export class S2BAutomation {
   }
 
   async setOtherAttachments(data: ProductData) {
-    if (!this.page) throw new Error('Browser not initialized');
+    if (!this.page) throw new Error('Browser not initialized')
 
     // 어린이 하차 확인 장치
-    await this.page.click(`input[name="childexitcheckerKcUseGubunChk"][value="${data.childExitCheckerKcType}"]`);
+    await this.page.click(`input[name="childexitcheckerKcUseGubunChk"][value="${data.childExitCheckerKcType}"]`)
     if (data.childExitCheckerKcType === 'Y' && data.childExitCheckerKcCertId) {
-      await this.page.type('#childexitcheckerKcCertId', data.childExitCheckerKcCertId);
-      await this.page.click('a[href="JavaScript:KcCertRegist(\'childexitchecker\');"]');
+      await this.page.type('#childexitcheckerKcCertId', data.childExitCheckerKcCertId)
+      await this.page.click('a[href="JavaScript:KcCertRegist(\'childexitchecker\');"]')
     } else if (data.childExitCheckerKcType === 'F' && data.childExitCheckerKcFile) {
-      await this.uploadImage('#f_kcCertChildExitCheckerImg_file', path.join(this.baseImagePath, data.childExitCheckerKcFile));
+      await this.uploadImage('#f_kcCertChildExitCheckerImg_file', path.join(this.baseImagePath, data.childExitCheckerKcFile))
     }
 
     // 안전확인대상 생활화학제품
-    await this.page.click(`input[name="safetycheckKcUseGubunChk"][value="${data.safetyCheckKcType}"]`);
+    await this.page.click(`input[name="safetycheckKcUseGubunChk"][value="${data.safetyCheckKcType}"]`)
     if (data.safetyCheckKcType === 'Y' && data.safetyCheckKcCertId) {
-      await this.page.type('#safetycheckKcCertId', data.safetyCheckKcCertId);
+      await this.page.type('#safetycheckKcCertId', data.safetyCheckKcCertId)
     } else if (data.safetyCheckKcType === 'F' && data.safetyCheckKcFile) {
-      await this.uploadImage('#f_kcCertSafetycheckImg_file', path.join(this.baseImagePath, data.safetyCheckKcFile));
+      await this.uploadImage('#f_kcCertSafetycheckImg_file', path.join(this.baseImagePath, data.safetyCheckKcFile))
     }
   }
 
+  async setPpsContract(data: ProductData) {
+    if (!this.page) throw new Error('Browser not initialized')
+
+    // 계약 여부 설정
+    await this.page.click(`input[name="f_pps_c_yn"][value="${data.ppsContractYn}"]`)
+
+    // 계약일 입력
+    if (data.ppsContractYn === 'Y') {
+      if (data.ppsContractStartDate) {
+        await this.page.evaluate((startDate) => {
+          const input = document.querySelector('input[name="f_pps_c_s_dt"]') as HTMLInputElement
+          if (input) {
+            input.value = startDate
+          }
+        }, data.ppsContractStartDate)
+      }
+
+      if (data.ppsContractEndDate) {
+        await this.page.evaluate((endDate) => {
+          const input = document.querySelector('input[name="f_pps_c_e_dt"]') as HTMLInputElement
+          if (input) {
+            input.value = endDate
+          }
+        }, data.ppsContractEndDate)
+      }
+    }
+  }
 
   private async uploadImage(inputSelector: string, filePath: string, statusSelector?: string) {
     if (!this.page) return
