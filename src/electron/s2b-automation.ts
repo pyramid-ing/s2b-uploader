@@ -1267,8 +1267,7 @@ export class S2BAutomation {
             this.page?.off('dialog', onDialog) // 이벤트 제거
             resolve()
           } else {
-            console.error('Unexpected dialog message:', message)
-            await dialog.dismiss()
+            throw new Error(message)
           }
         } catch (error) {
           console.error('Dialog 처리 중 오류:', error)
