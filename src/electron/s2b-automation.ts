@@ -187,48 +187,6 @@ const CONSUMPTION_PERIOD_MAP: Record<string, string> = {
   '직접입력': 'date',
 }
 
-const REGION_CODE_MAP = {
-  '강원': 'ZD000025',
-  '경기': 'ZD000026',
-  '경남': 'ZD000027',
-  '경북': 'ZD000028',
-  '광주': 'ZD000029',
-  '대구': 'ZD000030',
-  '대전': 'ZD000031',
-  '부산': 'ZD000032',
-  '서울': 'ZD000033',
-  '세종': 'ZD000069',
-  '울산': 'ZD000034',
-  '인천': 'ZD000035',
-  '전남': 'ZD000036',
-  '전북': 'ZD000037',
-  '제주': 'ZD000038',
-  '충남': 'ZD000039',
-  '충북': 'ZD000040',
-}
-
-const TAX_METHOD_MAP = {
-  '과세(세금계산서)': '1',
-  '비과세(계산서)': '2',
-  '비과세(영수증)': '3',
-}
-
-const UNIT_MAP = {
-  'cc': 'ZD000127',
-  'cm': 'ZD000095',
-  'g': 'ZD000108',
-  'kg': 'ZD000107',
-  'km': 'ZD000097',
-  'm': 'ZD000096',
-  'SET': 'ZD000244',
-  '개': 'ZD000048',
-  '건': 'ZD000298',
-  '권': 'ZD000050',
-  '대': 'ZD000049',
-  '박스': 'ZD000303',
-  '세트': 'ZD000244',
-}
-
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
 export class S2BAutomation {
@@ -1112,24 +1070,6 @@ export class S2BAutomation {
     }
   }
 
-  async modifyHtmlAndSubmit(page: puppeteer.Page, textContent: string) {
-    try {
-      // 1. 특정 버튼 클릭
-      await page.click('#submit-button') // 버튼 ID를 #submit-button로 가정
-      console.log('버튼 클릭 완료')
-
-      // 2. textarea에 값 입력
-      await page.type('#text-input', textContent) // textarea의 ID를 #text-input로 가정
-      console.log('textarea 값 입력 완료')
-
-      // 3. 입력 후 확인 (옵션)
-      const textareaValue = await page.$eval('#text-input', (el: any) => el.value)
-      console.log('입력된 값 확인:', textareaValue)
-    } catch (error) {
-      console.error('HTML 수정 및 제출 중 오류 발생:', error)
-    }
-  }
-
   private async setAsInfo(data: ProductData) {
     if (!this.page) return
 
@@ -1198,7 +1138,6 @@ export class S2BAutomation {
       await this.page.click('input[name="delivery_area"][value="2"]')
 
       for (const area of data.deliveryAreas) {
-        console.log(area)
         await this.page.evaluate((areaName) => {
           const checkboxes = document.querySelectorAll('#area1 input[type="checkbox"]')
           checkboxes.forEach((checkbox) => {
