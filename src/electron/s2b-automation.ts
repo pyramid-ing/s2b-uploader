@@ -78,8 +78,6 @@ interface ProductData {
   deliveryFeeKindText: DeliveryFeeType;
   deliveryFeeKind: string; // 배송비 종류 (1: 무료, 2: 유료, 3: 조건부무료)
   deliveryFee: string; // 배송비 금액
-  deliveryFeeLimit1?: string; // 조건부무료 기준금액1
-  deliveryFeeLimit2?: string; // 조건부무료 기준금액2
   deliveryGroupYn: string; // 묶음배송여부 (Y/N)
   jejuDeliveryYn: string; // 제주배송여부 (Y/N)
   jejuDeliveryFee?: string; // 제주추가배송비
@@ -277,8 +275,6 @@ export class S2BAutomation {
           deliveryFeeKindText,
           deliveryFeeKind: DELIVERY_TYPE_MAP[deliveryFeeKindText],
           deliveryFee: row['배송비']?.toString() || '',
-          deliveryFeeLimit1: row['조건부무료기준금액1']?.toString(),
-          deliveryFeeLimit2: row['조건부무료기준금액2']?.toString(),
           deliveryGroupYn: row['묶음배송여부']?.toString() || 'Y',
           jejuDeliveryYn: row['제주배송여부']?.toString() || 'N',
           jejuDeliveryFee: row['제주추가배송비']?.toString(),
@@ -668,13 +664,6 @@ export class S2BAutomation {
     if (deliveryType === '2' && data.deliveryFee) { // 유료배송
       await this.page.type('input[name="f_delivery_fee1"]', data.deliveryFee)
     } else if (deliveryType === '3') { // 조건부무료
-      await this.page.type('input[name="f_delivery_fee2"]', data.deliveryFee)
-      if (data.deliveryFeeLimit1) {
-        await this.page.type('input[name="f_delivery_fee_limit1"]', data.deliveryFeeLimit1)
-      }
-      if (data.deliveryFeeLimit2) {
-        await this.page.type('input[name="f_delivery_fee_limit2"]', data.deliveryFeeLimit2)
-      }
     }
 
     // 나머지 배송 관련 설정들...
