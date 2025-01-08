@@ -113,6 +113,13 @@ interface ProductData {
   ppsContractStartDate?: string; // 조달청 계약 시작일
   ppsContractEndDate?: string; // 조달청 계약 종료일
 
+  // AS 정보
+  asTelephone1?: string; // 일반 전화번호
+  asTelephone2?: string; // 제조사 A/S 전화번호
+  addressCode?: string; // 도로명 코드
+  address?: string; // 주소
+  addressDetail?: string; // 나머지 주소
+
   // 카테고리별 입력사항
   selPower?: string;             // 정격전압/소비전력
   selWeight?: string;            // 크기 및 무게
@@ -126,6 +133,10 @@ interface ProductData {
   validateRadio?: string;        // 소비기한 선택 (라디오 버튼 값)
   fValidate?: string;            // 소비기한 직접입력 (직접 입력 필드 값)
 
+  deliveryMethod?: string; // 배송 방법 (1: 택배, 2: 직배송, 3: 우편 또는 등기)
+  // 새로 추가된 필드
+  deliveryAreas?: string[]; // 선택된 배송 지역 이름 배열
+
   approvalRequest: string; // 승인관련 요청사항
 }
 
@@ -133,6 +144,13 @@ type SaleType = '물품' | '용역';
 type DeliveryFeeType = '무료' | '유료' | '조건부무료';
 type HomeType = '국내' | '국외';
 type DeliveryLimitType = '3일' | '5일' | '7일' | '15일' | '30일' | '45일';
+
+const DELIVERY_METHOD_MAP: Record<string, string> = {
+  '택배': '1',
+  '직배송': '2',
+  '우편 또는 등기': '3',
+}
+
 
 const DELIVERY_LIMIT_MAP: Record<DeliveryLimitType, string> = {
   '3일': 'ZD000001',
@@ -374,6 +392,16 @@ export class S2BAutomation {
           safetyCheckKcCertId: row['안전확인대상신고번호']?.toString(),
           safetyCheckKcFile: row['안전확인대상첨부파일']?.toString(),
 
+          deliveryMethod: DELIVERY_METHOD_MAP[row['배송방법']?.toString().trim()] || '1', // 기본값: 택배
+          // 배송 지역 처리
+          deliveryAreas: row['배송지역']?.split(',').map((area: string) => area.trim()) || [],
+
+          asTelephone1: row['전화번호']?.toString() || '',
+          asTelephone2: row['제조사 A/S전화번호']?.toString() || '',
+          addressCode: row['도로명 코드']?.toString() || '',
+          address: row['주소']?.toString() || '',
+          addressDetail: row['나머지 주소']?.toString() || '',
+
           ppsContractYn: row['조달청계약여부']?.toString() || 'N',
           ppsContractStartDate: row['계약시작일'] ? dayjs(row['계약시작일'].toString()).format('YYYYMMDD') : '',
           ppsContractEndDate: row['계약종료일'] ? dayjs(row['계약종료일'].toString()).format('YYYYMMDD') : '',
@@ -543,6 +571,8 @@ export class S2BAutomation {
       await this.setOtherAttachments(data)
       // 조달청 계약여부
       await this.setPpsContract(data)
+      // 배송정보
+      await this.setDeliveryInfo(data)
       // 배송비 설정
       await this.setDeliveryFee(data)
       // 상세설명 HTML 설정
@@ -551,6 +581,8 @@ export class S2BAutomation {
       await this.setSalesUnitAndTax(data)
       // 반품/교환 배송비 입력
       await this.setReturnExchangeFee(data)
+      // AS정보입력
+      await this.setAsInfo(data)
       // 원산지 정보 설정 (자동입력 기능 포함)
       await this.setOriginInfo(data)
       // 청렴서약서 동의 및 등록
@@ -1095,6 +1127,91 @@ export class S2BAutomation {
       console.log('입력된 값 확인:', textareaValue)
     } catch (error) {
       console.error('HTML 수정 및 제출 중 오류 발생:', error)
+    }
+  }
+
+  private async setAsInfo(data: ProductData) {
+    if (!this.page) return
+
+// 전화번호 입력
+    if (data.asTelephone1) {
+      // 값 지우기
+      await this.page.evaluate(() => {
+        const input = document.querySelector('input[name="f_as_telephone1"]') as HTMLInputElement
+        if (input) input.value = '' // 기존 값 지우기
+      })
+      // 새 값 입력
+      await this.page.type('input[name="f_as_telephone1"]', data.asTelephone1)
+    }
+
+// 제조사 A/S 전화번호 입력
+    if (data.asTelephone2) {
+      // 값 지우기
+      await this.page.evaluate(() => {
+        const input = document.querySelector('input[name="f_as_telephone2"]') as HTMLInputElement
+        if (input) input.value = '' // 기존 값 지우기
+      })
+      // 새 값 입력
+      await this.page.type('input[name="f_as_telephone2"]', data.asTelephone2)
+    }
+
+    // 주소 입력
+    if (data.addressCode) {
+      await this.page.evaluate((addressCode) => {
+        const input = document.querySelector<HTMLInputElement>('input[name="f_address_code"]');
+        if (input) {
+          input.value = addressCode;
+        }
+      }, data.addressCode);
+    }
+
+    if (data.address) {
+      await this.page.evaluate((address) => {
+        const input = document.querySelector<HTMLInputElement>('input[name="f_address"]');
+        if (input) {
+          input.value = address;
+        }
+      }, data.address);
+    }
+
+    if (data.addressDetail) {
+      await this.page.evaluate((addressDetail) => {
+        const input = document.querySelector<HTMLInputElement>('input[name="f_address_detail"]');
+        if (input) {
+          input.value = addressDetail;
+        }
+      }, data.addressDetail);
+    }
+  }
+
+  private async setDeliveryInfo(data: ProductData) {
+    if (!this.page) return
+
+    // 배송 방법 선택
+    if (data.deliveryMethod) {
+      await this.page.click(`input[name="f_delivery_method"][value="${data.deliveryMethod}"]`)
+    }
+
+    // 배송 지역 선택
+    if (data.deliveryAreas?.length > 0) {
+      // "지역선택" 라디오 버튼 클릭
+      await this.page.click('input[name="delivery_area"][value="2"]')
+
+      for (const area of data.deliveryAreas) {
+        console.log(area)
+        await this.page.evaluate((areaName) => {
+          const checkboxes = document.querySelectorAll('#area1 input[type="checkbox"]')
+          checkboxes.forEach((checkbox) => {
+            const label = checkbox.nextSibling?.textContent?.trim()
+            if (label === areaName) {
+              (checkbox as HTMLInputElement).checked = true // 체크박스 선택
+            }
+          })
+        }, area)
+      }
+    } else {
+      // "전국" 라디오 버튼 클릭
+      await this.page.click('input[name="delivery_area"][value="1"]')
     }
   }
 
