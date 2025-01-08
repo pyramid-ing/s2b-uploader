@@ -107,6 +107,13 @@ interface ProductData {
   safetyCheckKcCertId?: string; // 안전확인대상 생활화학제품 신고번호
   safetyCheckKcFile?: string; // 안전확인대상 생활화학제품 첨부 파일
 
+  naraRegisterYn?: 'Y' | 'N'; // 나라장터 등록 여부
+  naraAmt?: string; // 나라장터 등록 가격
+  siteName?: string; // 사이트명
+  siteUrl?: string; // 사이트 주소
+  otherSiteRegisterYn?: 'Y' | 'N'; // 타사이트 등록 여부
+  otherSiteAmt?: string; // 타사이트 등록 가격
+
   ppsContractYn?: string; // 조달청 계약 여부 (Y/N)
   ppsContractStartDate?: string; // 조달청 계약 시작일
   ppsContractEndDate?: string; // 조달청 계약 종료일
@@ -346,6 +353,13 @@ export class S2BAutomation {
           safetyCheckKcCertId: row['안전확인대상신고번호']?.toString(),
           safetyCheckKcFile: row['안전확인대상첨부파일']?.toString(),
 
+          naraRegisterYn: row['나라장터등록여부']?.toString().trim() || 'N',
+          naraAmt: row['나라장터등록가격']?.toString().trim() || '',
+          siteName: row['사이트명']?.toString().trim() || '',
+          siteUrl: row['사이트주소']?.toString().trim() || '',
+          otherSiteRegisterYn: row['타사이트등록여부']?.toString().trim() || 'N',
+          otherSiteAmt: row['타사이트등록가격']?.toString().trim() || '',
+
           deliveryMethod: DELIVERY_METHOD_MAP[row['배송방법']?.toString().trim()] || '1', // 기본값: 택배
           // 배송 지역 처리
           deliveryAreas: row['배송지역']?.split(',').map((area: string) => area.trim()) || [],
@@ -531,6 +545,10 @@ export class S2BAutomation {
       await this.setDeliveryFee(data)
       // 상세설명 HTML 설정
       await this.setDetailHtml(data.detailHtml)
+      // 나라장터 정보 설정
+      await this.setNaraInformation(data)
+      // 타사이트 정보 설정
+      await this.setOtherSiteInformation(data)
       // 판매단위와 과세여부 설정
       await this.setSalesUnitAndTax(data)
       // 반품/교환 배송비 입력
@@ -1087,29 +1105,29 @@ export class S2BAutomation {
     // 주소 입력
     if (data.addressCode) {
       await this.page.evaluate((addressCode) => {
-        const input = document.querySelector<HTMLInputElement>('input[name="f_address_code"]');
+        const input = document.querySelector<HTMLInputElement>('input[name="f_address_code"]')
         if (input) {
-          input.value = addressCode;
+          input.value = addressCode
         }
-      }, data.addressCode);
+      }, data.addressCode)
     }
 
     if (data.address) {
       await this.page.evaluate((address) => {
-        const input = document.querySelector<HTMLInputElement>('input[name="f_address"]');
+        const input = document.querySelector<HTMLInputElement>('input[name="f_address"]')
         if (input) {
-          input.value = address;
+          input.value = address
         }
-      }, data.address);
+      }, data.address)
     }
 
     if (data.addressDetail) {
       await this.page.evaluate((addressDetail) => {
-        const input = document.querySelector<HTMLInputElement>('input[name="f_address_detail"]');
+        const input = document.querySelector<HTMLInputElement>('input[name="f_address_detail"]')
         if (input) {
-          input.value = addressDetail;
+          input.value = addressDetail
         }
-      }, data.addressDetail);
+      }, data.addressDetail)
     }
   }
 
@@ -1147,6 +1165,70 @@ export class S2BAutomation {
   async close() {
     if (this.browser) {
       await this.browser.close()
+    }
+  }
+
+  // 타사이트 등록 여부 및 정보 설정
+  private async setOtherSiteInformation(data: ProductData) {
+    if (!this.page) return
+
+    // 타사이트 등록 여부
+    if (data.otherSiteRegisterYn) {
+      await this.page.click(`input[name="f_site_register_yn"][value="${data.otherSiteRegisterYn}"]`)
+    }
+
+    // 타사이트 등록 가격
+    if (data.otherSiteAmt) {
+      await this.page.evaluate((amt) => {
+        const input = document.querySelector<HTMLInputElement>('input[name="f_site_amt"]')
+        if (input) {
+          input.value = amt
+          input.dispatchEvent(new Event('change', {bubbles: true}))
+        }
+      }, data.otherSiteAmt)
+    }
+  }
+
+  // 나라장터 등록 여부 및 정보 설정
+  private async setNaraInformation(data: ProductData) {
+    if (!this.page) return
+
+    // 나라장터 등록 여부
+    if (data.naraRegisterYn) {
+      await this.page.click(`input[name="f_nara_register_yn"][value="${data.naraRegisterYn}"]`)
+    }
+
+    // 나라장터 등록 가격
+    if (data.naraAmt) {
+      await this.page.evaluate((amt) => {
+        const input = document.querySelector<HTMLInputElement>('input[name="f_nara_amt"]')
+        if (input) {
+          input.value = amt
+          input.dispatchEvent(new Event('change', {bubbles: true}))
+        }
+      }, data.naraAmt)
+    }
+
+    // 사이트명
+    if (data.siteName) {
+      await this.page.evaluate((name) => {
+        const input = document.querySelector<HTMLInputElement>('input[name="f_site_name"]')
+        if (input) {
+          input.value = name
+          input.dispatchEvent(new Event('change', {bubbles: true}))
+        }
+      }, data.siteName)
+    }
+
+    // 사이트주소
+    if (data.siteUrl) {
+      await this.page.evaluate((url) => {
+        const input = document.querySelector<HTMLInputElement>('input[name="f_site_url"]')
+        if (input) {
+          input.value = url
+          input.dispatchEvent(new Event('change', {bubbles: true}))
+        }
+      }, data.siteUrl)
     }
   }
 
