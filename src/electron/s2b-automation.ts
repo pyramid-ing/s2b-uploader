@@ -100,6 +100,14 @@ interface ProductData {
   salesUnit: string; // 판매단위: "개", "세트", "박스" 등
   taxType: string;   // 과세여부: "과세(세금계산서)", "비과세(계산서)", "비과세(영수증)"
 
+  childExitCheckerKcType?: string; // 어린이 하차 확인 장치 부품 성능 확인서 등록 타입
+  childExitCheckerKcCertId?: string; // 어린이 하차 확인 장치 인증번호
+  childExitCheckerKcFile?: string; // 어린이 하차 확인 장치 첨부 파일
+
+  safetyCheckKcType?: string; // 안전확인대상 생활화학제품 신고번호 등록 타입
+  safetyCheckKcCertId?: string; // 안전확인대상 생활화학제품 신고번호
+  safetyCheckKcFile?: string; // 안전확인대상 생활화학제품 첨부 파일
+
   // 카테고리별 입력사항
   selPower?: string;             // 정격전압/소비전력
   selWeight?: string;            // 크기 및 무게
@@ -354,6 +362,14 @@ export class S2BAutomation {
           seoulCollaborationCert: row['협동조합']?.toString() || 'N',
           seoulReserveCert: row['예비사회적기업']?.toString() || 'N',
 
+          childExitCheckerKcType: row['어린이하차확인장치타입']?.toString() || 'N',
+          childExitCheckerKcCertId: row['어린이하차확인장치인증번호']?.toString(),
+          childExitCheckerKcFile: row['어린이하차확인장치첨부파일']?.toString(),
+
+          safetyCheckKcType: row['안전확인대상타입']?.toString() || 'N',
+          safetyCheckKcCertId: row['안전확인대상신고번호']?.toString(),
+          safetyCheckKcFile: row['안전확인대상첨부파일']?.toString(),
+
           selPower: row['정격전압/소비전력']?.toString() || '',
           selWeight: row['크기및무게']?.toString() || '',
           selSameDate: row['동일모델출시년월']?.toString() || '',
@@ -515,6 +531,8 @@ export class S2BAutomation {
       await this.setCertifications(data)
       // KC 인증 정보 설정
       await this.setKcCertifications(data)
+      // 기타첨부서류
+      await this.setOtherAttachments(data);
       // 배송비 설정
       await this.setDeliveryFee(data)
       // 상세설명 HTML 설정
@@ -898,6 +916,28 @@ export class S2BAutomation {
       await this.uploadImage('#f_kcCertBroadcastingImg_file', path.join(this.baseImagePath, data.broadcastingKcFile))
     }
   }
+
+  async setOtherAttachments(data: ProductData) {
+    if (!this.page) throw new Error('Browser not initialized');
+
+    // 어린이 하차 확인 장치
+    await this.page.click(`input[name="childexitcheckerKcUseGubunChk"][value="${data.childExitCheckerKcType}"]`);
+    if (data.childExitCheckerKcType === 'Y' && data.childExitCheckerKcCertId) {
+      await this.page.type('#childexitcheckerKcCertId', data.childExitCheckerKcCertId);
+      await this.page.click('a[href="JavaScript:KcCertRegist(\'childexitchecker\');"]');
+    } else if (data.childExitCheckerKcType === 'F' && data.childExitCheckerKcFile) {
+      await this.uploadImage('#f_kcCertChildExitCheckerImg_file', path.join(this.baseImagePath, data.childExitCheckerKcFile));
+    }
+
+    // 안전확인대상 생활화학제품
+    await this.page.click(`input[name="safetycheckKcUseGubunChk"][value="${data.safetyCheckKcType}"]`);
+    if (data.safetyCheckKcType === 'Y' && data.safetyCheckKcCertId) {
+      await this.page.type('#safetycheckKcCertId', data.safetyCheckKcCertId);
+    } else if (data.safetyCheckKcType === 'F' && data.safetyCheckKcFile) {
+      await this.uploadImage('#f_kcCertSafetycheckImg_file', path.join(this.baseImagePath, data.safetyCheckKcFile));
+    }
+  }
+
 
   private async uploadImage(inputSelector: string, filePath: string, statusSelector?: string) {
     if (!this.page) return
