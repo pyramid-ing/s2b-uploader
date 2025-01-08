@@ -100,6 +100,19 @@ interface ProductData {
   salesUnit: string; // 판매단위: "개", "세트", "박스" 등
   taxType: string;   // 과세여부: "과세(세금계산서)", "비과세(계산서)", "비과세(영수증)"
 
+  // 카테고리별 입력사항
+  selPower?: string;             // 정격전압/소비전력
+  selWeight?: string;            // 크기 및 무게
+  selSameDate?: string;          // 동일모델 출시년월
+  selArea?: string;              // 냉난방면적
+  selProduct?: string;           // 제품구성
+  selSafety?: string;            // 안전표시(주의,경고)
+  selCapacity?: string;          // 용량
+  selSpecification?: string;     // 주요사양
+  // 소비기한
+  validateRadio?: string;        // 소비기한 선택 (라디오 버튼 값)
+  fValidate?: string;            // 소비기한 직접입력 (직접 입력 필드 값)
+
   approvalRequest: string; // 승인관련 요청사항
 }
 
@@ -133,6 +146,14 @@ const DELIVERY_TYPE_MAP: Record<DeliveryFeeType, string> = {
 const HOME_DIVI_MAP: Record<HomeType, string> = {
   '국내': '1',
   '국외': '2',
+}
+
+const CONSUMPTION_PERIOD_MAP: Record<string, string> = {
+  '제품에 별도 표시': '제품에 별도 표시',
+  '제조일로부터 1년': '제조일로부터 1년',
+  '상세설명에 별도표시': '상세설명에 별도표시',
+  '제조일/가공일로부터 14일 이내 물품 발송': '제조일/가공일로부터 14일 이내 물품 발송',
+  '직접입력': 'date',
 }
 
 const REGION_CODE_MAP = {
@@ -333,6 +354,18 @@ export class S2BAutomation {
           seoulCollaborationCert: row['협동조합']?.toString() || 'N',
           seoulReserveCert: row['예비사회적기업']?.toString() || 'N',
 
+          selPower: row['정격전압/소비전력']?.toString() || '',
+          selWeight: row['크기및무게']?.toString() || '',
+          selSameDate: row['동일모델출시년월']?.toString() || '',
+          selArea: row['냉난방면적']?.toString() || '',
+          selProduct: row['제품구성']?.toString() || '',
+          selSafety: row['안전표시']?.toString() || '',
+          selCapacity: row['용량']?.toString() || '',
+          selSpecification: row['주요사양']?.toString() || '',
+          // 소비기한 매핑
+          validateRadio: CONSUMPTION_PERIOD_MAP[row['소비기한선택']] || '',
+          fValidate: row['소비기한입력']?.toString(),
+
           approvalRequest: row['승인관련 요청사항']?.toString() || '',
         }
       },
@@ -476,6 +509,8 @@ export class S2BAutomation {
       await this.uploadAllImages(data)
       // 카테고리 선택
       await this.selectCategory(data)
+      // 카테고리별 입력사항 설정
+      await this.setCategoryDetails(data)
       // 인증정보 설정
       await this.setCertifications(data)
       // KC 인증 정보 설정
@@ -711,6 +746,28 @@ export class S2BAutomation {
         select.dispatchEvent(event)
       }
     }, data.category3)
+  }
+
+  async setCategoryDetails(data: ProductData) {
+    if (!this.page) throw new Error('Browser not initialized')
+
+    // 기존 카테고리별 입력사항 설정 로직
+    if (data.selPower) await this.page.type('input[name="f_sel_power"]', data.selPower)
+    if (data.selWeight) await this.page.type('input[name="f_sel_weight"]', data.selWeight)
+    if (data.selSameDate) await this.page.type('input[name="f_sel_samedate"]', data.selSameDate)
+    if (data.selArea) await this.page.type('input[name="f_sel_area"]', data.selArea)
+    if (data.selProduct) await this.page.type('input[name="f_sel_product"]', data.selProduct)
+    if (data.selSafety) await this.page.type('input[name="f_sel_safety"]', data.selSafety)
+    if (data.selCapacity) await this.page.type('input[name="f_sel_capacity"]', data.selCapacity)
+    if (data.selSpecification) await this.page.type('input[name="f_sel_specification"]', data.selSpecification)
+
+    // 소비기한 설정
+    if (data.validateRadio) {
+      await this.page.click(`input[name="validateRadio"][value="${data.validateRadio}"]`)
+      if (data.validateRadio === 'date' && data.fValidate) {
+        await this.page.type('input[name="f_validate"]', data.fValidate)
+      }
+    }
   }
 
   private async setCertifications(data: ProductData) {
@@ -993,42 +1050,42 @@ export class S2BAutomation {
 
     // Dialog 메시지 대기 Promise
     const dialogPromise = new Promise<void>((resolve, reject) => {
-      const timeout = setTimeout(() => reject(new Error('Dialog message not received')), 20000);
+      const timeout = setTimeout(() => reject(new Error('Dialog message not received')), 20000)
 
       const onDialog = async (dialog: puppeteer.Dialog) => {
         try {
-          const message = dialog.message();
+          const message = dialog.message()
 
           if (message.includes('등록대기 상태로 변경되었으며')) {
-            console.log('Registration successful: "등록대기 상태로 변경되었으며".');
-            await dialog.accept();
-            clearTimeout(timeout);
-            this.page?.off('dialog', onDialog); // 이벤트 제거
-            resolve();
+            console.log('Registration successful: "등록대기 상태로 변경되었으며".')
+            await dialog.accept()
+            clearTimeout(timeout)
+            this.page?.off('dialog', onDialog) // 이벤트 제거
+            resolve()
           } else {
-            console.error('Unexpected dialog message:', message);
-            await dialog.dismiss();
+            console.error('Unexpected dialog message:', message)
+            await dialog.dismiss()
           }
         } catch (error) {
-          console.error('Dialog 처리 중 오류:', error);
-          reject(error);
+          console.error('Dialog 처리 중 오류:', error)
+          reject(error)
         }
-      };
+      }
 
-      this.page?.on('dialog', onDialog);
-    });
+      this.page?.on('dialog', onDialog)
+    })
 
     // 임시저장 버튼 클릭
-    await this.page.click('a[href="javascript:register(\'1\');"]');
-    console.log('Register button clicked.');
+    await this.page.click('a[href="javascript:register(\'1\');"]')
+    console.log('Register button clicked.')
 
     // Dialog 처리 완료 대기
     try {
-      await dialogPromise;
-      console.log('Dialog 처리 완료.');
+      await dialogPromise
+      console.log('Dialog 처리 완료.')
     } catch (error) {
-      console.error('Dialog 처리 중 오류 발생:', error);
-      throw error;
+      console.error('Dialog 처리 중 오류 발생:', error)
+      throw error
     }
   }
 }
