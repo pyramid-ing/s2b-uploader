@@ -1,9 +1,9 @@
 import * as puppeteer from 'puppeteer-core'
 import * as XLSX from 'xlsx'
 import path from 'node:path'
-import fs from 'fs/promises'
 import * as fsSync from 'fs'
 import dayjs from 'dayjs'
+import axios from 'axios'
 
 interface ProductData {
   // 등록구분을 위한 텍스트 값
@@ -893,7 +893,7 @@ export class S2BAutomation {
       await this.page.type('#kidsKcCertId', data.kidsKcCertId)
       await this.page.click('a[href="JavaScript:KcCertRegist(\'kids\');"]')
     } else if (data.kidsKcType === 'F' && data.kidsKcFile) {
-      await this.uploadImage('#f_kcCertKidsImg_file', path.join(this.baseImagePath, data.kidsKcFile))
+      await this.uploadImage('#f_kcCertKidsImg_file', data.kidsKcFile)
     }
 
     // 전기용품 KC
@@ -902,7 +902,7 @@ export class S2BAutomation {
       await this.page.type('#elecKcCertId', data.elecKcCertId)
       await this.page.click('a[href="JavaScript:KcCertRegist(\'elec\');"]')
     } else if (data.elecKcType === 'F' && data.elecKcFile) {
-      await this.uploadImage('#f_kcCertElecImg_file', path.join(this.baseImagePath, data.elecKcFile))
+      await this.uploadImage('#f_kcCertElecImg_file', data.elecKcFile)
     }
 
     // 생활용품 KC
@@ -911,7 +911,7 @@ export class S2BAutomation {
       await this.page.type('#dailyKcCertId', data.dailyKcCertId)
       await this.page.click('a[href="JavaScript:KcCertRegist(\'daily\');"]')
     } else if (data.dailyKcType === 'F' && data.dailyKcFile) {
-      await this.uploadImage('#f_kcCertDailyImg_file', path.join(this.baseImagePath, data.dailyKcFile))
+      await this.uploadImage('#f_kcCertDailyImg_file', data.dailyKcFile)
     }
 
     // 방송통신기자재 KC
@@ -920,7 +920,7 @@ export class S2BAutomation {
       await this.page.type('#broadcastingKcCertId', data.broadcastingKcCertId)
       await this.page.click('a[href="JavaScript:KcCertRegist(\'broadcasting\');"]')
     } else if (data.broadcastingKcType === 'F' && data.broadcastingKcFile) {
-      await this.uploadImage('#f_kcCertBroadcastingImg_file', path.join(this.baseImagePath, data.broadcastingKcFile))
+      await this.uploadImage('#f_kcCertBroadcastingImg_file', data.broadcastingKcFile)
     }
   }
 
@@ -933,7 +933,7 @@ export class S2BAutomation {
       await this.page.type('#childexitcheckerKcCertId', data.childExitCheckerKcCertId)
       await this.page.click('a[href="JavaScript:KcCertRegist(\'childexitchecker\');"]')
     } else if (data.childExitCheckerKcType === 'F' && data.childExitCheckerKcFile) {
-      await this.uploadImage('#f_kcCertChildExitCheckerImg_file', path.join(this.baseImagePath, data.childExitCheckerKcFile))
+      await this.uploadImage('#f_kcCertChildExitCheckerImg_file', data.childExitCheckerKcFile)
     }
 
     // 안전확인대상 생활화학제품
@@ -941,7 +941,7 @@ export class S2BAutomation {
     if (data.safetyCheckKcType === 'Y' && data.safetyCheckKcCertId) {
       await this.page.type('#safetycheckKcCertId', data.safetyCheckKcCertId)
     } else if (data.safetyCheckKcType === 'F' && data.safetyCheckKcFile) {
-      await this.uploadImage('#f_kcCertSafetycheckImg_file', path.join(this.baseImagePath, data.safetyCheckKcFile))
+      await this.uploadImage('#f_kcCertSafetycheckImg_file', data.safetyCheckKcFile)
     }
   }
 
@@ -973,29 +973,48 @@ export class S2BAutomation {
     }
   }
 
-  private async uploadImage(inputSelector: string, filePath: string, statusSelector?: string) {
+  private async uploadImage(inputSelector: string, filePathOrUrl: string, statusSelector?: string) {
     if (!this.page) return
 
+    let filePath: string
+
     try {
-      // 파일 존재 여부 확인
-      await fs.access(filePath)
+      if (filePathOrUrl.startsWith('http')) {
+        // 외부 파일 처리
+        const url = new URL(filePathOrUrl)
+        const fileName = path.basename(url.pathname)
+        filePath = path.join(this.baseImagePath, fileName)
 
-      // 파일 업로드 input 요소에 파일 설정
-      const inputElement = await this.page.$(inputSelector)
+        // 로컬에 파일이 없으면 다운로드
+        if (!fsSync.existsSync(filePath)) {
+          console.log(`Downloading external image from: ${filePathOrUrl}`)
+          const response = await axios.get(filePathOrUrl, {responseType: 'stream'})
+          const writer = fsSync.createWriteStream(filePath)
+
+          response.data.pipe(writer)
+
+          await new Promise((resolve, reject) => {
+            writer.on('finish', resolve)
+            writer.on('error', reject)
+          })
+
+          console.log(`Downloaded external image to: ${filePath}`)
+        }
+      } else {
+        // 로컬 파일 처리
+        filePath = path.join(this.baseImagePath, filePathOrUrl)
+        if (!fsSync.existsSync(filePath)) {
+          throw new Error(`Local file not found at path: ${filePath}`)
+        }
+      }
+
+      // 파일 업로드
+      const inputElement = await this.page.$(inputSelector) as puppeteer.ElementHandle<HTMLInputElement>
       if (inputElement) {
-        await (inputElement as any).uploadFile(filePath)
-
-        // 파일 업로드 후 필요한 이벤트 트리거
-        await this.page.evaluate((selector) => {
-          const input = document.querySelector(selector)
-          if (input) {
-            const event = new Event('change', {bubbles: true})
-            input.dispatchEvent(event)
-          }
-        }, inputSelector)
+        await inputElement.uploadFile(filePath)
 
         if (statusSelector) {
-          // 상태 셀렉터가 제공된 경우, 업로드 완료 상태 확인
+          // 업로드 상태 확인
           await this.page.waitForFunction(
             (selector) => {
               const element = document.querySelector(selector)
@@ -1006,13 +1025,15 @@ export class S2BAutomation {
           )
           console.log(`Image uploaded successfully: ${filePath}`)
         } else {
-          // 상태 셀렉터가 없는 경우 2000ms 대기
-          console.log(`No status selector provided, waiting 2000ms for ${filePath}`)
-          await new Promise((resolve) => setTimeout(resolve, 2000))
+          // 상태 셀렉터가 없으면 대기
+          console.log(`No status selector provided. Waiting 2000ms for ${filePath}`)
+          await delay(2000)
         }
+      } else {
+        throw new Error(`Input element not found for selector: ${inputSelector}`)
       }
     } catch (error) {
-      console.error(`Failed to upload image ${filePath}:`, error)
+      console.error(`Failed to upload image ${filePathOrUrl}:`, error)
       throw error
     }
   }
@@ -1021,32 +1042,27 @@ export class S2BAutomation {
     if (!this.page) return
 
     if (data.image1) {
-      const mainImagePath = path.join(this.baseImagePath, data.image1)
-      await this.uploadImage('#f_img1_file', mainImagePath, '#f_img1_file_size_ck')
+      await this.uploadImage('#f_img1_file', data.image1, '#f_img1_file_size_ck')
       await delay(1000)
     }
 
     if (data.image2) {
-      const optionImagePath = path.join(this.baseImagePath, data.image2)
-      await this.uploadImage('#f_img2_file', optionImagePath, '#f_img2_file_size_ck')
+      await this.uploadImage('#f_img2_file', data.image2, '#f_img2_file_size_ck')
       await delay(1000)
     }
 
     if (data.addImage1) {
-      const addImage1Path = path.join(this.baseImagePath, data.addImage1)
-      await this.uploadImage('#f_img3_file', addImage1Path, '#f_img3_file_size_ck')
+      await this.uploadImage('#f_img3_file', data.addImage1, '#f_img3_file_size_ck')
       await delay(1000)
     }
 
     if (data.addImage2) {
-      const addImage2Path = path.join(this.baseImagePath, data.addImage2)
-      await this.uploadImage('#f_img4_file', addImage2Path, '#f_img4_file_size_ck')
+      await this.uploadImage('#f_img4_file', data.addImage2, '#f_img4_file_size_ck')
       await delay(1000)
     }
 
     if (data.detailImage) {
-      const detailImagePath = path.join(this.baseImagePath, data.detailImage)
-      await this.uploadImage('#f_goods_explain_img_file', detailImagePath, '#f_goods_explain_img_file_size_ck')
+      await this.uploadImage('#f_goods_explain_img_file', data.detailImage, '#f_goods_explain_img_file_size_ck')
       await delay(1000)
     }
 
