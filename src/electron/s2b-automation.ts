@@ -460,7 +460,8 @@ export class S2BAutomation {
       } else if (url.includes('mygPreviewerThumb.jsp')) {
         // mygPreviewerThumb.jsp 팝업에서 iframe 내 상태 검사
         try {
-          await delay(1000)
+          await delay(3000)
+
           // iframe 로드 대기
           await page.waitForSelector('#MpreviewerImg', {timeout: 20000})
           const iframeElement = await page.$('#MpreviewerImg')
