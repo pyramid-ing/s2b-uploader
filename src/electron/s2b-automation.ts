@@ -53,6 +53,8 @@ interface ProductData {
   seoulCollaborationCert: string; // 협동조합
   seoulReserveCert: string; // 예비사회적기업
 
+  g2bNumber?: string; // G2B 물품목록번호
+
   // KC 인증 정보 추가
   // 어린이제품 인증
   kidsKcType: string; // 'Y': 인증번호등록, 'F': 공급자적합성확인, 'N': 인증표시대상아님
@@ -269,6 +271,9 @@ export class S2BAutomation {
           exchangeFee: row['교환배송비']?.toString() || '',
 
           estimateValidity: row['견적서 유효기간']?.toString() || '30일', // 기본값은 "30일"
+
+          // G2B 물품목록번호 읽기
+          g2bNumber: row['G2B 물품목록번호']?.toString(),
 
           // 등록구분 매핑 추가
           saleTypeText,
@@ -538,6 +543,8 @@ export class S2BAutomation {
       await this.setKcCertifications(data)
       // 기타첨부서류
       await this.setOtherAttachments(data)
+      // G2B 물품목록번호 설정 (예제 번호)
+      await this.setG2bInformation(data.g2bNumber)
       // 조달청 계약여부
       await this.setPpsContract(data)
       // 배송정보
@@ -623,6 +630,50 @@ export class S2BAutomation {
       } else {
         console.error(`Invalid estimate validity: ${data.estimateValidity}`)
       }
+    }
+  }
+
+  // G2B 물품목록번호 등록
+  private async setG2bInformation(g2bNumber: string) {
+    if (!this.page) throw new Error('Browser not initialized')
+
+    try {
+      if (g2bNumber) {
+        // G2B 물품목록번호 입력
+        await this.page.type('input[name="f_uid2"]', g2bNumber)
+
+        // 등록 버튼 클릭
+        await this.page.click('a[href^="javascript:fnCheckApiG2B();"]')
+        console.log('G2B 물품목록번호 등록 버튼 클릭됨.')
+
+        // G2B 데이터가 나타날 때까지 대기
+        await this.page.waitForSelector('#apiData', {timeout: 10000})
+        console.log('G2B 물품목록번호 등록 성공.')
+
+        // G2B 등록된 데이터 확인
+        const g2bData = await this.page.evaluate(() => {
+          const row = document.querySelector('#apiData')
+          if (!row) return null
+
+          const imageSrc = row.querySelector('img')?.getAttribute('src') || ''
+          const productName = row.children[1]?.textContent?.trim() || ''
+          const categoryId = row.children[2]?.textContent?.trim() || ''
+          const detailId = row.children[3]?.textContent?.trim() || ''
+          const productId = row.children[4]?.textContent?.trim() || ''
+
+          return {imageSrc, productName, categoryId, detailId, productId}
+        })
+
+        if (g2bData) {
+          console.log('등록된 G2B 데이터:', g2bData)
+        } else {
+          console.error('G2B 데이터가 발견되지 않음.')
+          throw new Error('G2B 데이터가 발견되지 않음.')
+        }
+      }
+    } catch (error) {
+      console.error('G2B 물품목록번호 등록 중 오류 발생:', error)
+      throw error
     }
   }
 
