@@ -5,9 +5,12 @@ import {Route, Routes, useLocation, useNavigate} from 'react-router-dom'
 import Settings from './pages/Settings'
 import Upload from './pages/Upload'
 
+const {ipcRenderer} = window.require('electron')
+
 const {Header, Sider, Content} = Layout
 
 const App: React.FC = () => {
+  const [appVersion, setAppVersion] = useState<string>('')
   const [collapsed, setCollapsed] = useState(false)
   const navigate = useNavigate()
   const location = useLocation()
@@ -29,6 +32,15 @@ const App: React.FC = () => {
   ]
 
   useEffect(() => {
+    const fetchVersion = async () => {
+      const version = await ipcRenderer.invoke('get-app-version')
+      setAppVersion(version)
+    }
+
+    fetchVersion()
+  }, [])
+
+  useEffect(() => {
     if (location.pathname === '/') {
       navigate('/upload')
     }
@@ -37,8 +49,17 @@ const App: React.FC = () => {
   return (
     <Layout style={{minHeight: '100vh'}}>
       <Sider collapsible collapsed={collapsed} onCollapse={setCollapsed}>
-        <div style={{color: '#FFF', padding: '20px', textAlign: 'center'}}>
-          S2B 머신
+        <div style={{
+          color: '#FFF',
+          padding: '20px',
+          textAlign: 'center',
+          backgroundColor: '#001529',
+          borderBottom: '1px solid #ccc',
+        }}>
+          <div style={{fontSize: '18px', fontWeight: 'bold'}}>S2B 업로더</div>
+          <div style={{fontSize: '12px', marginTop: '8px', color: '#BBB'}}>
+            버전 <span style={{fontWeight: 'bold'}}>{appVersion}</span>
+          </div>
         </div>
         <Menu
           theme="dark"

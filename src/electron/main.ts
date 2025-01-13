@@ -56,6 +56,11 @@ function setupIpcHandlers() {
   let automation: S2BAutomation | null = null
 
 
+// 앱 버전 가져오기
+  ipcMain.handle('get-app-version', () => {
+    return app.getVersion()
+  })
+
   // Excel 데이터 로드 및 automation 초기화
 
   ipcMain.handle('load-excel-data', async (_, {excelPath, imageDir}) => {
