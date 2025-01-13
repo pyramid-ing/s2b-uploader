@@ -1,6 +1,6 @@
 {
   "name": "s2b-uploader",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "description": "",
   "main": "dist/electron/main.js",
   "build": {
@@ -49,6 +49,7 @@
     "axios": "^1.7.9",
     "dayjs": "^1.11.13",
     "electron-store": "^8.1.0",
+    "file-type": "^19.6.0",
     "puppeteer-core": "^23.7.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",

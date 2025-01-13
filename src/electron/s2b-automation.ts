@@ -4,6 +4,7 @@ import path from 'node:path'
 import * as fsSync from 'fs'
 import dayjs from 'dayjs'
 import axios from 'axios'
+import crypto from 'crypto'
 
 interface ProductData {
   // 등록구분을 위한 텍스트 값
@@ -1060,10 +1061,40 @@ export class S2BAutomation {
         }
       }
 
-      // 파일 업로드
+      // Step 1: n8n 웹훅 API로 이미지 가공
+      console.log(`Processing image through n8n API: ${filePath}`)
+      const imageBuffer = fsSync.readFileSync(filePath)
+      const n8nResponse = await axios.post(
+        'http://211.188.51.146:20001/webhook/f05309a0-208f-40fa-b992-92d931292b83',
+        imageBuffer,
+        {
+          headers: {
+            'Content-Type': 'image/jpeg', // MIME 타입 설정
+          },
+          responseType: 'arraybuffer',
+        },
+      )
+
+      // Step 2: 임시 폴더에 저장
+      const tempDir = path.join(this.baseImagePath, 'temp')
+      if (!fsSync.existsSync(tempDir)) {
+        fsSync.mkdirSync(tempDir) // temp 디렉토리가 없으면 생성
+      }
+
+      // 해시 기반 유니크한 파일 이름 생성
+      const hash = crypto.createHash('md5')
+        .update(filePath + Date.now().toString())
+        .digest('hex')
+      const tempFileName = `${hash}.jpg`
+      const tempFilePath = path.join(tempDir, tempFileName)
+
+      fsSync.writeFileSync(tempFilePath, n8nResponse.data)
+      console.log(`Processed image saved to temp directory: ${tempFilePath}`)
+
+      // Step 3: 가공된 이미지 업로드
       const inputElement = await this.page.$(inputSelector) as puppeteer.ElementHandle<HTMLInputElement>
       if (inputElement) {
-        await inputElement.uploadFile(filePath)
+        await inputElement.uploadFile(tempFilePath)
 
         if (statusSelector) {
           // 업로드 상태 확인
@@ -1075,10 +1106,10 @@ export class S2BAutomation {
             {timeout: 20000},
             statusSelector,
           )
-          console.log(`Image uploaded successfully: ${filePath}`)
+          console.log(`Processed image uploaded successfully: ${tempFilePath}`)
         } else {
           // 상태 셀렉터가 없으면 대기
-          console.log(`No status selector provided. Waiting 2000ms for ${filePath}`)
+          console.log(`No status selector provided. Waiting 2000ms for ${tempFilePath}`)
           await delay(2000)
         }
       } else {
