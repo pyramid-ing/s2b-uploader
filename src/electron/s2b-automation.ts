@@ -5,6 +5,7 @@ import * as fsSync from 'fs'
 import dayjs from 'dayjs'
 import axios from 'axios'
 import crypto from 'crypto'
+import FormData from 'form-data';
 
 interface ProductData {
   // 등록구분을 위한 텍스트 값
@@ -1027,97 +1028,107 @@ export class S2BAutomation {
   }
 
   private async uploadImage(inputSelector: string, filePathOrUrl: string, statusSelector?: string) {
-    if (!this.page) return
+    if (!this.page) return;
 
-    let filePath: string
+    let filePath: string;
 
     try {
+      // 외부 파일 다운로드 또는 로컬 파일 경로 설정
       if (filePathOrUrl.startsWith('http')) {
-        // 외부 파일 처리
-        const url = new URL(filePathOrUrl)
-        const fileName = path.basename(url.pathname)
-        filePath = path.join(this.baseImagePath, fileName)
+        const url = new URL(filePathOrUrl);
+        const fileName = path.basename(url.pathname);
+        filePath = path.join(this.baseImagePath, fileName);
 
-        // 로컬에 파일이 없으면 다운로드
         if (!fsSync.existsSync(filePath)) {
-          console.log(`Downloading external image from: ${filePathOrUrl}`)
-          const response = await axios.get(filePathOrUrl, {responseType: 'stream'})
-          const writer = fsSync.createWriteStream(filePath)
+          console.log(`Downloading external image from: ${filePathOrUrl}`);
+          const response = await axios.get(filePathOrUrl, { responseType: 'stream' });
+          const writer = fsSync.createWriteStream(filePath);
 
-          response.data.pipe(writer)
+          response.data.pipe(writer);
 
           await new Promise((resolve, reject) => {
-            writer.on('finish', resolve)
-            writer.on('error', reject)
-          })
+            writer.on('finish', resolve);
+            writer.on('error', reject);
+          });
 
-          console.log(`Downloaded external image to: ${filePath}`)
+          console.log(`Downloaded external image to: ${filePath}`);
         }
       } else {
-        // 로컬 파일 처리
-        filePath = path.join(this.baseImagePath, filePathOrUrl)
+        filePath = path.join(this.baseImagePath, filePathOrUrl);
         if (!fsSync.existsSync(filePath)) {
-          throw new Error(`Local file not found at path: ${filePath}`)
+          throw new Error(`Local file not found at path: ${filePath}`);
         }
       }
 
-      // Step 1: n8n 웹훅 API로 이미지 가공
-      console.log(`Processing image through n8n API: ${filePath}`)
-      const imageBuffer = fsSync.readFileSync(filePath)
-      const n8nResponse = await axios.post(
-        'http://211.188.51.146:20001/webhook/f05309a0-208f-40fa-b992-92d931292b83',
-        imageBuffer,
-        {
-          headers: {
-            'Content-Type': 'image/jpeg', // MIME 타입 설정
-          },
-          responseType: 'arraybuffer',
-        },
-      )
+      // 이미지 유형별 크기 조정
+      let resizeWidth: number | undefined;
+      let resizeHeight: number | undefined;
 
-      // Step 2: 임시 폴더에 저장
-      const tempDir = path.join(this.baseImagePath, 'temp')
-      if (!fsSync.existsSync(tempDir)) {
-        fsSync.mkdirSync(tempDir) // temp 디렉토리가 없으면 생성
+      switch (inputSelector) {
+        case '#f_img1_file':
+        case '#f_img2_file':
+        case '#f_img3_file':
+        case '#f_img4_file':
+          resizeWidth = 500;
+          resizeHeight = 500;
+          break;
+        case '#f_goods_explain_img_file':
+          resizeWidth = 680;
+          resizeHeight = undefined; // 비율 유지
+          break;
+        default:
+          console.log(`No resizing needed for selector: ${inputSelector}`);
+          break;
       }
 
-      // 해시 기반 유니크한 파일 이름 생성
-      const hash = crypto.createHash('md5')
-        .update(filePath + Date.now().toString())
-        .digest('hex')
-      const tempFileName = `${hash}.jpg`
-      const tempFilePath = path.join(tempDir, tempFileName)
+      // 크기 조정 요청 (n8n 웹훅 호출)
+      if (resizeWidth || resizeHeight) {
+        console.log(`Resizing image for selector: ${inputSelector}`);
+        const formData = new FormData();
+        formData.append('width', resizeWidth?.toString() || '');
+        formData.append('height', resizeHeight?.toString() || '');
+        formData.append('file', fsSync.createReadStream(filePath));
 
-      fsSync.writeFileSync(tempFilePath, n8nResponse.data)
-      console.log(`Processed image saved to temp directory: ${tempFilePath}`)
+        const n8nResponse = await axios.post(
+          'http://211.188.51.146:20001/webhook/f05309a0-208f-40fa-b992-92d931292b83',
+          formData,
+          {
+            headers: formData.getHeaders(),
+            responseType: 'arraybuffer',
+          }
+        );
 
-      // Step 3: 가공된 이미지 업로드
-      const inputElement = await this.page.$(inputSelector) as puppeteer.ElementHandle<HTMLInputElement>
+        // 임시 파일 저장
+        const tempDir = path.join(this.baseImagePath, 'temp');
+        if (!fsSync.existsSync(tempDir)) {
+          fsSync.mkdirSync(tempDir);
+        }
+        const tempFilePath = path.join(tempDir, `${crypto.randomUUID()}.jpg`);
+        fsSync.writeFileSync(tempFilePath, n8nResponse.data);
+        filePath = tempFilePath;
+      }
+
+      // 이미지 업로드
+      const inputElement = await this.page.$(inputSelector) as puppeteer.ElementHandle<HTMLInputElement>;
       if (inputElement) {
-        await inputElement.uploadFile(tempFilePath)
+        await inputElement.uploadFile(filePath);
 
         if (statusSelector) {
-          // 업로드 상태 확인
           await this.page.waitForFunction(
             (selector) => {
-              const element = document.querySelector(selector)
-              return element && element.textContent?.trim() === '이미지 용량 확인 완료'
+              const element = document.querySelector(selector);
+              return element && element.textContent?.trim() === '이미지 용량 확인 완료';
             },
-            {timeout: 20000},
-            statusSelector,
-          )
-          console.log(`Processed image uploaded successfully: ${tempFilePath}`)
-        } else {
-          // 상태 셀렉터가 없으면 대기
-          console.log(`No status selector provided. Waiting 2000ms for ${tempFilePath}`)
-          await delay(2000)
+            { timeout: 20000 },
+            statusSelector
+          );
         }
       } else {
-        throw new Error(`Input element not found for selector: ${inputSelector}`)
+        throw new Error(`Input element not found for selector: ${inputSelector}`);
       }
     } catch (error) {
-      console.error(`Failed to upload image ${filePathOrUrl}:`, error)
-      throw error
+      console.error(`Failed to upload image ${filePathOrUrl}:`, error);
+      throw error;
     }
   }
 
