@@ -1,5 +1,5 @@
 import React, {useEffect, useState} from 'react'
-import {Button, Card, message, Space, Table} from 'antd'
+import {Button, Card, InputNumber, message, Space, Table} from 'antd'
 import {ReloadOutlined, UploadOutlined} from '@ant-design/icons'
 import type {ColumnsType} from 'antd/es/table'
 import {TableRowSelection} from 'antd/es/table/interface'
@@ -18,7 +18,7 @@ const Upload: React.FC = () => {
   const [data, setData] = useState<ProductData[]>([])
   const [loading, setLoading] = useState(false)
   const [selectedKeys, setSelectedKeys] = useState<React.Key[]>([])
-  const [weeks, setWeeks] = useState<number>(4) // 기본값 4주
+  const [weeks, setWeeks] = useState<number>(12)
 
   useEffect(() => {
     loadExcelData()
@@ -155,33 +155,29 @@ const Upload: React.FC = () => {
 
   return (
     <>
-
-      {/* 관리일 연장 섹션 */}
-      <div style={{marginBottom: '20px', padding: '10px', border: '1px solid #ddd', borderRadius: '8px'}}>
-        <h4 style={{marginBottom: '10px'}}>관리일 설정</h4>
-        <label htmlFor="weeks">관리일 (몇 주 이내):</label>
-        <input
-          type="number"
-          id="weeks"
-          value={weeks}
-          onChange={(e) => setWeeks(Number(e.target.value))}
-          style={{marginLeft: '10px', padding: '5px', width: '60px'}}
-        />
-        <button
-          onClick={handleExtendManagementDate}
-          style={{
-            marginLeft: '20px',
-            padding: '5px 10px',
-            backgroundColor: '#007bff',
-            color: '#fff',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer',
-          }}
-        >
-          관리일 연장
-        </button>
-      </div>
+      <Card
+        title="관리일 설정"
+        style={{marginBottom: '20px'}}
+        bordered={false}
+      >
+        <Space direction="vertical" size="middle">
+          <Space>
+            <label>관리일 (몇 주 이내):</label>
+            <InputNumber
+              min={1}
+              value={weeks}
+              onChange={(value) => setWeeks(value || 1)}
+            />
+          </Space>
+          <Button
+            type="primary"
+            onClick={handleExtendManagementDate}
+            disabled={loading}
+          >
+            관리일 연장
+          </Button>
+        </Space>
+      </Card>
 
       <Card
         title="상품 등록"
