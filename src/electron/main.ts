@@ -62,7 +62,6 @@ function setupIpcHandlers() {
   })
 
   // Excel 데이터 로드 및 automation 초기화
-
   ipcMain.handle('load-excel-data', async (_, {excelPath, imageDir}) => {
     try {
       // 경로 확인 및 유효성 체크
@@ -283,6 +282,17 @@ function setupIpcHandlers() {
     }
 
     return null
+  })
+
+  ipcMain.handle('extend-management-date', async (_, {weeks}) => {
+    try {
+      await automation.extendManagementDateForWeeks(weeks)
+
+      return {success: true, message: `상품 관리일이 ${weeks}주 이내로 설정되었습니다.`}
+    } catch (error) {
+      console.error('Failed to extend management date:', error)
+      return {success: false, error: error.message || 'Unknown error occurred.'}
+    }
   })
 }
 

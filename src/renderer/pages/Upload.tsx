@@ -18,6 +18,7 @@ const Upload: React.FC = () => {
   const [data, setData] = useState<ProductData[]>([])
   const [loading, setLoading] = useState(false)
   const [selectedKeys, setSelectedKeys] = useState<React.Key[]>([])
+  const [weeks, setWeeks] = useState<number>(4) // 기본값 4주
 
   useEffect(() => {
     loadExcelData()
@@ -115,6 +116,24 @@ const Upload: React.FC = () => {
       setLoading(false)
     }
   }
+  const handleExtendManagementDate = async () => {
+    try {
+      const settings = await ipcRenderer.invoke('get-settings')
+      if (!settings?.loginId || !settings?.loginPw) {
+        message.error('로그인 정보가 설정되지 않았습니다.')
+        return
+      }
+
+      await ipcRenderer.invoke('start-automation', {
+        loginId: settings.loginId,
+        loginPw: settings.loginPw,
+      })
+
+      const result = await ipcRenderer.invoke('extend-management-date', {weeks})
+    } catch (error) {
+      console.error('관리일 연장 실패:', error)
+    }
+  }
 
   const columns: ColumnsType<ProductData> = [
     {
@@ -135,36 +154,66 @@ const Upload: React.FC = () => {
   ]
 
   return (
-    <Card
-      title="상품 등록"
-      extra={
-        <Space>
-          <Button
-            icon={<ReloadOutlined/>}
-            onClick={loadExcelData}
-            loading={loading}
-          >
-            새로고침
-          </Button>
-          <Button
-            type="primary"
-            icon={<UploadOutlined/>}
-            onClick={handleUpload}
-            loading={loading}
-            disabled={selectedKeys.length === 0}
-          >
-            선택 상품 등록
-          </Button>
-        </Space>
-      }
-    >
-      <Table
-        columns={columns}
-        dataSource={data}
-        rowSelection={rowSelection}
-        loading={loading}
-      />
-    </Card>
+    <>
+
+      {/* 관리일 연장 섹션 */}
+      <div style={{marginBottom: '20px', padding: '10px', border: '1px solid #ddd', borderRadius: '8px'}}>
+        <h4 style={{marginBottom: '10px'}}>관리일 설정</h4>
+        <label htmlFor="weeks">관리일 (몇 주 이내):</label>
+        <input
+          type="number"
+          id="weeks"
+          value={weeks}
+          onChange={(e) => setWeeks(Number(e.target.value))}
+          style={{marginLeft: '10px', padding: '5px', width: '60px'}}
+        />
+        <button
+          onClick={handleExtendManagementDate}
+          style={{
+            marginLeft: '20px',
+            padding: '5px 10px',
+            backgroundColor: '#007bff',
+            color: '#fff',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: 'pointer',
+          }}
+        >
+          관리일 연장
+        </button>
+      </div>
+
+      <Card
+        title="상품 등록"
+        extra={
+          <Space>
+            <Button
+              icon={<ReloadOutlined/>}
+              onClick={loadExcelData}
+              loading={loading}
+            >
+              새로고침
+            </Button>
+            <Button
+              type="primary"
+              icon={<UploadOutlined/>}
+              onClick={handleUpload}
+              loading={loading}
+              disabled={selectedKeys.length === 0}
+            >
+              선택 상품 등록
+            </Button>
+          </Space>
+        }
+      >
+        <Table
+          columns={columns}
+          dataSource={data}
+          rowSelection={rowSelection}
+          loading={loading}
+        />
+      </Card>
+    </>
   )
 }
 

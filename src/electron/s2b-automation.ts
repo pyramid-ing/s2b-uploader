@@ -5,7 +5,7 @@ import * as fsSync from 'fs'
 import dayjs from 'dayjs'
 import axios from 'axios'
 import crypto from 'crypto'
-import FormData from 'form-data';
+import FormData from 'form-data'
 
 interface ProductData {
   // 등록구분을 위한 텍스트 값
@@ -435,19 +435,28 @@ export class S2BAutomation {
 
     // Dialog 이벤트 처리
     this.page.on('dialog', async (dialog) => {
-      if (dialog.type() === 'alert') {
-        const message = dialog.message()
+      const message = dialog.message()
 
-        // 특정 메시지 필터링: 성공 처리 메시지
-        if (message.includes('S2B의 “견적정보 등록”은 지방자치단체를 당사자로 하는 계약에 관한 법률 시행령 제30조')) {
-          await dialog.accept() // "확인" 버튼 자동 클릭
-        } else if (message.includes('등록대기 상태로 변경되었으며')) {
-          // register
-        } else {
-          console.error('Registration Error:', message)
-          this.dialogErrorMessage = message // 에러 메시지 저장
-          await dialog.dismiss() // Alert 닫기
-        }
+      switch (dialog.type()) {
+        case "alert":
+          // 특정 메시지 필터링: 성공 처리 메시지
+          if (message.includes('S2B의 “견적정보 등록”은 지방자치단체를 당사자로 하는 계약에 관한 법률 시행령 제30조')) {
+            await dialog.accept() // "확인" 버튼 자동 클릭
+          } else if (message.includes('등록대기 상태로 변경되었으며')) {
+            // register
+          } else {
+            console.error('Registration Error:', message)
+            this.dialogErrorMessage = message // 에러 메시지 저장
+            await dialog.dismiss() // Alert 닫기
+          }
+          break
+
+        case 'confirm':
+          // 특정 메시지 필터링: 성공 처리 메시지
+          if (message.includes('최종관리일을 연장하시겠습니까?')) {
+            await dialog.accept()
+          }
+          break
       }
     })
 
@@ -1028,66 +1037,66 @@ export class S2BAutomation {
   }
 
   private async uploadImage(inputSelector: string, filePathOrUrl: string, statusSelector?: string) {
-    if (!this.page) return;
+    if (!this.page) return
 
-    let filePath: string;
+    let filePath: string
 
     try {
       // 외부 파일 다운로드 또는 로컬 파일 경로 설정
       if (filePathOrUrl.startsWith('http')) {
-        const url = new URL(filePathOrUrl);
-        const fileName = path.basename(url.pathname);
-        filePath = path.join(this.baseImagePath, fileName);
+        const url = new URL(filePathOrUrl)
+        const fileName = path.basename(url.pathname)
+        filePath = path.join(this.baseImagePath, fileName)
 
         if (!fsSync.existsSync(filePath)) {
-          console.log(`Downloading external image from: ${filePathOrUrl}`);
-          const response = await axios.get(filePathOrUrl, { responseType: 'stream' });
-          const writer = fsSync.createWriteStream(filePath);
+          console.log(`Downloading external image from: ${filePathOrUrl}`)
+          const response = await axios.get(filePathOrUrl, {responseType: 'stream'})
+          const writer = fsSync.createWriteStream(filePath)
 
-          response.data.pipe(writer);
+          response.data.pipe(writer)
 
           await new Promise((resolve, reject) => {
-            writer.on('finish', resolve);
-            writer.on('error', reject);
-          });
+            writer.on('finish', resolve)
+            writer.on('error', reject)
+          })
 
-          console.log(`Downloaded external image to: ${filePath}`);
+          console.log(`Downloaded external image to: ${filePath}`)
         }
       } else {
-        filePath = path.join(this.baseImagePath, filePathOrUrl);
+        filePath = path.join(this.baseImagePath, filePathOrUrl)
         if (!fsSync.existsSync(filePath)) {
-          throw new Error(`Local file not found at path: ${filePath}`);
+          throw new Error(`Local file not found at path: ${filePath}`)
         }
       }
 
       // 이미지 유형별 크기 조정
-      let resizeWidth: number | undefined;
-      let resizeHeight: number | undefined;
+      let resizeWidth: number | undefined
+      let resizeHeight: number | undefined
 
       switch (inputSelector) {
         case '#f_img1_file':
         case '#f_img2_file':
         case '#f_img3_file':
         case '#f_img4_file':
-          resizeWidth = 500;
-          resizeHeight = 500;
-          break;
+          resizeWidth = 500
+          resizeHeight = 500
+          break
         case '#f_goods_explain_img_file':
-          resizeWidth = 680;
-          resizeHeight = undefined; // 비율 유지
-          break;
+          resizeWidth = 680
+          resizeHeight = undefined // 비율 유지
+          break
         default:
-          console.log(`No resizing needed for selector: ${inputSelector}`);
-          break;
+          console.log(`No resizing needed for selector: ${inputSelector}`)
+          break
       }
 
       // 크기 조정 요청 (n8n 웹훅 호출)
       if (resizeWidth || resizeHeight) {
-        console.log(`Resizing image for selector: ${inputSelector}`);
-        const formData = new FormData();
-        formData.append('width', resizeWidth?.toString() || '');
-        formData.append('height', resizeHeight?.toString() || '');
-        formData.append('file', fsSync.createReadStream(filePath));
+        console.log(`Resizing image for selector: ${inputSelector}`)
+        const formData = new FormData()
+        formData.append('width', resizeWidth?.toString() || '')
+        formData.append('height', resizeHeight?.toString() || '')
+        formData.append('file', fsSync.createReadStream(filePath))
 
         const n8nResponse = await axios.post(
           'http://211.188.51.146:20001/webhook/f05309a0-208f-40fa-b992-92d931292b83',
@@ -1095,40 +1104,40 @@ export class S2BAutomation {
           {
             headers: formData.getHeaders(),
             responseType: 'arraybuffer',
-          }
-        );
+          },
+        )
 
         // 임시 파일 저장
-        const tempDir = path.join(this.baseImagePath, 'temp');
+        const tempDir = path.join(this.baseImagePath, 'temp')
         if (!fsSync.existsSync(tempDir)) {
-          fsSync.mkdirSync(tempDir);
+          fsSync.mkdirSync(tempDir)
         }
-        const tempFilePath = path.join(tempDir, `${crypto.randomUUID()}.jpg`);
-        fsSync.writeFileSync(tempFilePath, n8nResponse.data);
-        filePath = tempFilePath;
+        const tempFilePath = path.join(tempDir, `${crypto.randomUUID()}.jpg`)
+        fsSync.writeFileSync(tempFilePath, n8nResponse.data)
+        filePath = tempFilePath
       }
 
       // 이미지 업로드
-      const inputElement = await this.page.$(inputSelector) as puppeteer.ElementHandle<HTMLInputElement>;
+      const inputElement = await this.page.$(inputSelector) as puppeteer.ElementHandle<HTMLInputElement>
       if (inputElement) {
-        await inputElement.uploadFile(filePath);
+        await inputElement.uploadFile(filePath)
 
         if (statusSelector) {
           await this.page.waitForFunction(
             (selector) => {
-              const element = document.querySelector(selector);
-              return element && element.textContent?.trim() === '이미지 용량 확인 완료';
+              const element = document.querySelector(selector)
+              return element && element.textContent?.trim() === '이미지 용량 확인 완료'
             },
-            { timeout: 20000 },
-            statusSelector
-          );
+            {timeout: 20000},
+            statusSelector,
+          )
         }
       } else {
-        throw new Error(`Input element not found for selector: ${inputSelector}`);
+        throw new Error(`Input element not found for selector: ${inputSelector}`)
       }
     } catch (error) {
-      console.error(`Failed to upload image ${filePathOrUrl}:`, error);
-      throw error;
+      console.error(`Failed to upload image ${filePathOrUrl}:`, error)
+      throw error
     }
   }
 
@@ -1269,6 +1278,62 @@ export class S2BAutomation {
       // "전국" 라디오 버튼 클릭
       await this.page.click('input[name="delivery_area"][value="1"]')
     }
+  }
+
+  public async extendManagementDateForWeeks(weeks: number) {
+    if (!this.page) throw new Error('Browser not initialized.');
+
+    const today = dayjs().format('YYYYMMDD');
+    const targetDate = dayjs().add(weeks, 'week').format('YYYYMMDD');
+
+    await this.page.goto(
+      'https://www.s2b.kr/S2BNVendor/S2B/srcweb/remu/rema/rema100_list_new.jsp',
+      {waitUntil: 'domcontentloaded'},
+    )
+
+    // 날짜 설정 및 검색 실행
+    await this.page.evaluate(
+      (startDate, endDate) => {
+        (document.querySelector('#search_date') as HTMLSelectElement).value = 'LIMIT_DATE';
+        (document.querySelector('#search_date_start') as HTMLInputElement).value = startDate;
+        (document.querySelector('#search_date_end') as HTMLInputElement).value = endDate
+      },
+      today,
+      targetDate,
+    )
+
+    await Promise.all([
+      this.page.click('[href^="javascript:search()"]'),
+      this.page.waitForNavigation({waitUntil: 'domcontentloaded'}),
+    ])
+
+    // 상품 목록에서 링크 가져오기
+    const productLinks = await this.page.$$eval(
+      '#listTable tr td.td_graylist_l a',
+      (links) => links.map((link) => (link as HTMLAnchorElement).href),
+    )
+
+    if (!productLinks.length) {
+      console.log('No products found for the given criteria.')
+      return
+    }
+
+    // 각 링크 순회하며 관리일 연장
+    for (const link of productLinks) {
+      try {
+        await delay(1000)
+        console.log(`Processing product link: ${link}`)
+        await this.page.goto(link, {waitUntil: 'domcontentloaded'})
+
+        const extendButton = await this.page.$('a[href^="javascript:fnLimitDateUpdate()"]')
+        await extendButton.click()
+        console.log(`Product processed successfully: ${link}`)
+      } catch (error) {
+        console.error(`Error processing product: ${link}`, error)
+      }
+    }
+
+    console.log('All products processed.')
   }
 
 // 브라우저 종료
