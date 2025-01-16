@@ -5,6 +5,24 @@ import {S2BAutomation} from './s2b-automation'
 import fs from 'fs/promises'
 import * as fsSync from 'fs'
 import * as XLSX from 'xlsx'
+import axios from 'axios'
+
+/**
+ * 계정 유효성 확인 함수
+ * @param accountId - 확인할 계정 ID
+ * @returns boolean - 계정이 유효한 경우 true, 그렇지 않은 경우 false
+ */
+async function checkAccountValidity(accountId: string): Promise<boolean> {
+  try {
+    const response = await axios.post('http://211.188.51.146:20001/webhook/check-s2b-id', {
+      accountId,
+    })
+    return response.data?.exist === true
+  } catch (error) {
+    console.error('계정 확인 실패:', error)
+    throw new Error('계정 확인 중 문제가 발생했습니다.')
+  }
+}
 
 interface StoreSchema {
   settings: {
@@ -106,6 +124,14 @@ function setupIpcHandlers() {
         throw new Error('Automation not initialized')
       }
 
+      // 계정 유효성 확인
+      const settings = store.get('settings')
+      const isAccountValid = await checkAccountValidity(settings.loginId)
+
+      if (!isAccountValid) {
+        throw new Error('인증되지 않은 계정입니다. 상품 등록이 불가능합니다.')
+      }
+
       await automation.registerProduct(productData) // 상품 등록 로직
 
       // 등록 성공 메시지 추가
@@ -194,6 +220,9 @@ function setupIpcHandlers() {
     }
   })
 
+  ipcMain.handle('check-account-validity', async (_, {accountId}) => {
+    return await checkAccountValidity(accountId)
+  })
 
   // 설정 불러오기
   ipcMain.handle('get-settings', () => {

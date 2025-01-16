@@ -1,8 +1,7 @@
 import React, {useEffect, useState} from 'react'
-import {Button, Card, InputNumber, message, Space, Table} from 'antd'
+import {Alert, Button, Card, InputNumber, message, Space, Table} from 'antd'
 import {ReloadOutlined, UploadOutlined} from '@ant-design/icons'
 import type {ColumnsType} from 'antd/es/table'
-import {TableRowSelection} from 'antd/es/table/interface'
 
 const {ipcRenderer} = window.require('electron')
 
@@ -19,10 +18,31 @@ const Upload: React.FC = () => {
   const [loading, setLoading] = useState(false)
   const [selectedKeys, setSelectedKeys] = useState<React.Key[]>([])
   const [weeks, setWeeks] = useState<number>(12)
+  const [isAccountValid, setIsAccountValid] = useState<boolean | null>(null)
 
   useEffect(() => {
+    checkAccountValidity()
     loadExcelData()
   }, [])
+
+  const checkAccountValidity = async () => {
+    try {
+      const settings = await ipcRenderer.invoke('get-settings')
+      if (!settings?.loginId) {
+        message.error('로그인 정보가 설정되지 않았습니다.')
+        setIsAccountValid(false)
+        return
+      }
+      const result = await ipcRenderer.invoke('check-account-validity', {
+        accountId: settings.loginId,
+      })
+      setIsAccountValid(result)
+    } catch (error) {
+      console.error('계정 유효성 확인 실패:', error)
+      setIsAccountValid(false)
+      message.error('계정 유효성 확인 중 오류가 발생했습니다.')
+    }
+  }
 
   const loadExcelData = async () => {
     try {
@@ -62,17 +82,6 @@ const Upload: React.FC = () => {
     }
   }
 
-  const rowSelection: TableRowSelection<ProductData> = {
-    type: 'checkbox',
-    selectedRowKeys: selectedKeys,
-    onChange: (selectedRowKeys) => {
-      setSelectedKeys(selectedRowKeys)
-    },
-    getCheckboxProps: (record) => ({
-      disabled: loading,
-    }),
-  }
-
   const handleUpload = async () => {
     try {
       if (selectedKeys.length === 0) {
@@ -102,7 +111,7 @@ const Upload: React.FC = () => {
               productData: product.originalData,
               excelPath: settings.excelPath,
             })
-            message.success(`상품 "${product.goodsName}" 처리완료`)
+            message.success(`상품 "${product.goodsName}" 처리 완료`)
           } catch (error) {
             console.error(`Failed to register product: ${product.goodsName}`, error)
             message.error(`상품 "${product.goodsName}" 등록에 실패했습니다.`)
@@ -116,6 +125,7 @@ const Upload: React.FC = () => {
       setLoading(false)
     }
   }
+
   const handleExtendManagementDate = async () => {
     try {
       const settings = await ipcRenderer.invoke('get-settings')
@@ -155,9 +165,19 @@ const Upload: React.FC = () => {
 
   return (
     <>
+      {isAccountValid === false && (
+        <Alert
+          message="계정 인증 실패"
+          description="현재 계정으로는 상품 등록이 불가능합니다. 관리자에게 문의하세요."
+          type="error"
+          showIcon
+          style={{marginBottom: '20px'}}
+        />
+      )}
+
       <Card
         title="관리일 설정"
-        style={{marginBottom: '20px'}}
+        style={{ marginBottom: '20px', opacity: isAccountValid === false ? 0.5 : 1 }}
         bordered={false}
       >
         <Space direction="vertical" size="middle">
@@ -167,12 +187,13 @@ const Upload: React.FC = () => {
               min={1}
               value={weeks}
               onChange={(value) => setWeeks(value || 1)}
+              disabled={isAccountValid === false}
             />
           </Space>
           <Button
             type="primary"
             onClick={handleExtendManagementDate}
-            disabled={loading}
+            disabled={isAccountValid === false || loading}
           >
             관리일 연장
           </Button>
@@ -181,12 +202,14 @@ const Upload: React.FC = () => {
 
       <Card
         title="상품 등록"
+        style={{ marginBottom: '20px', opacity: isAccountValid === false ? 0.5 : 1 }}
         extra={
           <Space>
             <Button
               icon={<ReloadOutlined/>}
               onClick={loadExcelData}
               loading={loading}
+              disabled={isAccountValid === false}
             >
               새로고침
             </Button>
@@ -195,7 +218,7 @@ const Upload: React.FC = () => {
               icon={<UploadOutlined/>}
               onClick={handleUpload}
               loading={loading}
-              disabled={selectedKeys.length === 0}
+              disabled={selectedKeys.length === 0 || isAccountValid === false}
             >
               선택 상품 등록
             </Button>
@@ -205,7 +228,14 @@ const Upload: React.FC = () => {
         <Table
           columns={columns}
           dataSource={data}
-          rowSelection={rowSelection}
+          rowSelection={{
+            type: 'checkbox',
+            selectedRowKeys: selectedKeys,
+            onChange: setSelectedKeys,
+            getCheckboxProps: () => ({
+              disabled: isAccountValid === false || loading,
+            }),
+          }}
           loading={loading}
         />
       </Card>
