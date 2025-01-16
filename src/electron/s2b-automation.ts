@@ -539,6 +539,20 @@ export class S2BAutomation {
     await this.page.goto('https://www.s2b.kr/S2BNVendor/rema100.do?forwardName=goRegistView')
     await this.page.waitForSelector('select[name="sale_type"]')
 
+    // 팝업 닫기 로직
+    try {
+      await this.page.waitForSelector('article.popup.alert', { timeout: 5000 }); // 팝업 감지
+      await this.page.evaluate(() => {
+        const closeButton = document.querySelector('span.btn_popclose a') as HTMLElement;
+        if (closeButton) {
+          closeButton.click(); // 닫기 버튼 클릭
+        }
+      })
+      console.log('팝업이 성공적으로 닫혔습니다.');
+    } catch (error) {
+      console.log('팝업이 발견되지 않았습니다. 계속 진행합니다.');
+    }
+
     try {
       // 기본 정보 입력
       await this.setBasicInfo(data)
