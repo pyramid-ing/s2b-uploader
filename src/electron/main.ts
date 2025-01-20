@@ -1,7 +1,7 @@
-import {app, BrowserWindow, dialog, ipcMain, shell} from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
 import * as path from 'path'
 import Store from 'electron-store'
-import {S2BAutomation} from './s2b-automation'
+import { S2BAutomation } from './s2b-automation'
 import fs from 'fs/promises'
 import * as fsSync from 'fs'
 import * as XLSX from 'xlsx'
@@ -26,11 +26,11 @@ async function checkAccountValidity(accountId: string): Promise<boolean> {
 
 interface StoreSchema {
   settings: {
-    imageDir: string;
-    excelPath: string;
-    loginId: string;
-    loginPw: string;
-  };
+    imageDir: string
+    excelPath: string
+    loginId: string
+    loginPw: string
+  }
 }
 
 // Store 인스턴스 생성
@@ -59,7 +59,7 @@ function createWindow() {
     },
     icon: path.join(__dirname, '../../build/icon.png'), // 개발 모드용 아이콘 경로
   })
-// main.ts 내부
+  // main.ts 내부
   if (process.env.ELECTRON_DEBUG) {
     console.log('Loading dev server at http://localhost:8080')
     mainWindow.loadURL('http://localhost:8080')
@@ -73,14 +73,13 @@ function createWindow() {
 function setupIpcHandlers() {
   let automation: S2BAutomation | null = null
 
-
-// 앱 버전 가져오기
+  // 앱 버전 가져오기
   ipcMain.handle('get-app-version', () => {
     return app.getVersion()
   })
 
   // Excel 데이터 로드 및 automation 초기화
-  ipcMain.handle('load-excel-data', async (_, {excelPath, imageDir}) => {
+  ipcMain.handle('load-excel-data', async (_, { excelPath, imageDir }) => {
     try {
       // 경로 확인 및 유효성 체크
       const resolvedExcelPath = path.normalize(path.resolve(excelPath))
@@ -102,7 +101,7 @@ function setupIpcHandlers() {
     }
   })
   // 자동화 시작
-  ipcMain.handle('start-automation', async (_, {loginId, loginPw}) => {
+  ipcMain.handle('start-automation', async (_, { loginId, loginPw }) => {
     try {
       if (!automation) {
         // automation이 없으면 새로 생성
@@ -118,7 +117,7 @@ function setupIpcHandlers() {
     }
   })
 
-  ipcMain.handle('register-product', async (_, {productData, excelPath}) => {
+  ipcMain.handle('register-product', async (_, { productData, excelPath }) => {
     try {
       if (!automation) {
         throw new Error('Automation not initialized')
@@ -135,12 +134,12 @@ function setupIpcHandlers() {
       await automation.registerProduct(productData) // 상품 등록 로직
 
       // 등록 성공 메시지 추가
-      const workbook = XLSX.readFile(excelPath, {type: 'binary'})
+      const workbook = XLSX.readFile(excelPath, { type: 'binary' })
       const sheet = workbook.Sheets[workbook.SheetNames[0]]
-      const rows: any[] = XLSX.utils.sheet_to_json(sheet, {header: 1})
+      const rows: any[] = XLSX.utils.sheet_to_json(sheet, { header: 1 })
 
       const headers = rows[0] // 첫 번째 행은 헤더
-      const productIndex = rows.findIndex((row) => row.includes(productData.goodsName))
+      const productIndex = rows.findIndex(row => row.includes(productData.goodsName))
 
       if (productIndex !== -1) {
         const resultColumnKey = '결과' // "결과" 열 이름
@@ -164,18 +163,18 @@ function setupIpcHandlers() {
         XLSX.writeFile(workbook, excelPath)
       }
 
-      return {success: true}
+      return { success: true }
     } catch (error) {
       console.error('Failed to register product:', error)
 
       // 에러 메시지 추가
       try {
-        const workbook = XLSX.readFile(excelPath, {type: 'binary'})
+        const workbook = XLSX.readFile(excelPath, { type: 'binary' })
         const sheet = workbook.Sheets[workbook.SheetNames[0]]
-        const rows: any[] = XLSX.utils.sheet_to_json(sheet, {header: 1})
+        const rows: any[] = XLSX.utils.sheet_to_json(sheet, { header: 1 })
 
         const headers = rows[0]
-        const productIndex = rows.findIndex((row) => row.includes(productData.goodsName))
+        const productIndex = rows.findIndex(row => row.includes(productData.goodsName))
 
         if (productIndex !== -1) {
           const resultColumnKey = '결과'
@@ -202,7 +201,7 @@ function setupIpcHandlers() {
         console.error('Failed to update Excel with error message:', excelError)
       }
 
-      return {success: false, error: error.message}
+      return { success: false, error: error.message }
     }
   })
 
@@ -220,7 +219,7 @@ function setupIpcHandlers() {
     }
   })
 
-  ipcMain.handle('check-account-validity', async (_, {accountId}) => {
+  ipcMain.handle('check-account-validity', async (_, { accountId }) => {
     return await checkAccountValidity(accountId)
   })
 
@@ -266,9 +265,7 @@ function setupIpcHandlers() {
 
     const result = await dialog.showOpenDialog(mainWindow, {
       properties: ['openFile'],
-      filters: [
-        {name: 'Excel Files', extensions: ['xlsx', 'xls']},
-      ],
+      filters: [{ name: 'Excel Files', extensions: ['xlsx', 'xls'] }],
       title: 'Excel 파일 선택',
     })
 
@@ -313,14 +310,14 @@ function setupIpcHandlers() {
     return null
   })
 
-  ipcMain.handle('extend-management-date', async (_, {weeks}) => {
+  ipcMain.handle('extend-management-date', async (_, { weeks }) => {
     try {
       await automation.extendManagementDateForWeeks(weeks)
 
-      return {success: true, message: `상품 관리일이 ${weeks}주 이내로 설정되었습니다.`}
+      return { success: true, message: `상품 관리일이 ${weeks}주 이내로 설정되었습니다.` }
     } catch (error) {
       console.error('Failed to extend management date:', error)
-      return {success: false, error: error.message || 'Unknown error occurred.'}
+      return { success: false, error: error.message || 'Unknown error occurred.' }
     }
   })
 }
@@ -343,7 +340,7 @@ app.on('activate', () => {
 })
 
 // 에러 핸들링
-process.on('uncaughtException', (error) => {
+process.on('uncaughtException', error => {
   console.error('Uncaught Exception:', error)
 })
 

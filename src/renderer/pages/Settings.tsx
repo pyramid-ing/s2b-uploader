@@ -1,14 +1,14 @@
-import React, {useEffect, useState} from 'react'
-import {Button, Card, Form, Input, message} from 'antd'
-import {FolderOutlined} from '@ant-design/icons'
+import React, { useEffect, useState } from 'react'
+import { Button, Card, Form, Input, message } from 'antd'
+import { FolderOutlined } from '@ant-design/icons'
 
-const {ipcRenderer} = window.require('electron')
+const { ipcRenderer } = window.require('electron')
 
 interface SettingsForm {
-  imageDir: string;
-  excelPath: string;
-  loginId: string;
-  loginPw: string;
+  imageDir: string
+  excelPath: string
+  loginId: string
+  loginPw: string
 }
 
 const Settings: React.FC = () => {
@@ -86,33 +86,22 @@ const Settings: React.FC = () => {
   }
 
   if (initialLoading) {
-    return <Card loading={true}/>
+    return <Card loading={true} />
   }
 
   return (
     <Card title="설정">
-      <Form
-        form={form}
-        layout="vertical"
-        onFinish={handleSubmit}
-        autoComplete="off"
-        disabled={loading}
-      >
+      <Form form={form} layout="vertical" onFinish={handleSubmit} autoComplete="off" disabled={loading}>
         {/* 기존 Form.Items는 그대로 유지 */}
         <Form.Item
           label="이미지 폴더 경로"
           name="imageDir"
-          rules={[{required: true, message: '이미지 디렉토리를 선택해주세요'}]}
+          rules={[{ required: true, message: '이미지 디렉토리를 선택해주세요' }]}
         >
           <Input
             readOnly
             addonAfter={
-              <Button
-                type="text"
-                icon={<FolderOutlined/>}
-                onClick={handleSelectDirectory}
-                disabled={loading}
-              >
+              <Button type="text" icon={<FolderOutlined />} onClick={handleSelectDirectory} disabled={loading}>
                 선택
               </Button>
             }
@@ -122,37 +111,24 @@ const Settings: React.FC = () => {
         <Form.Item
           label="등록용 Excel 파일 경로"
           name="excelPath"
-          rules={[{required: true, message: 'Excel 파일을 선택해주세요'}]}
+          rules={[{ required: true, message: 'Excel 파일을 선택해주세요' }]}
         >
           <Input
             readOnly
             addonAfter={
-              <Button
-                type="text"
-                icon={<FolderOutlined/>}
-                onClick={handleSelectExcel}
-                disabled={loading}
-              >
+              <Button type="text" icon={<FolderOutlined />} onClick={handleSelectExcel} disabled={loading}>
                 선택
               </Button>
             }
           />
         </Form.Item>
 
-        <Form.Item
-          label="로그인 아이디"
-          name="loginId"
-          rules={[{required: true, message: '아이디를 입력해주세요'}]}
-        >
-          <Input/>
+        <Form.Item label="로그인 아이디" name="loginId" rules={[{ required: true, message: '아이디를 입력해주세요' }]}>
+          <Input />
         </Form.Item>
 
-        <Form.Item
-          label="비밀번호"
-          name="loginPw"
-          rules={[{required: true, message: '비밀번호를 입력해주세요'}]}
-        >
-          <Input.Password/>
+        <Form.Item label="비밀번호" name="loginPw" rules={[{ required: true, message: '비밀번호를 입력해주세요' }]}>
+          <Input.Password />
         </Form.Item>
 
         <Form.Item>

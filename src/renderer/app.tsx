@@ -1,13 +1,13 @@
-import React, {useEffect, useState} from 'react'
-import {Layout, Menu, theme} from 'antd'
-import {SettingOutlined, UploadOutlined} from '@ant-design/icons'
-import {Route, Routes, useLocation, useNavigate} from 'react-router-dom'
+import React, { useEffect, useState } from 'react'
+import { Layout, Menu, theme } from 'antd'
+import { SettingOutlined, UploadOutlined } from '@ant-design/icons'
+import { Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import Settings from './pages/Settings'
 import Upload from './pages/Upload'
 
-const {ipcRenderer} = window.require('electron')
+const { ipcRenderer } = window.require('electron')
 
-const {Header, Sider, Content} = Layout
+const { Header, Sider, Content } = Layout
 
 const App: React.FC = () => {
   const [appVersion, setAppVersion] = useState<string>('')
@@ -15,18 +15,18 @@ const App: React.FC = () => {
   const navigate = useNavigate()
   const location = useLocation()
   const {
-    token: {colorBgContainer},
+    token: { colorBgContainer },
   } = theme.useToken()
 
   const menuItems = [
     {
       key: '/upload',
-      icon: <UploadOutlined/>,
+      icon: <UploadOutlined />,
       label: '상품등록',
     },
     {
       key: '/settings',
-      icon: <SettingOutlined/>,
+      icon: <SettingOutlined />,
       label: '설정',
     },
   ]
@@ -47,18 +47,20 @@ const App: React.FC = () => {
   }, [location, navigate])
 
   return (
-    <Layout style={{minHeight: '100vh'}}>
+    <Layout style={{ minHeight: '100vh' }}>
       <Sider collapsible collapsed={collapsed} onCollapse={setCollapsed}>
-        <div style={{
-          color: '#FFF',
-          padding: '20px',
-          textAlign: 'center',
-          backgroundColor: '#001529',
-          borderBottom: '1px solid #ccc',
-        }}>
-          <div style={{fontSize: '18px', fontWeight: 'bold'}}>S2B 업로더</div>
-          <div style={{fontSize: '12px', marginTop: '8px', color: '#BBB'}}>
-            버전 <span style={{fontWeight: 'bold'}}>{appVersion}</span>
+        <div
+          style={{
+            color: '#FFF',
+            padding: '20px',
+            textAlign: 'center',
+            backgroundColor: '#001529',
+            borderBottom: '1px solid #ccc',
+          }}
+        >
+          <div style={{ fontSize: '18px', fontWeight: 'bold' }}>S2B 업로더</div>
+          <div style={{ fontSize: '12px', marginTop: '8px', color: '#BBB' }}>
+            버전 <span style={{ fontWeight: 'bold' }}>{appVersion}</span>
           </div>
         </div>
         <Menu
@@ -66,15 +68,15 @@ const App: React.FC = () => {
           mode="inline"
           selectedKeys={[location.pathname]}
           items={menuItems}
-          onClick={({key}) => navigate(key)}
+          onClick={({ key }) => navigate(key)}
         />
       </Sider>
       <Layout>
-        <Header style={{padding: 0, background: colorBgContainer}}/>
-        <Content style={{margin: '16px'}}>
+        <Header style={{ padding: 0, background: colorBgContainer }} />
+        <Content style={{ margin: '16px' }}>
           <Routes>
-            <Route path="/upload" element={<Upload/>}/>
-            <Route path="/settings" element={<Settings/>}/>
+            <Route path="/upload" element={<Upload />} />
+            <Route path="/settings" element={<Settings />} />
           </Routes>
         </Content>
       </Layout>

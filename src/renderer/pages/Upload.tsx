@@ -1,16 +1,16 @@
-import React, {useEffect, useState} from 'react'
-import {Alert, Button, Card, InputNumber, message, Space, Table} from 'antd'
-import {ReloadOutlined, UploadOutlined} from '@ant-design/icons'
-import type {ColumnsType} from 'antd/es/table'
+import React, { useEffect, useState } from 'react'
+import { Alert, Button, Card, InputNumber, message, Space, Table } from 'antd'
+import { ReloadOutlined, UploadOutlined } from '@ant-design/icons'
+import type { ColumnsType } from 'antd/es/table'
 
-const {ipcRenderer} = window.require('electron')
+const { ipcRenderer } = window.require('electron')
 
 interface ProductData {
-  key: string;
-  goodsName: string;
-  spec: string;
-  modelName: string;
-  originalData?: any;
+  key: string
+  goodsName: string
+  spec: string
+  modelName: string
+  originalData?: any
 }
 
 const Upload: React.FC = () => {
@@ -71,7 +71,7 @@ const Upload: React.FC = () => {
         originalData: p,
       }))
       setData(loadedData)
-      setSelectedKeys(loadedData.map((item) => item.key))
+      setSelectedKeys(loadedData.map(item => item.key))
 
       message.success('Excel 데이터를 성공적으로 불러왔습니다.')
     } catch (error) {
@@ -103,7 +103,7 @@ const Upload: React.FC = () => {
       })
 
       for (const key of selectedKeys) {
-        const product = data.find((item) => item.key === key)
+        const product = data.find(item => item.key === key)
 
         if (product) {
           try {
@@ -139,7 +139,7 @@ const Upload: React.FC = () => {
         loginPw: settings.loginPw,
       })
 
-      const result = await ipcRenderer.invoke('extend-management-date', {weeks})
+      const result = await ipcRenderer.invoke('extend-management-date', { weeks })
     } catch (error) {
       console.error('관리일 연장 실패:', error)
     }
@@ -171,7 +171,7 @@ const Upload: React.FC = () => {
           description="현재 계정으로는 상품 등록이 불가능합니다. 관리자에게 문의하세요."
           type="error"
           showIcon
-          style={{marginBottom: '20px'}}
+          style={{ marginBottom: '20px' }}
         />
       )}
 
@@ -186,15 +186,11 @@ const Upload: React.FC = () => {
             <InputNumber
               min={1}
               value={weeks}
-              onChange={(value) => setWeeks(value || 1)}
+              onChange={value => setWeeks(value || 1)}
               disabled={isAccountValid === false}
             />
           </Space>
-          <Button
-            type="primary"
-            onClick={handleExtendManagementDate}
-            disabled={isAccountValid === false || loading}
-          >
+          <Button type="primary" onClick={handleExtendManagementDate} disabled={isAccountValid === false || loading}>
             관리일 연장
           </Button>
         </Space>
@@ -206,7 +202,7 @@ const Upload: React.FC = () => {
         extra={
           <Space>
             <Button
-              icon={<ReloadOutlined/>}
+              icon={<ReloadOutlined />}
               onClick={loadExcelData}
               loading={loading}
               disabled={isAccountValid === false}
@@ -215,7 +211,7 @@ const Upload: React.FC = () => {
             </Button>
             <Button
               type="primary"
-              icon={<UploadOutlined/>}
+              icon={<UploadOutlined />}
               onClick={handleUpload}
               loading={loading}
               disabled={selectedKeys.length === 0 || isAccountValid === false}

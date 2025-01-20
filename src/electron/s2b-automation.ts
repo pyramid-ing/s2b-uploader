@@ -9,157 +9,156 @@ import FormData from 'form-data'
 
 interface ProductData {
   // 등록구분을 위한 텍스트 값
-  saleTypeText: SaleType;
+  saleTypeText: SaleType
 
-  goodsName: string; // 물품명
-  spec: string; // 규격
-  modelName: string; // 모델명
-  estimateAmt: string; // 제시금액
-  factory: string; // 제조사
-  material: string; // 소재/재질
-  remainQnt: string; // 재고수량
-  assure: string; // 보증기간
-  returnFee: string; // 반품배송비
-  exchangeFee: string; // 교환배송비
+  goodsName: string // 물품명
+  spec: string // 규격
+  modelName: string // 모델명
+  estimateAmt: string // 제시금액
+  factory: string // 제조사
+  material: string // 소재/재질
+  remainQnt: string // 재고수량
+  assure: string // 보증기간
+  returnFee: string // 반품배송비
+  exchangeFee: string // 교환배송비
 
-  estimateValidity?: string; // 견적서 유효기간
+  estimateValidity?: string // 견적서 유효기간
 
   // 납품가능기간
-  deliveryLimitText: DeliveryLimitType;  // 텍스트 형태의 납품가능기간
-  deliveryLimit: string; // 납품가능기간
+  deliveryLimitText: DeliveryLimitType // 텍스트 형태의 납품가능기간
+  deliveryLimit: string // 납품가능기간
 
   // 카테고리 관련
-  category1: string; // 1차 카테고리
-  category2: string; // 2차 카테고리
-  category3: string; // 3차 카테고리
+  category1: string // 1차 카테고리
+  category2: string // 2차 카테고리
+  category3: string // 3차 카테고리
 
   // 인증정보
-  womanCert: string; // 여성기업
-  disabledCompanyCert: string; // 장애인기업
-  foundationCert: string; // 창업기업
-  disabledCert: string; // 장애인표준사업장
-  severalCert: string; // 중증장애인생산품
-  cooperationCert: string; // 사회적협동조합
-  societyCert: string; // 사회적기업
-  recycleCert: string; // 우수재활용제품
-  environmentCert: string; // 환경표지제품
-  lowCarbonCert: string; // 저탄소인증
-  swQualityCert: string; // SW품질인증
-  nepCert: string; // 신제품인증
-  netCert: string; // 신기술인증
-  greenProductCert: string; // 녹색기술인증
-  epcCert: string; // 성능인증
-  procureCert: string; // 우수조달제품
-  seoulTownCert: string; // 마을기업
-  seoulSelfCert: string; // 자활기업
-  seoulCollaborationCert: string; // 협동조합
-  seoulReserveCert: string; // 예비사회적기업
+  womanCert: string // 여성기업
+  disabledCompanyCert: string // 장애인기업
+  foundationCert: string // 창업기업
+  disabledCert: string // 장애인표준사업장
+  severalCert: string // 중증장애인생산품
+  cooperationCert: string // 사회적협동조합
+  societyCert: string // 사회적기업
+  recycleCert: string // 우수재활용제품
+  environmentCert: string // 환경표지제품
+  lowCarbonCert: string // 저탄소인증
+  swQualityCert: string // SW품질인증
+  nepCert: string // 신제품인증
+  netCert: string // 신기술인증
+  greenProductCert: string // 녹색기술인증
+  epcCert: string // 성능인증
+  procureCert: string // 우수조달제품
+  seoulTownCert: string // 마을기업
+  seoulSelfCert: string // 자활기업
+  seoulCollaborationCert: string // 협동조합
+  seoulReserveCert: string // 예비사회적기업
 
-  g2bNumber?: string; // G2B 물품목록번호
+  g2bNumber?: string // G2B 물품목록번호
 
   // KC 인증 정보 추가
   // 어린이제품 인증
-  kidsKcType: string; // 'Y': 인증번호등록, 'F': 공급자적합성확인, 'N': 인증표시대상아님
-  kidsKcCertId?: string; // 국가기술표준원 인증번호
-  kidsKcFile?: string; // 공급자적합성확인 시험성적서 파일경로
+  kidsKcType: string // 'Y': 인증번호등록, 'F': 공급자적합성확인, 'N': 인증표시대상아님
+  kidsKcCertId?: string // 국가기술표준원 인증번호
+  kidsKcFile?: string // 공급자적합성확인 시험성적서 파일경로
 
   // 전기용품 인증
-  elecKcType: string; // 'Y': 인증번호등록, 'F': 공급자적합성확인, 'N': 인증표시대상아님
-  elecKcCertId?: string; // 국가기술표준원 인증번호
-  elecKcFile?: string; // 공급자적합성확인 시험성적서 파일경로
+  elecKcType: string // 'Y': 인증번호등록, 'F': 공급자적합성확인, 'N': 인증표시대상아님
+  elecKcCertId?: string // 국가기술표준원 인증번호
+  elecKcFile?: string // 공급자적합성확인 시험성적서 파일경로
 
   // 생활용품 인증
-  dailyKcType: string; // 'Y': 인증번호등록, 'F': 공급자적합성확인, 'N': 인증표시대상아님
-  dailyKcCertId?: string; // 국가기술표준원 인증번호
-  dailyKcFile?: string; // 공급자적합성확인 시험성적서 파일경로
+  dailyKcType: string // 'Y': 인증번호등록, 'F': 공급자적합성확인, 'N': 인증표시대상아님
+  dailyKcCertId?: string // 국가기술표준원 인증번호
+  dailyKcFile?: string // 공급자적합성확인 시험성적서 파일경로
 
   // 방송통신기자재 인증
-  broadcastingKcType: string; // 'Y': 인증번호등록, 'F': 공급자적합성확인, 'N': 인증표시대상아님
-  broadcastingKcCertId?: string; // KC 전파적합성인증 번호
-  broadcastingKcFile?: string; // 공급자적합성확인 시험성적서 파일경로
+  broadcastingKcType: string // 'Y': 인증번호등록, 'F': 공급자적합성확인, 'N': 인증표시대상아님
+  broadcastingKcCertId?: string // KC 전파적합성인증 번호
+  broadcastingKcFile?: string // 공급자적합성확인 시험성적서 파일경로
 
   // 배송비 관련
-  deliveryFeeKindText: DeliveryFeeType;
-  deliveryFeeKind: string; // 배송비 종류 (1: 무료, 2: 유료, 3: 조건부무료)
-  deliveryFee: string; // 배송비 금액
-  deliveryGroupYn: string; // 묶음배송여부 (Y/N)
-  jejuDeliveryYn: string; // 제주배송여부 (Y/N)
-  jejuDeliveryFee?: string; // 제주추가배송비
+  deliveryFeeKindText: DeliveryFeeType
+  deliveryFeeKind: string // 배송비 종류 (1: 무료, 2: 유료, 3: 조건부무료)
+  deliveryFee: string // 배송비 금액
+  deliveryGroupYn: string // 묶음배송여부 (Y/N)
+  jejuDeliveryYn: string // 제주배송여부 (Y/N)
+  jejuDeliveryFee?: string // 제주추가배송비
 
   // 상세설명 및 이미지
-  detailHtml: string; // 상세설명 HTML
-  image1?: string; // 기본이미지1 파일경로
-  image2?: string; // 기본이미지2 파일경로
-  addImage1?: string; // 추가이미지1 파일경로
-  addImage2?: string; // 추가이미지2 파일경로
-  detailImage?: string; // 상세이미지 파일경로
+  detailHtml: string // 상세설명 HTML
+  image1?: string // 기본이미지1 파일경로
+  image2?: string // 기본이미지2 파일경로
+  addImage1?: string // 추가이미지1 파일경로
+  addImage2?: string // 추가이미지2 파일경로
+  detailImage?: string // 상세이미지 파일경로
 
   // 원산지 관련 필드 추가
-  originType: HomeType;
-  originLocal: string; // 국내인 경우: "경기", "서울" 등
-  originForeign: string; // 국외인 경우: "중국", "일본" 등
+  originType: HomeType
+  originLocal: string // 국내인 경우: "경기", "서울" 등
+  originForeign: string // 국외인 경우: "중국", "일본" 등
 
   // 판매단위와 과세여부 필드 추가
-  salesUnit: string; // 판매단위: "개", "세트", "박스" 등
-  taxType: string;   // 과세여부: "과세(세금계산서)", "비과세(계산서)", "비과세(영수증)"
+  salesUnit: string // 판매단위: "개", "세트", "박스" 등
+  taxType: string // 과세여부: "과세(세금계산서)", "비과세(계산서)", "비과세(영수증)"
 
-  childExitCheckerKcType?: string; // 어린이 하차 확인 장치 부품 성능 확인서 등록 타입
-  childExitCheckerKcCertId?: string; // 어린이 하차 확인 장치 인증번호
-  childExitCheckerKcFile?: string; // 어린이 하차 확인 장치 첨부 파일
+  childExitCheckerKcType?: string // 어린이 하차 확인 장치 부품 성능 확인서 등록 타입
+  childExitCheckerKcCertId?: string // 어린이 하차 확인 장치 인증번호
+  childExitCheckerKcFile?: string // 어린이 하차 확인 장치 첨부 파일
 
-  safetyCheckKcType?: string; // 안전확인대상 생활화학제품 신고번호 등록 타입
-  safetyCheckKcCertId?: string; // 안전확인대상 생활화학제품 신고번호
-  safetyCheckKcFile?: string; // 안전확인대상 생활화학제품 첨부 파일
+  safetyCheckKcType?: string // 안전확인대상 생활화학제품 신고번호 등록 타입
+  safetyCheckKcCertId?: string // 안전확인대상 생활화학제품 신고번호
+  safetyCheckKcFile?: string // 안전확인대상 생활화학제품 첨부 파일
 
-  naraRegisterYn?: 'Y' | 'N'; // 나라장터 등록 여부
-  naraAmt?: string; // 나라장터 등록 가격
-  siteName?: string; // 사이트명
-  siteUrl?: string; // 사이트 주소
-  otherSiteRegisterYn?: 'Y' | 'N'; // 타사이트 등록 여부
-  otherSiteAmt?: string; // 타사이트 등록 가격
+  naraRegisterYn?: 'Y' | 'N' // 나라장터 등록 여부
+  naraAmt?: string // 나라장터 등록 가격
+  siteName?: string // 사이트명
+  siteUrl?: string // 사이트 주소
+  otherSiteRegisterYn?: 'Y' | 'N' // 타사이트 등록 여부
+  otherSiteAmt?: string // 타사이트 등록 가격
 
-  ppsContractYn?: string; // 조달청 계약 여부 (Y/N)
-  ppsContractStartDate?: string; // 조달청 계약 시작일
-  ppsContractEndDate?: string; // 조달청 계약 종료일
+  ppsContractYn?: string // 조달청 계약 여부 (Y/N)
+  ppsContractStartDate?: string // 조달청 계약 시작일
+  ppsContractEndDate?: string // 조달청 계약 종료일
 
   // AS 정보
-  asTelephone1?: string; // 일반 전화번호
-  asTelephone2?: string; // 제조사 A/S 전화번호
-  addressCode?: string; // 도로명 코드
-  address?: string; // 주소
-  addressDetail?: string; // 나머지 주소
+  asTelephone1?: string // 일반 전화번호
+  asTelephone2?: string // 제조사 A/S 전화번호
+  addressCode?: string // 도로명 코드
+  address?: string // 주소
+  addressDetail?: string // 나머지 주소
 
   // 카테고리별 입력사항
-  selPower?: string;             // 정격전압/소비전력
-  selWeight?: string;            // 크기 및 무게
-  selSameDate?: string;          // 동일모델 출시년월
-  selArea?: string;              // 냉난방면적
-  selProduct?: string;           // 제품구성
-  selSafety?: string;            // 안전표시(주의,경고)
-  selCapacity?: string;          // 용량
-  selSpecification?: string;     // 주요사양
+  selPower?: string // 정격전압/소비전력
+  selWeight?: string // 크기 및 무게
+  selSameDate?: string // 동일모델 출시년월
+  selArea?: string // 냉난방면적
+  selProduct?: string // 제품구성
+  selSafety?: string // 안전표시(주의,경고)
+  selCapacity?: string // 용량
+  selSpecification?: string // 주요사양
   // 소비기한
-  validateRadio?: string;        // 소비기한 선택 (라디오 버튼 값)
-  fValidate?: string;            // 소비기한 직접입력 (직접 입력 필드 값)
+  validateRadio?: string // 소비기한 선택 (라디오 버튼 값)
+  fValidate?: string // 소비기한 직접입력 (직접 입력 필드 값)
 
-  deliveryMethod?: string; // 배송 방법 (1: 택배, 2: 직배송, 3: 우편 또는 등기)
+  deliveryMethod?: string // 배송 방법 (1: 택배, 2: 직배송, 3: 우편 또는 등기)
   // 새로 추가된 필드
-  deliveryAreas?: string[]; // 선택된 배송 지역 이름 배열
+  deliveryAreas?: string[] // 선택된 배송 지역 이름 배열
 
-  approvalRequest: string; // 승인관련 요청사항
+  approvalRequest: string // 승인관련 요청사항
 }
 
-type SaleType = '물품' | '용역';
-type DeliveryFeeType = '무료' | '유료' | '조건부무료';
-type HomeType = '국내' | '국외';
-type DeliveryLimitType = '3일' | '5일' | '7일' | '15일' | '30일' | '45일';
+type SaleType = '물품' | '용역'
+type DeliveryFeeType = '무료' | '유료' | '조건부무료'
+type HomeType = '국내' | '국외'
+type DeliveryLimitType = '3일' | '5일' | '7일' | '15일' | '30일' | '45일'
 
 const DELIVERY_METHOD_MAP: Record<string, string> = {
-  '택배': '1',
-  '직배송': '2',
+  택배: '1',
+  직배송: '2',
   '우편 또는 등기': '3',
 }
-
 
 const DELIVERY_LIMIT_MAP: Record<DeliveryLimitType, string> = {
   '3일': 'ZD000001',
@@ -170,22 +169,21 @@ const DELIVERY_LIMIT_MAP: Record<DeliveryLimitType, string> = {
   '45일': 'ZD000006',
 }
 
-
 // 매핑 객체에 타입 지정
 const SALE_TYPE_MAP: Record<SaleType, string> = {
-  '물품': '1',
-  '용역': '3',
+  물품: '1',
+  용역: '3',
 }
 
 const DELIVERY_TYPE_MAP: Record<DeliveryFeeType, string> = {
-  '무료': '1',
-  '유료': '2',
-  '조건부무료': '3',
+  무료: '1',
+  유료: '2',
+  조건부무료: '3',
 }
 
 const HOME_DIVI_MAP: Record<HomeType, string> = {
-  '국내': '1',
-  '국외': '2',
+  국내: '1',
+  국외: '2',
 }
 
 const CONSUMPTION_PERIOD_MAP: Record<string, string> = {
@@ -193,7 +191,7 @@ const CONSUMPTION_PERIOD_MAP: Record<string, string> = {
   '제조일로부터 1년': '제조일로부터 1년',
   '상세설명에 별도표시': '상세설명에 별도표시',
   '제조일/가공일로부터 14일 이내 물품 발송': '제조일/가공일로부터 14일 이내 물품 발송',
-  '직접입력': 'date',
+  직접입력: 'date',
 }
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
@@ -202,23 +200,26 @@ export class S2BAutomation {
   private browser: puppeteer.Browser | null = null
   private page: puppeteer.Page | null = null
   private baseImagePath: string // 이미지 기본 경로
-  private chromePath: string  // Chrome 실행 파일 경로 추가
+  private chromePath: string // Chrome 실행 파일 경로 추가
   private dialogErrorMessage: string | null = null // dialog 에러 메시지 추적
 
   constructor(baseImagePath: string) {
     this.baseImagePath = baseImagePath
 
     // OS별 Chrome 기본 설치 경로 설정
-    if (process.platform === 'darwin') {  // macOS
+    if (process.platform === 'darwin') {
+      // macOS
       this.chromePath = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
-    } else if (process.platform === 'win32') {  // Windows
+    } else if (process.platform === 'win32') {
+      // Windows
       const possiblePaths = [
         'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
         'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
         process.env.LOCALAPPDATA + '\\Google\\Chrome\\Application\\chrome.exe',
       ]
       this.chromePath = possiblePaths.find(p => fsSync.existsSync(p)) || ''
-    } else {  // Linux
+    } else {
+      // Linux
       this.chromePath = '/usr/bin/google-chrome'
     }
 
@@ -248,158 +249,156 @@ export class S2BAutomation {
 
     const data = XLSX.utils.sheet_to_json(worksheet)
     return data.map((row: any) => {
+      const rawSaleType = row['등록구분']?.toString() || '물품'
+      const saleTypeText = this.validateSaleType(rawSaleType)
 
-        const rawSaleType = row['등록구분']?.toString() || '물품'
-        const saleTypeText = this.validateSaleType(rawSaleType)
+      // 배송비종류 타입 체크 및 변환
+      const rawDeliveryFeeType = row['배송비종류']?.toString() || '무료'
+      const deliveryFeeKindText = this.validateDeliveryFeeType(rawDeliveryFeeType)
 
-        // 배송비종류 타입 체크 및 변환
-        const rawDeliveryFeeType = row['배송비종류']?.toString() || '무료'
-        const deliveryFeeKindText = this.validateDeliveryFeeType(rawDeliveryFeeType)
+      // 납품가능기간 타입 체크 및 변환
+      const rawDeliveryLimit = row['납품가능기간']?.toString() || '7일'
+      const deliveryLimitText = this.validateDeliveryLimit(rawDeliveryLimit)
 
-        // 납품가능기간 타입 체크 및 변환
-        const rawDeliveryLimit = row['납품가능기간']?.toString() || '7일'
-        const deliveryLimitText = this.validateDeliveryLimit(rawDeliveryLimit)
+      return {
+        goodsName: row['물품명']?.toString() || '',
+        spec: row['규격']?.toString() || '',
+        modelName: row['모델명']?.toString() || '',
+        estimateAmt: row['제시금액']?.toString() || '',
+        factory: row['제조사']?.toString() || '',
+        material: row['소재/재질']?.toString() || '',
+        remainQnt: row['재고수량']?.toString() || '',
+        assure: row['보증기간']?.toString() || '1년',
+        returnFee: row['반품배송비']?.toString() || '',
+        exchangeFee: row['교환배송비']?.toString() || '',
 
-        return {
-          goodsName: row['물품명']?.toString() || '',
-          spec: row['규격']?.toString() || '',
-          modelName: row['모델명']?.toString() || '',
-          estimateAmt: row['제시금액']?.toString() || '',
-          factory: row['제조사']?.toString() || '',
-          material: row['소재/재질']?.toString() || '',
-          remainQnt: row['재고수량']?.toString() || '',
-          assure: row['보증기간']?.toString() || '1년',
-          returnFee: row['반품배송비']?.toString() || '',
-          exchangeFee: row['교환배송비']?.toString() || '',
+        estimateValidity: row['견적서 유효기간']?.toString() || '30일', // 기본값은 "30일"
 
-          estimateValidity: row['견적서 유효기간']?.toString() || '30일', // 기본값은 "30일"
+        // G2B 물품목록번호 읽기
+        g2bNumber: row['G2B 물품목록번호']?.toString(),
 
-          // G2B 물품목록번호 읽기
-          g2bNumber: row['G2B 물품목록번호']?.toString(),
+        // 등록구분 매핑 추가
+        saleTypeText,
+        saleType: SALE_TYPE_MAP[saleTypeText],
 
-          // 등록구분 매핑 추가
-          saleTypeText,
-          saleType: SALE_TYPE_MAP[saleTypeText],
+        category1: row['카테고리1']?.toString() || '',
+        category2: row['카테고리2']?.toString() || '',
+        category3: row['카테고리3']?.toString() || '',
 
-          category1: row['카테고리1']?.toString() || '',
-          category2: row['카테고리2']?.toString() || '',
-          category3: row['카테고리3']?.toString() || '',
+        // 배송비 정보 매핑 수정
+        deliveryFeeKindText,
+        deliveryFeeKind: DELIVERY_TYPE_MAP[deliveryFeeKindText],
+        deliveryFee: row['배송비']?.toString() || '',
+        deliveryGroupYn: row['묶음배송여부']?.toString() || 'Y',
+        jejuDeliveryYn: row['제주배송여부']?.toString() || 'N',
+        jejuDeliveryFee: row['제주추가배송비']?.toString(),
 
-          // 배송비 정보 매핑 수정
-          deliveryFeeKindText,
-          deliveryFeeKind: DELIVERY_TYPE_MAP[deliveryFeeKindText],
-          deliveryFee: row['배송비']?.toString() || '',
-          deliveryGroupYn: row['묶음배송여부']?.toString() || 'Y',
-          jejuDeliveryYn: row['제주배송여부']?.toString() || 'N',
-          jejuDeliveryFee: row['제주추가배송비']?.toString(),
+        // KC 인증 정보
+        kidsKcType: row['어린이제품KC유형']?.toString() || 'N',
+        kidsKcCertId: row['어린이제품KC인증번호']?.toString(),
+        kidsKcFile: row['어린이제품KC성적서']?.toString(),
 
-          // KC 인증 정보
-          kidsKcType: row['어린이제품KC유형']?.toString() || 'N',
-          kidsKcCertId: row['어린이제품KC인증번호']?.toString(),
-          kidsKcFile: row['어린이제품KC성적서']?.toString(),
+        elecKcType: row['전기용품KC유형']?.toString() || 'N',
+        elecKcCertId: row['전기용품KC인증번호']?.toString(),
+        elecKcFile: row['전기용품KC성적서']?.toString(),
 
-          elecKcType: row['전기용품KC유형']?.toString() || 'N',
-          elecKcCertId: row['전기용품KC인증번호']?.toString(),
-          elecKcFile: row['전기용품KC성적서']?.toString(),
+        dailyKcType: row['생활용품KC유형']?.toString() || 'N',
+        dailyKcCertId: row['생활용품KC인증번호']?.toString(),
+        dailyKcFile: row['생활용품KC성적서']?.toString(),
 
-          dailyKcType: row['생활용품KC유형']?.toString() || 'N',
-          dailyKcCertId: row['생활용품KC인증번호']?.toString(),
-          dailyKcFile: row['생활용품KC성적서']?.toString(),
+        broadcastingKcType: row['방송통신KC유형']?.toString() || 'N',
+        broadcastingKcCertId: row['방송통신KC인증번호']?.toString(),
+        broadcastingKcFile: row['방송통신KC성적서']?.toString(),
 
-          broadcastingKcType: row['방송통신KC유형']?.toString() || 'N',
-          broadcastingKcCertId: row['방송통신KC인증번호']?.toString(),
-          broadcastingKcFile: row['방송통신KC성적서']?.toString(),
+        // 이미지 및 상세설명
+        image1: row['기본이미지1']?.toString(),
+        image2: row['기본이미지2']?.toString(),
+        addImage1: row['추가이미지1']?.toString(),
+        addImage2: row['추가이미지2']?.toString(),
+        detailImage: row['상세이미지']?.toString(),
+        detailHtml: row['상세설명HTML']?.toString() || '',
 
-          // 이미지 및 상세설명
-          image1: row['기본이미지1']?.toString(),
-          image2: row['기본이미지2']?.toString(),
-          addImage1: row['추가이미지1']?.toString(),
-          addImage2: row['추가이미지2']?.toString(),
-          detailImage: row['상세이미지']?.toString(),
-          detailHtml: row['상세설명HTML']?.toString() || '',
+        // 납품가능기간
+        deliveryLimitText,
+        deliveryLimit: DELIVERY_LIMIT_MAP[deliveryLimitText],
 
-          // 납품가능기간
-          deliveryLimitText,
-          deliveryLimit: DELIVERY_LIMIT_MAP[deliveryLimitText],
+        // 원산지 정보 매핑 (자동입력)
+        originType: row['원산지구분']?.toString() || '국내',
+        originLocal: row['국내원산지']?.toString() || '서울',
+        originForeign: row['해외원산지']?.toString() || '',
 
-          // 원산지 정보 매핑 (자동입력)
-          originType: row['원산지구분']?.toString() || '국내',
-          originLocal: row['국내원산지']?.toString() || '서울',
-          originForeign: row['해외원산지']?.toString() || '',
+        // 판매단위와 과세여부
+        salesUnit: row['판매단위']?.toString() || '개',
+        taxType: row['과세여부']?.toString() || '과세(세금계산서)',
+        // 인증정보
+        womanCert: row['여성기업']?.toString() || 'N',
+        disabledCompanyCert: row['장애인기업']?.toString() || 'N',
+        foundationCert: row['창업기업']?.toString() || 'N',
+        disabledCert: row['장애인표준사업장']?.toString() || 'N',
+        severalCert: row['중증장애인생산품']?.toString() || 'N',
+        cooperationCert: row['사회적협동조합']?.toString() || 'N',
+        societyCert: row['우수재활용제품']?.toString() || 'N',
+        recycleCert: row['우수재활용제품']?.toString() || 'N',
+        environmentCert: row['환경표지']?.toString() || 'N',
+        lowCarbonCert: row['저탄소제품']?.toString() || 'N',
+        swQualityCert: row['SW품질인증']?.toString() || 'N',
+        nepCert: row['신제품인증(NEP)']?.toString() || 'N',
+        netCert: row['신제품인증(NET)']?.toString() || 'N',
+        greenProductCert: row['녹색기술인증제품']?.toString() || 'N',
+        epcCert: row['성능인증제품(EPC)']?.toString() || 'N',
+        procureCert: row['우수조달제품']?.toString() || 'N',
+        seoulTownCert: row['마을기업']?.toString() || 'N',
+        seoulSelfCert: row['자활기업']?.toString() || 'N',
+        seoulCollaborationCert: row['협동조합']?.toString() || 'N',
+        seoulReserveCert: row['예비사회적기업']?.toString() || 'N',
 
-          // 판매단위와 과세여부
-          salesUnit: row['판매단위']?.toString() || '개',
-          taxType: row['과세여부']?.toString() || '과세(세금계산서)',
-          // 인증정보
-          womanCert: row['여성기업']?.toString() || 'N',
-          disabledCompanyCert: row['장애인기업']?.toString() || 'N',
-          foundationCert: row['창업기업']?.toString() || 'N',
-          disabledCert: row['장애인표준사업장']?.toString() || 'N',
-          severalCert: row['중증장애인생산품']?.toString() || 'N',
-          cooperationCert: row['사회적협동조합']?.toString() || 'N',
-          societyCert: row['우수재활용제품']?.toString() || 'N',
-          recycleCert: row['우수재활용제품']?.toString() || 'N',
-          environmentCert: row['환경표지']?.toString() || 'N',
-          lowCarbonCert: row['저탄소제품']?.toString() || 'N',
-          swQualityCert: row['SW품질인증']?.toString() || 'N',
-          nepCert: row['신제품인증(NEP)']?.toString() || 'N',
-          netCert: row['신제품인증(NET)']?.toString() || 'N',
-          greenProductCert: row['녹색기술인증제품']?.toString() || 'N',
-          epcCert: row['성능인증제품(EPC)']?.toString() || 'N',
-          procureCert: row['우수조달제품']?.toString() || 'N',
-          seoulTownCert: row['마을기업']?.toString() || 'N',
-          seoulSelfCert: row['자활기업']?.toString() || 'N',
-          seoulCollaborationCert: row['협동조합']?.toString() || 'N',
-          seoulReserveCert: row['예비사회적기업']?.toString() || 'N',
+        childExitCheckerKcType: row['어린이하차확인장치타입']?.toString() || 'N',
+        childExitCheckerKcCertId: row['어린이하차확인장치인증번호']?.toString(),
+        childExitCheckerKcFile: row['어린이하차확인장치첨부파일']?.toString(),
 
-          childExitCheckerKcType: row['어린이하차확인장치타입']?.toString() || 'N',
-          childExitCheckerKcCertId: row['어린이하차확인장치인증번호']?.toString(),
-          childExitCheckerKcFile: row['어린이하차확인장치첨부파일']?.toString(),
+        safetyCheckKcType: row['안전확인대상타입']?.toString() || 'N',
+        safetyCheckKcCertId: row['안전확인대상신고번호']?.toString(),
+        safetyCheckKcFile: row['안전확인대상첨부파일']?.toString(),
 
-          safetyCheckKcType: row['안전확인대상타입']?.toString() || 'N',
-          safetyCheckKcCertId: row['안전확인대상신고번호']?.toString(),
-          safetyCheckKcFile: row['안전확인대상첨부파일']?.toString(),
+        naraRegisterYn: row['나라장터등록여부']?.toString().trim() || 'N',
+        naraAmt: row['나라장터등록가격']?.toString().trim() || '',
+        siteName: row['사이트명']?.toString().trim() || '',
+        siteUrl: row['사이트주소']?.toString().trim() || '',
+        otherSiteRegisterYn: row['타사이트등록여부']?.toString().trim() || 'N',
+        otherSiteAmt: row['타사이트등록가격']?.toString().trim() || '',
 
-          naraRegisterYn: row['나라장터등록여부']?.toString().trim() || 'N',
-          naraAmt: row['나라장터등록가격']?.toString().trim() || '',
-          siteName: row['사이트명']?.toString().trim() || '',
-          siteUrl: row['사이트주소']?.toString().trim() || '',
-          otherSiteRegisterYn: row['타사이트등록여부']?.toString().trim() || 'N',
-          otherSiteAmt: row['타사이트등록가격']?.toString().trim() || '',
+        deliveryMethod: DELIVERY_METHOD_MAP[row['배송방법']?.toString().trim()] || '1', // 기본값: 택배
+        // 배송 지역 처리
+        deliveryAreas: row['배송지역']?.split(',').map((area: string) => area.trim()) || [],
 
-          deliveryMethod: DELIVERY_METHOD_MAP[row['배송방법']?.toString().trim()] || '1', // 기본값: 택배
-          // 배송 지역 처리
-          deliveryAreas: row['배송지역']?.split(',').map((area: string) => area.trim()) || [],
+        asTelephone1: row['전화번호']?.toString() || '',
+        asTelephone2: row['제조사 A/S전화번호']?.toString() || '',
+        addressCode: row['도로명 코드']?.toString() || '',
+        address: row['주소']?.toString() || '',
+        addressDetail: row['나머지 주소']?.toString() || '',
 
-          asTelephone1: row['전화번호']?.toString() || '',
-          asTelephone2: row['제조사 A/S전화번호']?.toString() || '',
-          addressCode: row['도로명 코드']?.toString() || '',
-          address: row['주소']?.toString() || '',
-          addressDetail: row['나머지 주소']?.toString() || '',
+        ppsContractYn: row['조달청계약여부']?.toString() || 'N',
+        ppsContractStartDate: row['계약시작일'] ? dayjs(row['계약시작일'].toString()).format('YYYYMMDD') : '',
+        ppsContractEndDate: row['계약종료일'] ? dayjs(row['계약종료일'].toString()).format('YYYYMMDD') : '',
 
-          ppsContractYn: row['조달청계약여부']?.toString() || 'N',
-          ppsContractStartDate: row['계약시작일'] ? dayjs(row['계약시작일'].toString()).format('YYYYMMDD') : '',
-          ppsContractEndDate: row['계약종료일'] ? dayjs(row['계약종료일'].toString()).format('YYYYMMDD') : '',
+        selPower: row['정격전압/소비전력']?.toString() || '',
+        selWeight: row['크기및무게']?.toString() || '',
+        selSameDate: row['동일모델출시년월']?.toString() || '',
+        selArea: row['냉난방면적']?.toString() || '',
+        selProduct: row['제품구성']?.toString() || '',
+        selSafety: row['안전표시']?.toString() || '',
+        selCapacity: row['용량']?.toString() || '',
+        selSpecification: row['주요사양']?.toString() || '',
+        // 소비기한 매핑
+        validateRadio: CONSUMPTION_PERIOD_MAP[row['소비기한선택']] || '',
+        fValidate: row['소비기한입력']?.toString(),
 
-          selPower: row['정격전압/소비전력']?.toString() || '',
-          selWeight: row['크기및무게']?.toString() || '',
-          selSameDate: row['동일모델출시년월']?.toString() || '',
-          selArea: row['냉난방면적']?.toString() || '',
-          selProduct: row['제품구성']?.toString() || '',
-          selSafety: row['안전표시']?.toString() || '',
-          selCapacity: row['용량']?.toString() || '',
-          selSpecification: row['주요사양']?.toString() || '',
-          // 소비기한 매핑
-          validateRadio: CONSUMPTION_PERIOD_MAP[row['소비기한선택']] || '',
-          fValidate: row['소비기한입력']?.toString(),
-
-          approvalRequest: row['승인관련 요청사항']?.toString() || '',
-        }
-      },
-    )
+        approvalRequest: row['승인관련 요청사항']?.toString() || '',
+      }
+    })
   }
 
-// 타입 검증 헬퍼 메서드 추가
+  // 타입 검증 헬퍼 메서드 추가
   private validateDeliveryLimit(value: string): DeliveryLimitType {
     if (value.endsWith('일') && value in DELIVERY_LIMIT_MAP) {
       return value as DeliveryLimitType
@@ -407,7 +406,7 @@ export class S2BAutomation {
     return '7일' // 기본값
   }
 
-// 타입 검증 헬퍼 메서드 추가
+  // 타입 검증 헬퍼 메서드 추가
   private validateSaleType(value: string): SaleType {
     if (value === '물품' || value === '용역') {
       return value
@@ -434,11 +433,11 @@ export class S2BAutomation {
     this.page = await this.browser.newPage()
 
     // Dialog 이벤트 처리
-    this.page.on('dialog', async (dialog) => {
+    this.page.on('dialog', async dialog => {
       const message = dialog.message()
 
       switch (dialog.type()) {
-        case "alert":
+        case 'alert':
           // 특정 메시지 필터링: 성공 처리 메시지
           if (message.includes('S2B의 “견적정보 등록”은 지방자치단체를 당사자로 하는 계약에 관한 법률 시행령 제30조')) {
             await dialog.accept() // "확인" 버튼 자동 클릭
@@ -461,7 +460,7 @@ export class S2BAutomation {
     })
 
     // 팝업 감지 및 처리
-    this.browser.on('targetcreated', async (target) => {
+    this.browser.on('targetcreated', async target => {
       const page = await target.page()
       if (!page) return // 페이지가 없는 경우 무시
 
@@ -479,13 +478,13 @@ export class S2BAutomation {
           await delay(3000)
 
           // iframe 로드 대기
-          await page.waitForSelector('#MpreviewerImg', {timeout: 20000})
+          await page.waitForSelector('#MpreviewerImg', { timeout: 20000 })
           const iframeElement = await page.$('#MpreviewerImg')
           if (!iframeElement) throw new Error('Iframe not found.')
 
           const iframe = await iframeElement.contentFrame()
-          await iframe.waitForSelector('#reSizeStatus', {timeout: 20000})
-          const resizeStatus = await iframe.$eval('#reSizeStatus', (element) => element.textContent?.trim())
+          await iframe.waitForSelector('#reSizeStatus', { timeout: 20000 })
+          const resizeStatus = await iframe.$eval('#reSizeStatus', element => element.textContent?.trim())
 
           if (resizeStatus === 'pass') {
             console.log('Upload passed. Closing popup.')
@@ -503,7 +502,7 @@ export class S2BAutomation {
           console.log('Interacting with rema100_statusWaitPopup.jsp popup.')
 
           // 팝업 로드 대기 및 버튼 클릭
-          await page.waitForSelector('[onclick^="fnConfirm("]', {timeout: 5000})
+          await page.waitForSelector('[onclick^="fnConfirm("]', { timeout: 5000 })
 
           await page.evaluate(() => {
             const confirmButton = document.querySelector('[onclick^="fnConfirm(\'1\')"]')
@@ -541,16 +540,16 @@ export class S2BAutomation {
 
     // 팝업 닫기 로직
     try {
-      await this.page.waitForSelector('article.popup.alert', { timeout: 5000 }); // 팝업 감지
+      await this.page.waitForSelector('article.popup.alert', { timeout: 5000 }) // 팝업 감지
       await this.page.evaluate(() => {
-        const closeButton = document.querySelector('span.btn_popclose a') as HTMLElement;
+        const closeButton = document.querySelector('span.btn_popclose a') as HTMLElement
         if (closeButton) {
-          closeButton.click(); // 닫기 버튼 클릭
+          closeButton.click() // 닫기 버튼 클릭
         }
       })
-      console.log('팝업이 성공적으로 닫혔습니다.');
+      console.log('팝업이 성공적으로 닫혔습니다.')
     } catch (error) {
-      console.log('팝업이 발견되지 않았습니다. 계속 진행합니다.');
+      console.log('팝업이 발견되지 않았습니다. 계속 진행합니다.')
     }
 
     try {
@@ -613,7 +612,7 @@ export class S2BAutomation {
     await this.page.type('input[name="f_size"]', data.spec)
 
     // 보증기간 초기화 후 입력
-    await this.page.$eval('input[name="f_assure"]', el => (el as HTMLInputElement).value = '')
+    await this.page.$eval('input[name="f_assure"]', el => ((el as HTMLInputElement).value = ''))
     await this.page.type('input[name="f_assure"]', data.assure)
 
     if (data.modelName) {
@@ -627,13 +626,16 @@ export class S2BAutomation {
     await this.page.type('input[name="f_remain_qnt"]', data.remainQnt)
 
     // 납품가능기간 설정
-    await this.page.evaluate((deliveryLimitData) => {
-      const select = document.querySelector('select[name="f_delivery_limit"]') as HTMLSelectElement
-      if (select) {
-        select.value = deliveryLimitData.code
-        select.dispatchEvent(new Event('change', {bubbles: true}))
-      }
-    }, {code: data.deliveryLimit})
+    await this.page.evaluate(
+      deliveryLimitData => {
+        const select = document.querySelector('select[name="f_delivery_limit"]') as HTMLSelectElement
+        if (select) {
+          select.value = deliveryLimitData.code
+          select.dispatchEvent(new Event('change', { bubbles: true }))
+        }
+      },
+      { code: data.deliveryLimit },
+    )
 
     // 승인관련 요청사항 입력
     if (data.approvalRequest) {
@@ -672,7 +674,7 @@ export class S2BAutomation {
         console.log('G2B 물품목록번호 등록 버튼 클릭됨.')
 
         // G2B 데이터가 나타날 때까지 대기
-        await this.page.waitForSelector('#apiData', {timeout: 10000})
+        await this.page.waitForSelector('#apiData', { timeout: 10000 })
         console.log('G2B 물품목록번호 등록 성공.')
 
         // G2B 등록된 데이터 확인
@@ -686,7 +688,7 @@ export class S2BAutomation {
           const detailId = row.children[3]?.textContent?.trim() || ''
           const productId = row.children[4]?.textContent?.trim() || ''
 
-          return {imageSrc, productName, categoryId, detailId, productId}
+          return { imageSrc, productName, categoryId, detailId, productId }
         })
 
         if (g2bData) {
@@ -707,13 +709,13 @@ export class S2BAutomation {
 
     // 반품배송비 입력
     if (data.returnFee) {
-      await this.page.$eval('input[name="f_return_fee"]', el => (el as HTMLInputElement).value = '')
+      await this.page.$eval('input[name="f_return_fee"]', el => ((el as HTMLInputElement).value = ''))
       await this.page.type('input[name="f_return_fee"]', data.returnFee)
     }
 
     // 교환배송비 입력 (반품배송비의 2배)
     if (data.exchangeFee) {
-      await this.page.$eval('input[name="f_exchange_fee"]', el => (el as HTMLInputElement).value = '')
+      await this.page.$eval('input[name="f_exchange_fee"]', el => ((el as HTMLInputElement).value = ''))
       await this.page.type('input[name="f_exchange_fee"]', data.exchangeFee)
     }
   }
@@ -727,23 +729,23 @@ export class S2BAutomation {
     await delay(500)
 
     if (data.originType === '국내' && data.originLocal) {
-      await this.page.evaluate((localName) => {
+      await this.page.evaluate(localName => {
         const select = document.querySelector('#select_home_01') as HTMLSelectElement
         const options = Array.from(select.options)
         const option = options.find(opt => opt.text.includes(localName))
         if (option) {
           select.value = option.value
-          select.dispatchEvent(new Event('change', {bubbles: true}))
+          select.dispatchEvent(new Event('change', { bubbles: true }))
         }
       }, data.originLocal)
     } else if (data.originType === '국외' && data.originForeign) {
-      await this.page.evaluate((foreignName) => {
+      await this.page.evaluate(foreignName => {
         const select = document.querySelector('#select_home_02') as HTMLSelectElement
         const options = Array.from(select.options)
         const option = options.find(opt => opt.text.includes(foreignName))
         if (option) {
           select.value = option.value
-          select.dispatchEvent(new Event('change', {bubbles: true}))
+          select.dispatchEvent(new Event('change', { bubbles: true }))
         }
       }, data.originForeign)
     }
@@ -756,9 +758,11 @@ export class S2BAutomation {
     const deliveryType = DELIVERY_TYPE_MAP[data.deliveryFeeKindText] || '1'
     await this.page.click(`input[name="f_delivery_fee_kind"][value="${deliveryType}"]`)
 
-    if (deliveryType === '2' && data.deliveryFee) { // 유료배송
+    if (deliveryType === '2' && data.deliveryFee) {
+      // 유료배송
       await this.page.type('input[name="f_delivery_fee1"]', data.deliveryFee)
-    } else if (deliveryType === '3') { // 조건부무료
+    } else if (deliveryType === '3') {
+      // 조건부무료
     }
 
     // 나머지 배송 관련 설정들...
@@ -776,26 +780,26 @@ export class S2BAutomation {
     if (!this.page) return
 
     // 판매단위 선택
-    await this.page.evaluate((unitText) => {
+    await this.page.evaluate(unitText => {
       const select = document.querySelector('select[name="f_credit"]') as HTMLSelectElement
       const options = Array.from(select.options)
       const option = options.find(opt => opt.text === unitText)
       if (option) {
         select.value = option.value
-        select.dispatchEvent(new Event('change', {bubbles: true}))
+        select.dispatchEvent(new Event('change', { bubbles: true }))
       } else {
         throw new Error(`판매단위 "${unitText}"를 찾을 수 없습니다.`)
       }
     }, data.salesUnit)
 
     // 과세여부 선택
-    await this.page.evaluate((taxText) => {
+    await this.page.evaluate(taxText => {
       const select = document.querySelector('select[name="f_tax_method"]') as HTMLSelectElement
       const options = Array.from(select.options)
       const option = options.find(opt => opt.text === taxText)
       if (option) {
         select.value = option.value
-        select.dispatchEvent(new Event('change', {bubbles: true}))
+        select.dispatchEvent(new Event('change', { bubbles: true }))
       } else {
         throw new Error(`과세유형 "${taxText}"를 찾을 수 없습니다.`)
       }
@@ -809,42 +813,42 @@ export class S2BAutomation {
     await this.page.select('select[name="sale_type"]', data.saleTypeText)
 
     // 1차 카테고리 선택 - 텍스트 기반으로 선택
-    await this.page.evaluate((categoryText) => {
+    await this.page.evaluate(categoryText => {
       const select = document.querySelector('select[name="f_category_code1"]') as HTMLSelectElement
       const options = Array.from(select.options)
       const option = options.find(opt => opt.text === categoryText)
       if (option) {
         select.value = option.value
         // 변경 이벤트 발생
-        const event = new Event('change', {bubbles: true})
+        const event = new Event('change', { bubbles: true })
         select.dispatchEvent(event)
       }
     }, data.category1)
     await delay(1000)
 
     // 2차 카테고리 선택
-    await this.page.evaluate((categoryText) => {
+    await this.page.evaluate(categoryText => {
       const select = document.querySelector('select[name="f_category_code2"]') as HTMLSelectElement
       const options = Array.from(select.options)
       const option = options.find(opt => opt.text === categoryText)
       if (option) {
         select.value = option.value
         // 변경 이벤트 발생
-        const event = new Event('change', {bubbles: true})
+        const event = new Event('change', { bubbles: true })
         select.dispatchEvent(event)
       }
     }, data.category2)
     await delay(1000)
 
     // 3차 카테고리 선택
-    await this.page.evaluate((categoryText) => {
+    await this.page.evaluate(categoryText => {
       const select = document.querySelector('select[name="f_category_code3"]') as HTMLSelectElement
       const options = Array.from(select.options)
       const option = options.find(opt => opt.text === categoryText)
       if (option) {
         select.value = option.value
         // 변경 이벤트 발생
-        const event = new Event('change', {bubbles: true})
+        const event = new Event('change', { bubbles: true })
         select.dispatchEvent(event)
       }
     }, data.category3)
@@ -876,26 +880,26 @@ export class S2BAutomation {
     if (!this.page) return
 
     const certFields = [
-      {name: 'f_woman_cert', value: data.womanCert},
-      {name: 'f_disabledCompany_cert', value: data.disabledCompanyCert},
-      {name: 'f_foundation_cert', value: data.foundationCert},
-      {name: 'f_disabled_cert', value: data.disabledCert},
-      {name: 'f_several_cert', value: data.severalCert},
-      {name: 'f_cooperation_cert', value: data.cooperationCert},
-      {name: 'f_society_cert', value: data.societyCert},
-      {name: 'f_recycle_cert', value: data.recycleCert},
-      {name: 'f_environment_cert', value: data.environmentCert},
-      {name: 'f_lowCarbon_cert', value: data.lowCarbonCert},
-      {name: 'f_swQuality_cert', value: data.swQualityCert},
-      {name: 'f_nep_cert', value: data.nepCert},
-      {name: 'f_net_cert', value: data.netCert},
-      {name: 'f_greenProduct_cert', value: data.greenProductCert},
-      {name: 'f_epc_cert', value: data.epcCert},
-      {name: 'f_procure_cert', value: data.procureCert},
-      {name: 'f_seoulTown_cert', value: data.seoulTownCert},
-      {name: 'f_seoulSelf_cert', value: data.seoulSelfCert},
-      {name: 'f_seoulCollaboration_cert', value: data.seoulCollaborationCert},
-      {name: 'f_seoulReserve_cert', value: data.seoulReserveCert},
+      { name: 'f_woman_cert', value: data.womanCert },
+      { name: 'f_disabledCompany_cert', value: data.disabledCompanyCert },
+      { name: 'f_foundation_cert', value: data.foundationCert },
+      { name: 'f_disabled_cert', value: data.disabledCert },
+      { name: 'f_several_cert', value: data.severalCert },
+      { name: 'f_cooperation_cert', value: data.cooperationCert },
+      { name: 'f_society_cert', value: data.societyCert },
+      { name: 'f_recycle_cert', value: data.recycleCert },
+      { name: 'f_environment_cert', value: data.environmentCert },
+      { name: 'f_lowCarbon_cert', value: data.lowCarbonCert },
+      { name: 'f_swQuality_cert', value: data.swQualityCert },
+      { name: 'f_nep_cert', value: data.nepCert },
+      { name: 'f_net_cert', value: data.netCert },
+      { name: 'f_greenProduct_cert', value: data.greenProductCert },
+      { name: 'f_epc_cert', value: data.epcCert },
+      { name: 'f_procure_cert', value: data.procureCert },
+      { name: 'f_seoulTown_cert', value: data.seoulTownCert },
+      { name: 'f_seoulSelf_cert', value: data.seoulSelfCert },
+      { name: 'f_seoulCollaboration_cert', value: data.seoulCollaborationCert },
+      { name: 'f_seoulReserve_cert', value: data.seoulReserveCert },
     ]
 
     for (const cert of certFields) {
@@ -905,14 +909,11 @@ export class S2BAutomation {
     }
   }
 
-
   private async setDetailHtml(html: string) {
     if (!this.page) return
 
     // iframe 내부의 에디터에 접근
-    const se2Frame = this.page.frames().find(f =>
-      f.url().includes('SmartEditor2Skin.html'),
-    )
+    const se2Frame = this.page.frames().find(f => f.url().includes('SmartEditor2Skin.html'))
 
     if (!se2Frame) throw new Error('Editor iframe not found')
 
@@ -930,18 +931,17 @@ export class S2BAutomation {
       // 버튼 클릭 후 약간의 대기 시간
       await delay(500)
 
-
-// 편집기 영역 선택
+      // 편집기 영역 선택
       await se2Frame.waitForSelector('.se2_input_htmlsrc') // 편집기 컨테이너
       const $editorArea = await se2Frame.$('.se2_input_htmlsrc')
       if (!$editorArea) {
         throw new Error('Editor area not found')
       }
 
-// 편집기에 포커스 설정
+      // 편집기에 포커스 설정
       await $editorArea.click()
 
-// 텍스트 입력 (키보드 방식)
+      // 텍스트 입력 (키보드 방식)
       await this.page.keyboard.type(html)
 
       // 메인 페이지에서 Editor 버튼 클릭하여 다시 에디터 모드로 전환
@@ -953,7 +953,6 @@ export class S2BAutomation {
           throw new Error('Editor button not found')
         }
       })
-
     } catch (error) {
       console.error('Failed to set detail HTML:', error)
       throw error
@@ -1031,7 +1030,7 @@ export class S2BAutomation {
     // 계약일 입력
     if (data.ppsContractYn === 'Y') {
       if (data.ppsContractStartDate) {
-        await this.page.evaluate((startDate) => {
+        await this.page.evaluate(startDate => {
           const input = document.querySelector('input[name="f_pps_c_s_dt"]') as HTMLInputElement
           if (input) {
             input.value = startDate
@@ -1040,7 +1039,7 @@ export class S2BAutomation {
       }
 
       if (data.ppsContractEndDate) {
-        await this.page.evaluate((endDate) => {
+        await this.page.evaluate(endDate => {
           const input = document.querySelector('input[name="f_pps_c_e_dt"]') as HTMLInputElement
           if (input) {
             input.value = endDate
@@ -1064,7 +1063,7 @@ export class S2BAutomation {
 
         if (!fsSync.existsSync(filePath)) {
           console.log(`Downloading external image from: ${filePathOrUrl}`)
-          const response = await axios.get(filePathOrUrl, {responseType: 'stream'})
+          const response = await axios.get(filePathOrUrl, { responseType: 'stream' })
           const writer = fsSync.createWriteStream(filePath)
 
           response.data.pipe(writer)
@@ -1132,17 +1131,17 @@ export class S2BAutomation {
       }
 
       // 이미지 업로드
-      const inputElement = await this.page.$(inputSelector) as puppeteer.ElementHandle<HTMLInputElement>
+      const inputElement = (await this.page.$(inputSelector)) as puppeteer.ElementHandle<HTMLInputElement>
       if (inputElement) {
         await inputElement.uploadFile(filePath)
 
         if (statusSelector) {
           await this.page.waitForFunction(
-            (selector) => {
+            selector => {
               const element = document.querySelector(selector)
               return element && element.textContent?.trim() === '이미지 용량 확인 완료'
             },
-            {timeout: 20000},
+            { timeout: 20000 },
             statusSelector,
           )
         }
@@ -1190,19 +1189,12 @@ export class S2BAutomation {
   private async verifyImageUploads() {
     if (!this.page) return
 
-    const imageInputs = [
-      'f_img1',
-      'f_img2',
-      'f_img3',
-      'f_img4',
-      'f_goods_explain_img',
-    ]
+    const imageInputs = ['f_img1', 'f_img2', 'f_img3', 'f_img4', 'f_goods_explain_img']
 
     for (const inputName of imageInputs) {
-      const value = await this.page.$eval(
-        `input[name="${inputName}"]`,
-        (el: HTMLInputElement) => el.value,
-      ).catch(() => '')
+      const value = await this.page
+        .$eval(`input[name="${inputName}"]`, (el: HTMLInputElement) => el.value)
+        .catch(() => '')
 
       if (value) {
         console.log(`${inputName} uploaded successfully`)
@@ -1213,7 +1205,7 @@ export class S2BAutomation {
   private async setAsInfo(data: ProductData) {
     if (!this.page) return
 
-// 전화번호 입력
+    // 전화번호 입력
     if (data.asTelephone1) {
       // 값 지우기
       await this.page.evaluate(() => {
@@ -1224,7 +1216,7 @@ export class S2BAutomation {
       await this.page.type('input[name="f_as_telephone1"]', data.asTelephone1)
     }
 
-// 제조사 A/S 전화번호 입력
+    // 제조사 A/S 전화번호 입력
     if (data.asTelephone2) {
       // 값 지우기
       await this.page.evaluate(() => {
@@ -1237,7 +1229,7 @@ export class S2BAutomation {
 
     // 주소 입력
     if (data.addressCode) {
-      await this.page.evaluate((addressCode) => {
+      await this.page.evaluate(addressCode => {
         const input = document.querySelector<HTMLInputElement>('input[name="f_address_code"]')
         if (input) {
           input.value = addressCode
@@ -1246,7 +1238,7 @@ export class S2BAutomation {
     }
 
     if (data.address) {
-      await this.page.evaluate((address) => {
+      await this.page.evaluate(address => {
         const input = document.querySelector<HTMLInputElement>('input[name="f_address"]')
         if (input) {
           input.value = address
@@ -1255,7 +1247,7 @@ export class S2BAutomation {
     }
 
     if (data.addressDetail) {
-      await this.page.evaluate((addressDetail) => {
+      await this.page.evaluate(addressDetail => {
         const input = document.querySelector<HTMLInputElement>('input[name="f_address_detail"]')
         if (input) {
           input.value = addressDetail
@@ -1278,12 +1270,12 @@ export class S2BAutomation {
       await this.page.click('input[name="delivery_area"][value="2"]')
 
       for (const area of data.deliveryAreas) {
-        await this.page.evaluate((areaName) => {
+        await this.page.evaluate(areaName => {
           const checkboxes = document.querySelectorAll('#area1 input[type="checkbox"]')
-          checkboxes.forEach((checkbox) => {
+          checkboxes.forEach(checkbox => {
             const label = checkbox.nextSibling?.textContent?.trim()
             if (label === areaName) {
-              (checkbox as HTMLInputElement).checked = true // 체크박스 선택
+              ;(checkbox as HTMLInputElement).checked = true // 체크박스 선택
             }
           })
         }, area)
@@ -1295,22 +1287,21 @@ export class S2BAutomation {
   }
 
   public async extendManagementDateForWeeks(weeks: number) {
-    if (!this.page) throw new Error('Browser not initialized.');
+    if (!this.page) throw new Error('Browser not initialized.')
 
-    const today = dayjs().format('YYYYMMDD');
-    const targetDate = dayjs().add(weeks, 'week').format('YYYYMMDD');
+    const today = dayjs().format('YYYYMMDD')
+    const targetDate = dayjs().add(weeks, 'week').format('YYYYMMDD')
 
-    await this.page.goto(
-      'https://www.s2b.kr/S2BNVendor/S2B/srcweb/remu/rema/rema100_list_new.jsp',
-      {waitUntil: 'domcontentloaded'},
-    )
+    await this.page.goto('https://www.s2b.kr/S2BNVendor/S2B/srcweb/remu/rema/rema100_list_new.jsp', {
+      waitUntil: 'domcontentloaded',
+    })
 
     // 날짜 설정 및 검색 실행
     await this.page.evaluate(
       (startDate, endDate) => {
-        (document.querySelector('#search_date') as HTMLSelectElement).value = 'LIMIT_DATE';
-        (document.querySelector('#search_date_start') as HTMLInputElement).value = startDate;
-        (document.querySelector('#search_date_end') as HTMLInputElement).value = endDate
+        ;(document.querySelector('#search_date') as HTMLSelectElement).value = 'LIMIT_DATE'
+        ;(document.querySelector('#search_date_start') as HTMLInputElement).value = startDate
+        ;(document.querySelector('#search_date_end') as HTMLInputElement).value = endDate
       },
       today,
       targetDate,
@@ -1318,13 +1309,12 @@ export class S2BAutomation {
 
     await Promise.all([
       this.page.click('[href^="javascript:search()"]'),
-      this.page.waitForNavigation({waitUntil: 'domcontentloaded'}),
+      this.page.waitForNavigation({ waitUntil: 'domcontentloaded' }),
     ])
 
     // 상품 목록에서 링크 가져오기
-    const productLinks = await this.page.$$eval(
-      '#listTable tr td.td_graylist_l a',
-      (links) => links.map((link) => (link as HTMLAnchorElement).href),
+    const productLinks = await this.page.$$eval('#listTable tr td.td_graylist_l a', links =>
+      links.map(link => (link as HTMLAnchorElement).href),
     )
 
     if (!productLinks.length) {
@@ -1337,7 +1327,7 @@ export class S2BAutomation {
       try {
         await delay(1000)
         console.log(`Processing product link: ${link}`)
-        await this.page.goto(link, {waitUntil: 'domcontentloaded'})
+        await this.page.goto(link, { waitUntil: 'domcontentloaded' })
 
         const extendButton = await this.page.$('a[href^="javascript:fnLimitDateUpdate()"]')
         await extendButton.click()
@@ -1350,7 +1340,7 @@ export class S2BAutomation {
     console.log('All products processed.')
   }
 
-// 브라우저 종료
+  // 브라우저 종료
   async close() {
     if (this.browser) {
       await this.browser.close()
@@ -1368,11 +1358,11 @@ export class S2BAutomation {
 
     // 타사이트 등록 가격
     if (data.otherSiteAmt) {
-      await this.page.evaluate((amt) => {
+      await this.page.evaluate(amt => {
         const input = document.querySelector<HTMLInputElement>('input[name="f_site_amt"]')
         if (input) {
           input.value = amt
-          input.dispatchEvent(new Event('change', {bubbles: true}))
+          input.dispatchEvent(new Event('change', { bubbles: true }))
         }
       }, data.otherSiteAmt)
     }
@@ -1389,46 +1379,44 @@ export class S2BAutomation {
 
     // 나라장터 등록 가격
     if (data.naraAmt) {
-      await this.page.evaluate((amt) => {
+      await this.page.evaluate(amt => {
         const input = document.querySelector<HTMLInputElement>('input[name="f_nara_amt"]')
         if (input) {
           input.value = amt
-          input.dispatchEvent(new Event('change', {bubbles: true}))
+          input.dispatchEvent(new Event('change', { bubbles: true }))
         }
       }, data.naraAmt)
     }
 
     // 사이트명
     if (data.siteName) {
-      await this.page.evaluate((name) => {
+      await this.page.evaluate(name => {
         const input = document.querySelector<HTMLInputElement>('input[name="f_site_name"]')
         if (input) {
           input.value = name
-          input.dispatchEvent(new Event('change', {bubbles: true}))
+          input.dispatchEvent(new Event('change', { bubbles: true }))
         }
       }, data.siteName)
     }
 
     // 사이트주소
     if (data.siteUrl) {
-      await this.page.evaluate((url) => {
+      await this.page.evaluate(url => {
         const input = document.querySelector<HTMLInputElement>('input[name="f_site_url"]')
         if (input) {
           input.value = url
-          input.dispatchEvent(new Event('change', {bubbles: true}))
+          input.dispatchEvent(new Event('change', { bubbles: true }))
         }
       }, data.siteUrl)
     }
   }
 
-// 상품등록 완료 메서드 수정
+  // 상품등록 완료 메서드 수정
   private async submitRegistration() {
     if (!this.page) return
 
     // 청렴서약서 체크 상태 확인
-    const isChecked = await this.page.$eval('#uprightContract',
-      (el: Element) => (el as HTMLInputElement).checked,
-    )
+    const isChecked = await this.page.$eval('#uprightContract', (el: Element) => (el as HTMLInputElement).checked)
 
     // 혹시 체크가 안되어 있다면 다시 체크
     if (!isChecked) {
@@ -1436,7 +1424,7 @@ export class S2BAutomation {
         const checkbox = document.querySelector('#uprightContract') as HTMLInputElement
         if (checkbox) {
           checkbox.checked = true
-          checkbox.dispatchEvent(new Event('change', {bubbles: true}))
+          checkbox.dispatchEvent(new Event('change', { bubbles: true }))
         }
       })
     }
