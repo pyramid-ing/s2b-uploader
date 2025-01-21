@@ -1159,27 +1159,27 @@ export class S2BAutomation {
 
     if (data.image1) {
       await this.uploadFile('#f_img1_file', data.image1, '#f_img1_file_size_ck')
-      await delay(1000)
+      await delay(5000)
     }
 
     if (data.image2) {
       await this.uploadFile('#f_img2_file', data.image2, '#f_img2_file_size_ck')
-      await delay(1000)
+      await delay(5000)
     }
 
     if (data.addImage1) {
       await this.uploadFile('#f_img3_file', data.addImage1, '#f_img3_file_size_ck')
-      await delay(1000)
+      await delay(5000)
     }
 
     if (data.addImage2) {
       await this.uploadFile('#f_img4_file', data.addImage2, '#f_img4_file_size_ck')
-      await delay(1000)
+      await delay(5000)
     }
 
     if (data.detailImage) {
       await this.uploadFile('#f_goods_explain_img_file', data.detailImage, '#f_goods_explain_img_file_size_ck')
-      await delay(1000)
+      await delay(5000)
     }
 
     // 이미지 업로드 결과 확인
