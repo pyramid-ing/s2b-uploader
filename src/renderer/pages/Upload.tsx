@@ -51,8 +51,8 @@ const Upload: React.FC = () => {
         message.warning('Excel 파일 경로가 설정되지 않았습니다.')
         return
       }
-      if (!settings?.imageDir) {
-        message.warning('이미지 디렉토리가 설정되지 않았습니다.')
+      if (!settings?.fileDir) {
+        message.warning('파일 폴더가 설정되지 않았습니다.')
         return
       }
 
@@ -60,7 +60,7 @@ const Upload: React.FC = () => {
 
       const products = await ipcRenderer.invoke('load-excel-data', {
         excelPath: settings.excelPath,
-        imageDir: settings.imageDir,
+        fileDir: settings.fileDir,
       })
 
       const loadedData = products.map((p: any, index: number) => ({

@@ -26,7 +26,7 @@ async function checkAccountValidity(accountId: string): Promise<boolean> {
 
 interface StoreSchema {
   settings: {
-    imageDir: string
+    fileDir: string
     excelPath: string
     loginId: string
     loginPw: string
@@ -37,7 +37,7 @@ interface StoreSchema {
 const store = new Store<StoreSchema>({
   defaults: {
     settings: {
-      imageDir: '',
+      fileDir: '',
       excelPath: '',
       loginId: '',
       loginPw: '',
@@ -79,20 +79,20 @@ function setupIpcHandlers() {
   })
 
   // Excel 데이터 로드 및 automation 초기화
-  ipcMain.handle('load-excel-data', async (_, { excelPath, imageDir }) => {
+  ipcMain.handle('load-excel-data', async (_, { excelPath, fileDir }) => {
     try {
       // 경로 확인 및 유효성 체크
       const resolvedExcelPath = path.normalize(path.resolve(excelPath))
-      const resolvedImageDir = path.normalize(path.resolve(imageDir))
+      const resolvedFileDir = path.normalize(path.resolve(fileDir))
 
       if (!fsSync.existsSync(resolvedExcelPath)) {
         throw new Error(`Excel file does not exist: ${resolvedExcelPath}`)
       }
-      if (!fsSync.existsSync(resolvedImageDir)) {
-        throw new Error(`Image directory does not exist: ${resolvedImageDir}`)
+      if (!fsSync.existsSync(resolvedFileDir)) {
+        throw new Error(`File directory does not exist: ${resolvedFileDir}`)
       }
 
-      const automation = new S2BAutomation(resolvedImageDir)
+      const automation = new S2BAutomation(resolvedFileDir)
       const data = await automation.readExcelFile(resolvedExcelPath)
       return data
     } catch (error) {
@@ -106,7 +106,7 @@ function setupIpcHandlers() {
       if (!automation) {
         // automation이 없으면 새로 생성
         const settings = store.get('settings')
-        automation = new S2BAutomation(settings.imageDir)
+        automation = new S2BAutomation(settings.fileDir)
       }
       await automation.start()
       await automation.login(loginId, loginPw)

@@ -5,7 +5,7 @@ import { FolderOutlined } from '@ant-design/icons'
 const { ipcRenderer } = window.require('electron')
 
 interface SettingsForm {
-  imageDir: string
+  fileDir: string
   excelPath: string
   loginId: string
   loginPw: string
@@ -41,8 +41,8 @@ const Settings: React.FC = () => {
     try {
       const path = await ipcRenderer.invoke('select-directory')
       if (path) {
-        form.setFieldValue('imageDir', path)
-        console.log('Selected image directory:', path)
+        form.setFieldValue('fileDir', path)
+        console.log('Selected file directory:', path)
       }
     } catch (error) {
       console.error('Failed to select directory:', error)
@@ -94,9 +94,9 @@ const Settings: React.FC = () => {
       <Form form={form} layout="vertical" onFinish={handleSubmit} autoComplete="off" disabled={loading}>
         {/* 기존 Form.Items는 그대로 유지 */}
         <Form.Item
-          label="이미지 폴더 경로"
-          name="imageDir"
-          rules={[{ required: true, message: '이미지 디렉토리를 선택해주세요' }]}
+          label="파일 폴더 경로"
+          name="fileDir"
+          rules={[{ required: true, message: '파일 폴더를 선택해주세요' }]}
         >
           <Input
             readOnly
