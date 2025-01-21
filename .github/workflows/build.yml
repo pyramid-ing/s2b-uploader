@@ -45,14 +45,14 @@ jobs:
         run: |
           yarn package-win
 
-      # 7. 압축
-      - name: Compress Artifacts
+      # 7. ZIP 압축 (단일 압축 파일 생성)
+      - name: Compress Artifacts into ZIP
         run: |
-          tar -czf s2b-uploader.tar.gz -C dist .
+          powershell Compress-Archive -Path ./dist/* -DestinationPath s2b-uploader.zip
 
       # 8. 아티팩트 업로드 (압축된 파일 저장)
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: s2b-uploader
-          path: s2b-uploader.tar.gz
+          path: s2b-uploader.zip
