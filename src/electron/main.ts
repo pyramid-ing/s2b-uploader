@@ -322,7 +322,25 @@ function setupIpcHandlers() {
   })
 }
 
-app.whenReady().then(() => {
+async function clearTempFiles(fileDir: string): Promise<void> {
+  const tempDir = path.join(fileDir, 'temp')
+
+  try {
+    const files = await fs.readdir(tempDir)
+    await Promise.all(files.map(file => fs.unlink(path.join(tempDir, file))))
+    console.log(`Deleted all files in ${tempDir}`)
+  } catch (error) {
+    console.error(`Failed to delete files in ${tempDir}:`, error)
+  }
+}
+
+app.whenReady().then(async () => {
+  // 설정에서 fileDir 가져오기
+  const settings = store.get('settings')
+
+  // temp 디렉토리 정리
+  await clearTempFiles(settings.fileDir)
+
   createWindow()
   setupIpcHandlers()
 })
