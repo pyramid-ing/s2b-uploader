@@ -335,12 +335,6 @@ async function clearTempFiles(fileDir: string): Promise<void> {
 }
 
 app.whenReady().then(async () => {
-  // 설정에서 fileDir 가져오기
-  const settings = store.get('settings')
-
-  // temp 디렉토리 정리
-  await clearTempFiles(settings.fileDir)
-
   createWindow()
   setupIpcHandlers()
 })
