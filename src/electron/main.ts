@@ -326,15 +326,33 @@ async function clearTempFiles(fileDir: string): Promise<void> {
   const tempDir = path.join(fileDir, 'temp')
 
   try {
+    if (!fsSync.existsSync(tempDir)) {
+      console.warn(`Directory does not exist: ${tempDir}`)
+      return
+    }
+
     const files = await fs.readdir(tempDir)
-    await Promise.all(files.map(file => fs.unlink(path.join(tempDir, file))))
+    await Promise.all(
+      files.map(async file => {
+        try {
+          await fs.unlink(path.join(tempDir, file))
+        } catch (error) {
+          console.warn(`Failed to delete file ${file}:`, error)
+        }
+      }),
+    )
     console.log(`Deleted all files in ${tempDir}`)
   } catch (error) {
     console.error(`Failed to delete files in ${tempDir}:`, error)
   }
 }
 
-app.whenReady().then(async () => {
+app.whenReady().then(() => {
+  const settings = store.get('settings')
+
+  // temp 디렉토리 정리
+  clearTempFiles(settings.fileDir).catch(error => console.error(error))
+
   createWindow()
   setupIpcHandlers()
 })
