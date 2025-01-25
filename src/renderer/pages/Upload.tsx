@@ -100,6 +100,7 @@ const Upload: React.FC = () => {
       await ipcRenderer.invoke('start-automation', {
         loginId: settings.loginId,
         loginPw: settings.loginPw,
+        imageOptimize: settings.imageOptimize, // 이미지 최적화 여부 전달
       })
 
       for (const key of selectedKeys) {

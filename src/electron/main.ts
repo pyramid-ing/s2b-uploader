@@ -30,6 +30,7 @@ interface StoreSchema {
     excelPath: string
     loginId: string
     loginPw: string
+    imageOptimize: boolean
   }
 }
 
@@ -41,6 +42,7 @@ const store = new Store<StoreSchema>({
       excelPath: '',
       loginId: '',
       loginPw: '',
+      imageOptimize: false,
     },
   },
   // 중요한 데이터는 암호화
@@ -101,7 +103,7 @@ function setupIpcHandlers() {
     }
   })
   // 자동화 시작
-  ipcMain.handle('start-automation', async (_, { loginId, loginPw }) => {
+  ipcMain.handle('start-automation', async (_, { loginId, loginPw, imageOptimize }) => {
     try {
       if (!automation) {
         // automation이 없으면 새로 생성
@@ -110,6 +112,7 @@ function setupIpcHandlers() {
       }
       await automation.start()
       await automation.login(loginId, loginPw)
+      automation.setImageOptimize(imageOptimize) // 이미지 최적화 여부 설정
       return true
     } catch (error) {
       console.error('Failed to start automation:', error)

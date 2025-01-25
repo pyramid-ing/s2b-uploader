@@ -202,6 +202,7 @@ export class S2BAutomation {
   private baseFilePath: string // 이미지 기본 경로
   private chromePath: string // Chrome 실행 파일 경로 추가
   private dialogErrorMessage: string | null = null // dialog 에러 메시지 추적
+  private imageOptimize: boolean = false // 이미지 최적화 여부
 
   constructor(baseImagePath: string) {
     this.baseFilePath = baseImagePath
@@ -229,6 +230,11 @@ export class S2BAutomation {
     if (!this.chromePath || !fsSync.existsSync(this.chromePath)) {
       throw new Error('Chrome 실행 파일 경로를 찾을 수 없습니다. Windows 환경에서 Chrome이 설치되어 있는지 확인하세요.')
     }
+  }
+
+  // 이미지 최적화 여부 설정
+  public setImageOptimize(optimize: boolean) {
+    this.imageOptimize = optimize
   }
 
   async login(id: string, password: string) {
@@ -1083,20 +1089,17 @@ export class S2BAutomation {
       }
 
       // 이미지 유형별 크기 조정
-      let resizeWidth: number | undefined
-      let resizeHeight: number | undefined
+      let type: string = 'detail'
 
       switch (inputSelector) {
         case '#f_img1_file':
         case '#f_img2_file':
         case '#f_img3_file':
         case '#f_img4_file':
-          resizeWidth = 500
-          resizeHeight = 500
+          type = 'thumb'
           break
         case '#f_goods_explain_img_file':
-          resizeWidth = 680
-          resizeHeight = undefined // 비율 유지
+          type = 'detail'
           break
         default:
           console.log(`No resizing needed for selector: ${inputSelector}`)
@@ -1104,33 +1107,27 @@ export class S2BAutomation {
       }
 
       // 크기 조정 요청 (n8n 웹훅 호출)
-      if (resizeWidth || resizeHeight) {
-        console.log(`Resizing image for selector: ${inputSelector}`)
-        const formData = new FormData()
-        formData.append('width', resizeWidth?.toString() || '')
-        formData.append('height', resizeHeight?.toString() || '')
-        formData.append('file', fsSync.createReadStream(filePath))
+      console.log(`Resizing image for selector: ${inputSelector}`)
+      const formData = new FormData()
+      formData.append('type', type)
+      formData.append('optimize', this.imageOptimize ? '1' : '0') // "1" 또는 "0"으로 변환
+      formData.append('file', fsSync.createReadStream(filePath))
 
-        const n8nResponse = await axios.post(
-          'http://211.188.51.146:20001/webhook/f05309a0-208f-40fa-b992-92d931292b83',
-          formData,
-          {
-            headers: formData.getHeaders(),
-            responseType: 'arraybuffer',
-          },
-        )
+      const n8nResponse = await axios.post('http://211.188.51.146:20001/webhook/s2b/edit-image', formData, {
+        headers: formData.getHeaders(),
+        responseType: 'arraybuffer',
+      })
 
-        // 임시 파일 저장
-        const tempDir = path.join(this.baseFilePath, 'temp')
-        if (!fsSync.existsSync(tempDir)) {
-          fsSync.mkdirSync(tempDir)
-        }
-        const tempFilePath = path.join(tempDir, `${crypto.randomUUID()}.jpg`)
-        fsSync.writeFileSync(tempFilePath, n8nResponse.data)
-        filePath = tempFilePath
+      // 임시 파일 저장
+      const tempDir = path.join(this.baseFilePath, 'temp')
+      if (!fsSync.existsSync(tempDir)) {
+        fsSync.mkdirSync(tempDir)
       }
+      const tempFilePath = path.join(tempDir, `${crypto.randomUUID()}.jpg`)
+      fsSync.writeFileSync(tempFilePath, n8nResponse.data)
+      filePath = tempFilePath
 
-      // 파일업로드
+      // 파일 업로드
       const inputElement = (await this.page.$(inputSelector)) as puppeteer.ElementHandle<HTMLInputElement>
       if (inputElement) {
         await inputElement.uploadFile(filePath)

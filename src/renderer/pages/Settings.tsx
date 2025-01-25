@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { Button, Card, Form, Input, message } from 'antd'
+import { Button, Card, Form, Input, message, Switch } from 'antd'
 import { FolderOutlined } from '@ant-design/icons'
 
 const { ipcRenderer } = window.require('electron')
@@ -9,6 +9,7 @@ interface SettingsForm {
   excelPath: string
   loginId: string
   loginPw: string
+  imageOptimize: boolean // 이미지 최적화 여부
 }
 
 const Settings: React.FC = () => {
@@ -92,7 +93,6 @@ const Settings: React.FC = () => {
   return (
     <Card title="설정">
       <Form form={form} layout="vertical" onFinish={handleSubmit} autoComplete="off" disabled={loading}>
-        {/* 기존 Form.Items는 그대로 유지 */}
         <Form.Item
           label="파일 폴더 경로"
           name="fileDir"
@@ -129,6 +129,17 @@ const Settings: React.FC = () => {
 
         <Form.Item label="비밀번호" name="loginPw" rules={[{ required: true, message: '비밀번호를 입력해주세요' }]}>
           <Input.Password />
+        </Form.Item>
+
+        {/* 이미지 최적화 설정 추가 */}
+        <Form.Item
+          label="이미지 최적화"
+          name="imageOptimize"
+          valuePropName="checked"
+          initialValue={false}
+          tooltip="이미지 업로드 시 최적화를 진행합니다."
+        >
+          <Switch />
         </Form.Item>
 
         <Form.Item>
