@@ -863,6 +863,14 @@ export class S2BAutomation {
   async setCategoryDetails(data: ProductData) {
     if (!this.page) throw new Error('Browser not initialized')
 
+    // 소비기한 설정
+    if (data.validateRadio) {
+      await this.page.click(`input[name="validateRadio"][value="${data.validateRadio}"]`)
+      if (data.validateRadio === 'date' && data.fValidate) {
+        await this.page.type('input[name="f_validate"]', data.fValidate)
+      }
+    }
+
     // 기존 카테고리별 입력사항 설정 로직
     if (data.selPower) await this.page.type('input[name="f_sel_power"]', data.selPower)
     if (data.selWeight) await this.page.type('input[name="f_sel_weight"]', data.selWeight)
@@ -872,14 +880,6 @@ export class S2BAutomation {
     if (data.selSafety) await this.page.type('input[name="f_sel_safety"]', data.selSafety)
     if (data.selCapacity) await this.page.type('input[name="f_sel_capacity"]', data.selCapacity)
     if (data.selSpecification) await this.page.type('input[name="f_sel_specification"]', data.selSpecification)
-
-    // 소비기한 설정
-    if (data.validateRadio) {
-      await this.page.click(`input[name="validateRadio"][value="${data.validateRadio}"]`)
-      if (data.validateRadio === 'date' && data.fValidate) {
-        await this.page.type('input[name="f_validate"]', data.fValidate)
-      }
-    }
   }
 
   private async setCertifications(data: ProductData) {
@@ -1065,22 +1065,20 @@ export class S2BAutomation {
       if (filePathOrUrl.startsWith('http')) {
         const url = new URL(filePathOrUrl)
         const fileName = path.basename(url.pathname)
-        filePath = path.join(this.baseFilePath, fileName)
+        filePath = path.join(this.baseFilePath, 'temp', fileName)
 
-        if (!fsSync.existsSync(filePath)) {
-          console.log(`Downloading external file from: ${filePathOrUrl}`)
-          const response = await axios.get(filePathOrUrl, { responseType: 'stream' })
-          const writer = fsSync.createWriteStream(filePath)
+        console.log(`Downloading external file from: ${filePathOrUrl}`)
+        const response = await axios.get(filePathOrUrl, { responseType: 'stream' })
+        const writer = fsSync.createWriteStream(filePath)
 
-          response.data.pipe(writer)
+        response.data.pipe(writer)
 
-          await new Promise((resolve, reject) => {
-            writer.on('finish', resolve)
-            writer.on('error', reject)
-          })
+        await new Promise((resolve, reject) => {
+          writer.on('finish', resolve)
+          writer.on('error', reject)
+        })
 
-          console.log(`Downloaded external file to: ${filePath}`)
-        }
+        console.log(`Downloaded external file to: ${filePath}`)
       } else {
         filePath = path.join(this.baseFilePath, filePathOrUrl)
         if (!fsSync.existsSync(filePath)) {
