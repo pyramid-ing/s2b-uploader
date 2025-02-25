@@ -216,6 +216,8 @@ function setupIpcHandlers() {
         sendLogToRenderer(`에러 발생: ${error.message}`, 'error')
         console.error('자동화 실패:', error)
         return { success: false, error: error.message }
+      } finally {
+        await automation.close()
       }
     },
   )
