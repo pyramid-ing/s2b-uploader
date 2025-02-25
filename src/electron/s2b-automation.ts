@@ -203,9 +203,11 @@ export class S2BAutomation {
   private chromePath: string // Chrome 실행 파일 경로 추가
   private dialogErrorMessage: string | null = null // dialog 에러 메시지 추적
   private imageOptimize: boolean = false // 이미지 최적화 여부
+  private logCallback: (message: string, level?: 'info' | 'warning' | 'error') => void
 
-  constructor(baseImagePath: string) {
+  constructor(baseImagePath: string, logCallback: (message: string, level?: 'info' | 'warning' | 'error') => void) {
     this.baseFilePath = baseImagePath
+    this.logCallback = logCallback
 
     // OS별 Chrome 기본 설치 경로 설정
     if (process.platform === 'darwin') {
@@ -235,6 +237,12 @@ export class S2BAutomation {
   // 이미지 최적화 여부 설정
   public setImageOptimize(optimize: boolean) {
     this.imageOptimize = optimize
+  }
+
+  private log(message: string, level: 'info' | 'warning' | 'error' = 'info') {
+    if (this.logCallback) {
+      this.logCallback(message, level)
+    }
   }
 
   async login(id: string, password: string) {
@@ -534,76 +542,129 @@ export class S2BAutomation {
       this.page.setDefaultTimeout(30000)
     }
   }
-
   // 상품 등록
   async registerProduct(data: ProductData) {
     if (!this.page) throw new Error('Browser not initialized')
 
     this.dialogErrorMessage = null // 초기화
 
-    await this.page.goto('https://www.s2b.kr/S2BNVendor/rema100.do?forwardName=goRegistView')
-    await this.page.waitForSelector('select[name="sale_type"]')
+    // ✅ 로그: 상품 등록 시작
+    this.log(`상품 등록 시작: ${data.goodsName}`, 'info')
 
-    // 팝업 닫기 로직
     try {
-      await this.page.waitForSelector('article.popup.alert', { timeout: 5000 }) // 팝업 감지
-      await this.page.evaluate(() => {
-        const closeButton = document.querySelector('span.btn_popclose a') as HTMLElement
-        if (closeButton) {
-          closeButton.click() // 닫기 버튼 클릭
+      await this.page.goto('https://www.s2b.kr/S2BNVendor/rema100.do?forwardName=goRegistView')
+      this.log('상품 등록 페이지 접속 완료', 'info')
+
+      await this.page.waitForSelector('select[name="sale_type"]')
+      this.log('상품 등록 폼 로드 완료', 'info')
+
+      // ✅ 팝업 닫기 로직
+      try {
+        await this.page.waitForSelector('article.popup.alert', { timeout: 5000 }) // 팝업 감지
+        await this.page.evaluate(() => {
+          const closeButton = document.querySelector('span.btn_popclose a') as HTMLElement
+          if (closeButton) {
+            closeButton.click() // 닫기 버튼 클릭
+          }
+        })
+        this.log('팝업이 성공적으로 닫혔습니다.', 'info')
+      } catch (error) {
+        this.log('팝업이 발견되지 않았습니다. 계속 진행합니다.', 'warning')
+      }
+
+      // ✅ 단계별 입력 처리
+      try {
+        // 기본 정보 입력
+        this.log('기본 정보 입력 중...', 'info')
+        await this.setBasicInfo(data)
+        this.log('기본 정보 입력 완료', 'info')
+
+        // 이미지 업로드
+        this.log('이미지 업로드 시작', 'info')
+        await this.uploadAllImages(data)
+        this.log('이미지 업로드 완료', 'info')
+
+        // 카테고리 선택
+        this.log('카테고리 선택 중...', 'info')
+        await this.selectCategory(data)
+        this.log('카테고리 선택 완료', 'info')
+
+        // 카테고리별 입력사항 설정
+        this.log('카테고리별 상세 정보 입력 중...', 'info')
+        await this.setCategoryDetails(data)
+
+        // 인증정보 설정
+        this.log('인증 정보 입력 중...', 'info')
+        await this.setCertifications(data)
+
+        // KC 인증 정보 설정
+        this.log('KC 인증 정보 입력 중...', 'info')
+        await this.setKcCertifications(data)
+
+        // 기타첨부서류
+        this.log('기타 첨부 서류 업로드 중...', 'info')
+        await this.setOtherAttachments(data)
+
+        // G2B 물품목록번호 설정
+        this.log(`G2B 정보 입력 중 (번호: ${data.g2bNumber})`, 'info')
+        await this.setG2bInformation(data.g2bNumber)
+
+        // 조달청 계약여부
+        this.log('조달청 계약 여부 설정 중...', 'info')
+        await this.setPpsContract(data)
+
+        // 배송정보
+        this.log('배송 정보 입력 중...', 'info')
+        await this.setDeliveryInfo(data)
+
+        // 배송비 설정
+        this.log('배송비 정보 입력 중...', 'info')
+        await this.setDeliveryFee(data)
+
+        // 상세설명 HTML 설정
+        this.log('상세 설명 입력 중...', 'info')
+        await this.setDetailHtml(data.detailHtml)
+
+        // 나라장터 정보 설정
+        this.log('나라장터 정보 입력 중...', 'info')
+        await this.setNaraInformation(data)
+
+        // 타사이트 정보 설정
+        this.log('타 사이트 정보 입력 중...', 'info')
+        await this.setOtherSiteInformation(data)
+
+        // 판매단위와 과세여부 설정
+        this.log('판매 단위 및 과세 여부 설정 중...', 'info')
+        await this.setSalesUnitAndTax(data)
+
+        // 반품/교환 배송비 입력
+        this.log('반품/교환 배송비 입력 중...', 'info')
+        await this.setReturnExchangeFee(data)
+
+        // AS정보입력
+        this.log('AS 정보 입력 중...', 'info')
+        await this.setAsInfo(data)
+
+        // 원산지 정보 설정
+        this.log('원산지 정보 입력 중...', 'info')
+        await this.setOriginInfo(data)
+
+        // 청렴서약서 동의 및 등록
+        this.log('청렴서약서 등록 중...', 'info')
+        await this.submitRegistration()
+
+        // ✅ Dialog 에러 확인
+        if (this.dialogErrorMessage) {
+          this.log(`등록 중 에러 발생: ${this.dialogErrorMessage}`, 'error')
+          throw new Error(this.dialogErrorMessage) // 에러 발생 시 throw
         }
-      })
-      console.log('팝업이 성공적으로 닫혔습니다.')
-    } catch (error) {
-      console.log('팝업이 발견되지 않았습니다. 계속 진행합니다.')
-    }
 
-    try {
-      // 기본 정보 입력
-      await this.setBasicInfo(data)
-      // 이미지 업로드
-      await this.uploadAllImages(data)
-      // 카테고리 선택
-      await this.selectCategory(data)
-      // 카테고리별 입력사항 설정
-      await this.setCategoryDetails(data)
-      // 인증정보 설정
-      await this.setCertifications(data)
-      // KC 인증 정보 설정
-      await this.setKcCertifications(data)
-      // 기타첨부서류
-      await this.setOtherAttachments(data)
-      // G2B 물품목록번호 설정 (예제 번호)
-      await this.setG2bInformation(data.g2bNumber)
-      // 조달청 계약여부
-      await this.setPpsContract(data)
-      // 배송정보
-      await this.setDeliveryInfo(data)
-      // 배송비 설정
-      await this.setDeliveryFee(data)
-      // 상세설명 HTML 설정
-      await this.setDetailHtml(data.detailHtml)
-      // 나라장터 정보 설정
-      await this.setNaraInformation(data)
-      // 타사이트 정보 설정
-      await this.setOtherSiteInformation(data)
-      // 판매단위와 과세여부 설정
-      await this.setSalesUnitAndTax(data)
-      // 반품/교환 배송비 입력
-      await this.setReturnExchangeFee(data)
-      // AS정보입력
-      await this.setAsInfo(data)
-      // 원산지 정보 설정 (자동입력 기능 포함)
-      await this.setOriginInfo(data)
-      // 청렴서약서 동의 및 등록
-      await this.submitRegistration()
-
-      // Dialog에서 에러 메시지가 발생했는지 확인
-      if (this.dialogErrorMessage) {
-        throw new Error(this.dialogErrorMessage) // 에러 발생 시 throw
+        // ✅ 최종 성공 로그
+        this.log(`✅ 상품 등록 성공: ${data.goodsName}`, 'info')
+      } catch (stepError) {
+        throw stepError
       }
     } catch (error) {
-      console.error('상품 등록 중 오류 발생:', error)
       throw error
     }
   }

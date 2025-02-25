@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { Alert, Button, Card, InputNumber, message, Space, Table } from 'antd'
 import { ReloadOutlined, UploadOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
+import TerminalLog from './TerminalLog'
 
 const { ipcRenderer } = window.require('electron')
 
@@ -82,6 +83,7 @@ const Upload: React.FC = () => {
     }
   }
 
+  // ✅ 수정된 handleUpload 메서드
   const handleUpload = async () => {
     try {
       if (selectedKeys.length === 0) {
@@ -97,27 +99,21 @@ const Upload: React.FC = () => {
 
       setLoading(true)
 
-      await ipcRenderer.invoke('start-automation', {
+      // ✅ 통합된 IPC 호출
+      const productList = data.filter(item => selectedKeys.includes(item.key)).map(item => item.originalData)
+
+      const result = await ipcRenderer.invoke('start-and-register-products', {
         loginId: settings.loginId,
         loginPw: settings.loginPw,
-        imageOptimize: settings.imageOptimize, // 이미지 최적화 여부 전달
+        imageOptimize: settings.imageOptimize,
+        productList,
+        excelPath: settings.excelPath,
       })
 
-      for (const key of selectedKeys) {
-        const product = data.find(item => item.key === key)
-
-        if (product) {
-          try {
-            await ipcRenderer.invoke('register-product', {
-              productData: product.originalData,
-              excelPath: settings.excelPath,
-            })
-            message.success(`상품 "${product.goodsName}" 처리 완료`)
-          } catch (error) {
-            console.error(`Failed to register product: ${product.goodsName}`, error)
-            message.error(`상품 "${product.goodsName}" 등록에 실패했습니다.`)
-          }
-        }
+      if (result.success) {
+        message.success('모든 상품이 성공적으로 등록되었습니다.')
+      } else {
+        message.error(`일부 상품 등록 실패: ${result.error}`)
       }
     } catch (error) {
       console.error('Upload process failed:', error)
@@ -236,6 +232,8 @@ const Upload: React.FC = () => {
           loading={loading}
         />
       </Card>
+
+      <TerminalLog />
     </>
   )
 }

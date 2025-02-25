@@ -23,6 +23,41 @@ async function checkAccountValidity(accountId: string): Promise<boolean> {
     throw new Error('계정 확인 중 문제가 발생했습니다.')
   }
 }
+const updateExcelResult = async (excelPath: string, goodsName: string, resultMessage: string) => {
+  try {
+    const workbook = XLSX.readFile(excelPath, { type: 'binary' })
+    const sheet = workbook.Sheets[workbook.SheetNames[0]]
+    const rows: any[] = XLSX.utils.sheet_to_json(sheet, { header: 1 })
+
+    const headers = rows[0]
+    const productIndex = rows.findIndex(row => row.includes(goodsName))
+
+    if (productIndex !== -1) {
+      const resultColumnKey = '결과'
+
+      // 결과열 추가
+      let resultColumnIndex = headers.indexOf(resultColumnKey)
+      if (resultColumnIndex === -1) {
+        headers.unshift(resultColumnKey)
+        resultColumnIndex = 0
+        rows.forEach((row, index) => {
+          if (index > 0) row.unshift('')
+        })
+      }
+
+      // 결과 메시지 업데이트
+      rows[productIndex][resultColumnIndex] = resultMessage
+
+      // 시트 저장
+      const updatedSheet = XLSX.utils.aoa_to_sheet(rows)
+      workbook.Sheets[workbook.SheetNames[0]] = updatedSheet
+      XLSX.writeFile(workbook, excelPath)
+    }
+  } catch (excelError) {
+    sendLogToRenderer(`엑셀 업데이트 실패: ${excelError.message}`, 'error')
+    console.error('엑셀 업데이트 실패:', excelError)
+  }
+}
 
 interface StoreSchema {
   settings: {
@@ -50,6 +85,12 @@ const store = new Store<StoreSchema>({
 })
 
 let mainWindow: BrowserWindow | null = null
+
+function sendLogToRenderer(message: string, level: 'info' | 'warning' | 'error' = 'info') {
+  if (mainWindow) {
+    mainWindow.webContents.send('log-message', { log: message, level })
+  }
+}
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -94,7 +135,7 @@ function setupIpcHandlers() {
         throw new Error(`File directory does not exist: ${resolvedFileDir}`)
       }
 
-      const automation = new S2BAutomation(resolvedFileDir)
+      const automation = new S2BAutomation(resolvedFileDir, sendLogToRenderer)
       const data = await automation.readExcelFile(resolvedExcelPath)
       return data
     } catch (error) {
@@ -102,111 +143,61 @@ function setupIpcHandlers() {
       throw error
     }
   })
-  // 자동화 시작
-  ipcMain.handle('start-automation', async (_, { loginId, loginPw, imageOptimize }) => {
-    try {
-      if (!automation) {
-        // automation이 없으면 새로 생성
-        const settings = store.get('settings')
-        automation = new S2BAutomation(settings.fileDir)
-      }
-      await automation.start()
-      await automation.login(loginId, loginPw)
-      automation.setImageOptimize(imageOptimize) // 이미지 최적화 여부 설정
-      return true
-    } catch (error) {
-      console.error('Failed to start automation:', error)
-      throw error
-    }
-  })
 
-  ipcMain.handle('register-product', async (_, { productData, excelPath }) => {
-    try {
-      if (!automation) {
-        throw new Error('Automation not initialized')
-      }
-
-      // 계정 유효성 확인
-      const settings = store.get('settings')
-      const isAccountValid = await checkAccountValidity(settings.loginId)
-
-      if (!isAccountValid) {
-        throw new Error('인증되지 않은 계정입니다. 상품 등록이 불가능합니다.')
-      }
-
-      await automation.registerProduct(productData) // 상품 등록 로직
-
-      // 등록 성공 메시지 추가
-      const workbook = XLSX.readFile(excelPath, { type: 'binary' })
-      const sheet = workbook.Sheets[workbook.SheetNames[0]]
-      const rows: any[] = XLSX.utils.sheet_to_json(sheet, { header: 1 })
-
-      const headers = rows[0] // 첫 번째 행은 헤더
-      const productIndex = rows.findIndex(row => row.includes(productData.goodsName))
-
-      if (productIndex !== -1) {
-        const resultColumnKey = '결과' // "결과" 열 이름
-
-        // 결과열 확인: 없으면 첫 번째 열(A 열)에 추가
-        let resultColumnIndex = headers.indexOf(resultColumnKey)
-        if (resultColumnIndex === -1) {
-          headers.unshift(resultColumnKey) // 첫 번째 열로 추가
-          resultColumnIndex = 0 // A 열로 설정
-          rows.forEach((row, index) => {
-            if (index > 0) row.unshift('') // 데이터 행도 맞춰서 빈 값 추가
-          })
-        }
-
-        // 성공 메시지 작성
-        rows[productIndex][resultColumnIndex] = '성공'
-
-        // 시트 업데이트 및 저장
-        const updatedSheet = XLSX.utils.aoa_to_sheet(rows)
-        workbook.Sheets[workbook.SheetNames[0]] = updatedSheet
-        XLSX.writeFile(workbook, excelPath)
-      }
-
-      return { success: true }
-    } catch (error) {
-      console.error('Failed to register product:', error)
-
-      // 에러 메시지 추가
+  ipcMain.handle(
+    'start-and-register-products',
+    async (_, { loginId, loginPw, imageOptimize, productList, excelPath }) => {
       try {
-        const workbook = XLSX.readFile(excelPath, { type: 'binary' })
-        const sheet = workbook.Sheets[workbook.SheetNames[0]]
-        const rows: any[] = XLSX.utils.sheet_to_json(sheet, { header: 1 })
+        sendLogToRenderer('자동화 시작', 'info')
 
-        const headers = rows[0]
-        const productIndex = rows.findIndex(row => row.includes(productData.goodsName))
-
-        if (productIndex !== -1) {
-          const resultColumnKey = '결과'
-
-          // 결과열 확인: 없으면 첫 번째 열(A 열)에 추가
-          let resultColumnIndex = headers.indexOf(resultColumnKey)
-          if (resultColumnIndex === -1) {
-            headers.unshift(resultColumnKey) // 첫 번째 열로 추가
-            resultColumnIndex = 0 // A 열로 설정
-            rows.forEach((row, index) => {
-              if (index > 0) row.unshift('') // 데이터 행도 맞춰서 빈 값 추가
-            })
-          }
-
-          // 에러 메시지 작성
-          rows[productIndex][resultColumnIndex] = error.message || '알 수 없는 에러'
-
-          // 시트 업데이트 및 저장
-          const updatedSheet = XLSX.utils.aoa_to_sheet(rows)
-          workbook.Sheets[workbook.SheetNames[0]] = updatedSheet
-          XLSX.writeFile(workbook, excelPath)
+        if (!automation) {
+          const settings = store.get('settings')
+          automation = new S2BAutomation(settings.fileDir, sendLogToRenderer)
         }
-      } catch (excelError) {
-        console.error('Failed to update Excel with error message:', excelError)
-      }
 
-      return { success: false, error: error.message }
-    }
-  })
+        await automation.start()
+        sendLogToRenderer('브라우저 시작 완료', 'info')
+
+        await automation.login(loginId, loginPw)
+        sendLogToRenderer(`로그인 성공 (ID: ${loginId})`, 'info')
+
+        automation.setImageOptimize(imageOptimize)
+        sendLogToRenderer(`이미지 최적화 설정: ${imageOptimize}`, 'info')
+
+        // ✅ 계정 유효성 검사
+        const isAccountValid = await checkAccountValidity(loginId)
+        if (!isAccountValid) {
+          throw new Error('인증되지 않은 계정입니다. 상품 등록이 불가능합니다.')
+        }
+
+        // ✅ 상품 등록 순회 및 진행상황 로그 추가
+        const totalItems = productList.length
+        for (let i = 0; i < totalItems; i++) {
+          const product = productList[i]
+          const progressMessage = `현재 진행: ${i + 1} / ${totalItems}`
+          sendLogToRenderer(progressMessage, 'info')
+
+          try {
+            await automation.registerProduct(product)
+            sendLogToRenderer(`상품 등록 성공: ${product.goodsName}`, 'info')
+
+            // ✅ 성공 메시지 엑셀에 추가
+            await updateExcelResult(excelPath, product.goodsName, '성공')
+          } catch (error) {
+            sendLogToRenderer(`상품 등록 실패: ${product.goodsName} - ${error.message}`, 'error')
+            await updateExcelResult(excelPath, product.goodsName, error.message || '알 수 없는 에러')
+          }
+        }
+
+        sendLogToRenderer('모든 상품 등록 완료', 'info')
+        return { success: true }
+      } catch (error) {
+        sendLogToRenderer(`에러 발생: ${error.message}`, 'error')
+        console.error('자동화 실패:', error)
+        return { success: false, error: error.message }
+      }
+    },
+  )
 
   // 자동화 종료
   ipcMain.handle('close-automation', async () => {
