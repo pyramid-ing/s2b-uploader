@@ -82,6 +82,7 @@ interface StoreSchema {
     loginId: string
     loginPw: string
     imageOptimize: boolean
+    headless: boolean
   }
 }
 
@@ -94,6 +95,7 @@ const store = new Store<StoreSchema>({
       loginId: '',
       loginPw: '',
       imageOptimize: false,
+      headless: false,
     },
   },
   // 중요한 데이터는 암호화
@@ -168,7 +170,7 @@ function setupIpcHandlers() {
 
         if (!automation) {
           const settings = store.get('settings')
-          automation = new S2BAutomation(settings.fileDir, sendLogToRenderer)
+          automation = new S2BAutomation(settings.fileDir, sendLogToRenderer, settings.headless)
         }
 
         await automation.start()

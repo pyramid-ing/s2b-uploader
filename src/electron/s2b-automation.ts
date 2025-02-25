@@ -204,10 +204,16 @@ export class S2BAutomation {
   private dialogErrorMessage: string | null = null // dialog 에러 메시지 추적
   private imageOptimize: boolean = false // 이미지 최적화 여부
   private logCallback: (message: string, level?: 'info' | 'warning' | 'error') => void
+  private headless: boolean // ✅ headless mode
 
-  constructor(baseImagePath: string, logCallback: (message: string, level?: 'info' | 'warning' | 'error') => void) {
+  constructor(
+    baseImagePath: string,
+    logCallback: (message: string, level?: 'info' | 'warning' | 'error') => void,
+    headless: boolean = false,
+  ) {
     this.baseFilePath = baseImagePath
     this.logCallback = logCallback
+    this.headless = headless
 
     // OS별 Chrome 기본 설치 경로 설정
     if (process.platform === 'darwin') {
@@ -438,7 +444,7 @@ export class S2BAutomation {
   // 브라우저 시작
   async start() {
     this.browser = await puppeteer.launch({
-      headless: false,
+      headless: this.headless,
       defaultViewport: null,
       executablePath: this.chromePath, // Chrome 실행 파일 경로 지정
       args: ['--no-sandbox', '--disable-setuid-sandbox'],

@@ -10,6 +10,7 @@ interface SettingsForm {
   loginId: string
   loginPw: string
   imageOptimize: boolean // 이미지 최적화 여부
+  headless: boolean // ✅ 헤드리스 모드 여부
 }
 
 const Settings: React.FC = () => {
@@ -138,6 +139,16 @@ const Settings: React.FC = () => {
           valuePropName="checked"
           initialValue={false}
           tooltip="이미지 업로드 시 최적화를 진행합니다."
+        >
+          <Switch />
+        </Form.Item>
+
+        <Form.Item
+          label="브라우저 표시 여부"
+          name="headless"
+          valuePropName="checked"
+          initialValue={false}
+          tooltip="브라우저 표시 여부를 선택합니다."
         >
           <Switch />
         </Form.Item>
