@@ -23,6 +23,22 @@ async function checkAccountValidity(accountId: string): Promise<boolean> {
     throw new Error('계정 확인 중 문제가 발생했습니다.')
   }
 }
+
+const ignoredErrorPatterns = [
+  'Attempted to use detached Frame',
+  'already handle',
+  'Target closed',
+  'Session closed',
+  'Most likely the page has been closed',
+  'Navigating frame was detached',
+  'Protocol error',
+  'Execution context was destroyed',
+  'Cannot find context with specified id',
+]
+const isIgnorableError = (errorMessage: string): boolean => {
+  return ignoredErrorPatterns.some(pattern => errorMessage.includes(pattern))
+}
+
 const updateExcelResult = async (excelPath: string, goodsName: string, resultMessage: string) => {
   try {
     const workbook = XLSX.readFile(excelPath, { type: 'binary' })
@@ -184,12 +200,17 @@ function setupIpcHandlers() {
             // ✅ 성공 메시지 엑셀에 추가
             await updateExcelResult(excelPath, product.goodsName, '성공')
           } catch (error) {
-            sendLogToRenderer(`상품 등록 실패: ${product.goodsName} - ${error.message}`, 'error')
-            await updateExcelResult(excelPath, product.goodsName, error.message || '알 수 없는 에러')
+            if (error.message && isIgnorableError(error.message)) {
+              // ✅ 무시할 에러
+              console.warn(`무시된 에러: ${error.message}`)
+            } else {
+              // ✅ 사용자에게 보여줘야 하는 에러만 처리
+              sendLogToRenderer(`상품 등록 실패: ${product.goodsName} - ${error.message}`, 'error')
+              await updateExcelResult(excelPath, product.goodsName, error.message || '알 수 없는 에러')
+            }
           }
         }
 
-        sendLogToRenderer('모든 상품 등록 완료', 'info')
         return { success: true }
       } catch (error) {
         sendLogToRenderer(`에러 발생: ${error.message}`, 'error')

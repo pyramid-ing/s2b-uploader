@@ -111,7 +111,7 @@ const Upload: React.FC = () => {
       })
 
       if (result.success) {
-        message.success('모든 상품이 성공적으로 등록되었습니다.')
+        message.success('모든 상품이 성공적으로 처리했습니다')
       } else {
         message.error(`일부 상품 등록 실패: ${result.error}`)
       }
