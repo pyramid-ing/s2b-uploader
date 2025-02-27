@@ -58,7 +58,7 @@ const TerminalLog: React.FC = () => {
 
   return (
     <Card
-      title="터미널 로그"
+      title="진행 정보"
       extra={
         <Button onClick={clearLogs} size="small">
           로그 초기화

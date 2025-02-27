@@ -144,11 +144,11 @@ const Settings: React.FC = () => {
         </Form.Item>
 
         <Form.Item
-          label="브라우저 표시 여부"
+          label="브라우저 숨김"
           name="headless"
           valuePropName="checked"
           initialValue={false}
-          tooltip="브라우저 표시 여부를 선택합니다."
+          tooltip="브라우저 숨김 여부를 선택합니다."
         >
           <Switch />
         </Form.Item>
