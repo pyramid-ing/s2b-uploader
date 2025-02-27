@@ -1128,11 +1128,17 @@ export class S2BAutomation {
     let filePath: string
 
     try {
+      // 임시 파일 저장
+      const tempDir = path.join(this.baseFilePath, 'temp')
+      if (!fsSync.existsSync(tempDir)) {
+        fsSync.mkdirSync(tempDir)
+      }
+
       // 외부 파일 다운로드 또는 로컬 파일 경로 설정
       if (filePathOrUrl.startsWith('http')) {
         const url = new URL(filePathOrUrl)
         const fileName = path.basename(url.pathname)
-        filePath = path.join(this.baseFilePath, 'temp', fileName)
+        filePath = path.join(tempDir, fileName)
 
         console.log(`Downloading external file from: ${filePathOrUrl}`)
         const response = await axios.get(filePathOrUrl, { responseType: 'stream' })
@@ -1183,11 +1189,6 @@ export class S2BAutomation {
         responseType: 'arraybuffer',
       })
 
-      // 임시 파일 저장
-      const tempDir = path.join(this.baseFilePath, 'temp')
-      if (!fsSync.existsSync(tempDir)) {
-        fsSync.mkdirSync(tempDir)
-      }
       const tempFilePath = path.join(tempDir, `${crypto.randomUUID()}.jpg`)
       fsSync.writeFileSync(tempFilePath, n8nResponse.data)
       filePath = tempFilePath
