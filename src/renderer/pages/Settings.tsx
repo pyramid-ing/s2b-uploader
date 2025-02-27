@@ -38,11 +38,11 @@ const Settings: React.FC = () => {
       })
     }
   }
-
   const handleSelectDirectory = async () => {
     try {
-      const path = await ipcRenderer.invoke('select-directory')
+      let path = await ipcRenderer.invoke('select-directory')
       if (path) {
+        path = decodeURIComponent(encodeURIComponent(path)) // 한글 인코딩 문제 해결
         form.setFieldValue('fileDir', path)
         console.log('Selected file directory:', path)
       }
@@ -54,8 +54,9 @@ const Settings: React.FC = () => {
 
   const handleSelectExcel = async () => {
     try {
-      const path = await ipcRenderer.invoke('select-excel')
+      let path = await ipcRenderer.invoke('select-excel')
       if (path) {
+        path = decodeURIComponent(encodeURIComponent(path)) // 한글 인코딩 문제 해결
         form.setFieldValue('excelPath', path)
         console.log('Selected Excel file:', path)
       }

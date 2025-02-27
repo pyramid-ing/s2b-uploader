@@ -143,8 +143,8 @@ function setupIpcHandlers() {
   ipcMain.handle('load-excel-data', async (_, { excelPath, fileDir }) => {
     try {
       // 경로 확인 및 유효성 체크
-      const resolvedExcelPath = path.normalize(path.resolve(excelPath))
-      const resolvedFileDir = path.normalize(path.resolve(fileDir))
+      const resolvedExcelPath = decodeURIComponent(encodeURIComponent(path.normalize(path.resolve(excelPath))))
+      const resolvedFileDir = decodeURIComponent(encodeURIComponent(path.normalize(path.resolve(fileDir))))
 
       if (!fsSync.existsSync(resolvedExcelPath)) {
         throw new Error(`Excel file does not exist: ${resolvedExcelPath}`)
@@ -345,7 +345,7 @@ async function clearTempFiles(fileDir: string): Promise<void> {
       return
     }
 
-    const files = await fs.readdir(tempDir)
+    const files = await fs.readdir(tempDir, { encoding: 'utf-8' })
     await Promise.all(
       files.map(async file => {
         try {
