@@ -1327,7 +1327,7 @@ export class S2BAutomation {
     }
 
     // 배송 지역 선택
-    if (data.deliveryAreas?.length > 0) {
+    if (data.deliveryAreas?.length > 0 && !data.deliveryAreas.includes('전국')) {
       // "지역선택" 라디오 버튼 클릭
       await this.page.click('input[name="delivery_area"][value="2"]')
 
@@ -1343,7 +1343,6 @@ export class S2BAutomation {
         }, area)
       }
     } else {
-      // "전국" 라디오 버튼 클릭
       await this.page.click('input[name="delivery_area"][value="1"]')
     }
   }
