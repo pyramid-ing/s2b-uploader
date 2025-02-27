@@ -102,13 +102,7 @@ const Upload: React.FC = () => {
       // ✅ 통합된 IPC 호출
       const productList = data.filter(item => selectedKeys.includes(item.key)).map(item => item.originalData)
 
-      const result = await ipcRenderer.invoke('start-and-register-products', {
-        loginId: settings.loginId,
-        loginPw: settings.loginPw,
-        imageOptimize: settings.imageOptimize,
-        productList,
-        excelPath: settings.excelPath,
-      })
+      const result = await ipcRenderer.invoke('start-and-register-products', { productList })
 
       if (result.success) {
         message.success('모든 상품이 성공적으로 처리했습니다')

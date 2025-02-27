@@ -162,67 +162,62 @@ function setupIpcHandlers() {
     }
   })
 
-  ipcMain.handle(
-    'start-and-register-products',
-    async (_, { loginId, loginPw, imageOptimize, productList, excelPath }) => {
-      try {
-        sendLogToRenderer('자동화 시작', 'info')
+  ipcMain.handle('start-and-register-products', async (_, { productList }) => {
+    try {
+      sendLogToRenderer('자동화 시작', 'info')
 
-        if (!automation) {
-          const settings = store.get('settings')
-          automation = new S2BAutomation(settings.fileDir, sendLogToRenderer, settings.headless)
-        }
+      const settings = store.get('settings')
+      automation = new S2BAutomation(settings.fileDir, sendLogToRenderer, settings.headless)
 
-        await automation.start()
-        sendLogToRenderer('브라우저 시작 완료', 'info')
+      await automation.start()
+      sendLogToRenderer('브라우저 시작 완료', 'info')
 
-        await automation.login(loginId, loginPw)
-        sendLogToRenderer(`로그인 성공 (ID: ${loginId})`, 'info')
+      await automation.login(settings.loginId, settings.loginPw)
+      sendLogToRenderer(`로그인 성공 (ID: ${settings.loginId})`, 'info')
 
-        automation.setImageOptimize(imageOptimize)
-        sendLogToRenderer(`이미지 최적화 설정: ${imageOptimize}`, 'info')
+      automation.setImageOptimize(settings.imageOptimize)
+      sendLogToRenderer(`이미지 최적화 설정: ${settings.imageOptimize}`, 'info')
 
-        // ✅ 계정 유효성 검사
-        const isAccountValid = await checkAccountValidity(loginId)
-        if (!isAccountValid) {
-          throw new Error('인증되지 않은 계정입니다. 상품 등록이 불가능합니다.')
-        }
+      // ✅ 계정 유효성 검사
+      const isAccountValid = await checkAccountValidity(settings.loginId)
+      if (!isAccountValid) {
+        throw new Error('인증되지 않은 계정입니다. 상품 등록이 불가능합니다.')
+      }
 
-        // ✅ 상품 등록 순회 및 진행상황 로그 추가
-        const totalItems = productList.length
-        for (let i = 0; i < totalItems; i++) {
-          const product = productList[i]
-          const progressMessage = `현재 진행: ${i + 1} / ${totalItems}`
-          sendLogToRenderer(progressMessage, 'info')
+      // ✅ 상품 등록 순회 및 진행상황 로그 추가
+      const totalItems = productList.length
+      for (let i = 0; i < totalItems; i++) {
+        const product = productList[i]
+        const progressMessage = `현재 진행: ${i + 1} / ${totalItems}`
+        sendLogToRenderer(progressMessage, 'info')
 
-          try {
-            await automation.registerProduct(product)
-            sendLogToRenderer(`상품 등록 성공: ${product.goodsName}`, 'info')
+        try {
+          await automation.registerProduct(product)
+          sendLogToRenderer(`상품 등록 성공: ${product.goodsName}`, 'info')
 
-            // ✅ 성공 메시지 엑셀에 추가
-            await updateExcelResult(excelPath, product.goodsName, '성공')
-          } catch (error) {
-            if (error.message && isIgnorableError(error.message)) {
-              // ✅ 무시할 에러
-              console.warn(`무시된 에러: ${error.message}`)
-            } else {
-              // ✅ 사용자에게 보여줘야 하는 에러만 처리
-              sendLogToRenderer(`상품 등록 실패: ${product.goodsName} - ${error.message}`, 'error')
-              await updateExcelResult(excelPath, product.goodsName, error.message || '알 수 없는 에러')
-            }
+          // ✅ 성공 메시지 엑셀에 추가
+          await updateExcelResult(settings.excelPath, product.goodsName, '성공')
+        } catch (error) {
+          if (error.message && isIgnorableError(error.message)) {
+            // ✅ 무시할 에러
+            console.warn(`무시된 에러: ${error.message}`)
+          } else {
+            // ✅ 사용자에게 보여줘야 하는 에러만 처리
+            sendLogToRenderer(`상품 등록 실패: ${product.goodsName} - ${error.message}`, 'error')
+            await updateExcelResult(settings.excelPath, product.goodsName, error.message || '알 수 없는 에러')
           }
         }
-
-        return { success: true }
-      } catch (error) {
-        sendLogToRenderer(`에러 발생: ${error.message}`, 'error')
-        console.error('자동화 실패:', error)
-        return { success: false, error: error.message }
-      } finally {
-        await automation.close()
       }
-    },
-  )
+
+      return { success: true }
+    } catch (error) {
+      sendLogToRenderer(`에러 발생: ${error.message}`, 'error')
+      console.error('자동화 실패:', error)
+      return { success: false, error: error.message }
+    } finally {
+      await automation.close()
+    }
+  })
 
   // 자동화 종료
   ipcMain.handle('close-automation', async () => {
