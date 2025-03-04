@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { Alert, Button, Card, InputNumber, message, Space, Table } from 'antd'
-import { FolderOpenOutlined, ReloadOutlined, UploadOutlined } from '@ant-design/icons'
+import { FolderOpenOutlined, ReloadOutlined, StopOutlined, UploadOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import TerminalLog from './TerminalLog'
 
@@ -154,6 +154,10 @@ const Upload: React.FC = () => {
     }
   }
 
+  const handleCancel = async () => {
+    await ipcRenderer.invoke('cancel-registration')
+  }
+
   const columns: ColumnsType<ProductData> = [
     {
       title: '상품명',
@@ -229,6 +233,9 @@ const Upload: React.FC = () => {
               disabled={selectedKeys.length === 0 || isAccountValid === false}
             >
               선택 상품 등록
+            </Button>
+            <Button type="primary" danger icon={<StopOutlined />} onClick={handleCancel} disabled={!loading}>
+              중단
             </Button>
           </Space>
         }

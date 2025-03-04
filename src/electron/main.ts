@@ -157,6 +157,13 @@ function createWindow() {
 function setupIpcHandlers() {
   let automation: S2BAutomation | null = null
 
+  let isCancelled = false // ✅ 등록 중단 상태 변수
+
+  ipcMain.handle('cancel-registration', async () => {
+    isCancelled = true
+    sendLogToRenderer('상품 등록이 중단되었습니다.', 'warning')
+  })
+
   // 앱 버전 가져오기
   ipcMain.handle('get-app-version', () => {
     return app.getVersion()
@@ -227,6 +234,11 @@ function setupIpcHandlers() {
       const selectedProducts = allProducts.filter(p => p.selected) // ✅ 선택된 상품만 필터링
 
       for (let i = 0; i < selectedProducts.length; i++) {
+        if (isCancelled) {
+          sendLogToRenderer('상품 등록이 사용자에 의해 중단되었습니다.', 'warning')
+          break
+        }
+
         const product = selectedProducts[i]
 
         if (!product.selected) continue // ✅ 선택되지 않은 상품은 무시
