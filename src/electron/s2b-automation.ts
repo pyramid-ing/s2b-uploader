@@ -301,9 +301,9 @@ export class S2BAutomation {
         saleTypeText,
         saleType: SALE_TYPE_MAP[saleTypeText],
 
-        category1: row['카테고리1']?.toString() || '',
-        category2: row['카테고리2']?.toString() || '',
-        category3: row['카테고리3']?.toString() || '',
+        category1: row['카테고리1']?.toString().trim() || '',
+        category2: row['카테고리2']?.toString().trim() || '',
+        category3: row['카테고리3']?.toString().trim() || '',
 
         // 배송비 정보 매핑 수정
         deliveryFeeKindText,
