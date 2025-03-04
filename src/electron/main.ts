@@ -40,7 +40,7 @@ const isIgnorableError = (errorMessage: string): boolean => {
   return ignoredErrorPatterns.some(pattern => errorMessage.includes(pattern))
 }
 
-const saveExcelResult = async (results: Record<string, string>) => {
+const saveExcelResult = async (results: string[]) => {
   try {
     const settings = store.get('settings')
     const originalPath = settings.excelPath // 원본 엑셀 파일 경로
@@ -54,7 +54,7 @@ const saveExcelResult = async (results: Record<string, string>) => {
     const workbook = XLSX.readFile(originalPath)
     const sheet = workbook.Sheets[workbook.SheetNames[0]]
 
-    // ✅ XLSX의 sheet_to_json을 활용해 헤더를 자동 매핑된 JSON 객체로 변환
+    // ✅ JSON으로 변환 (1행을 헤더로 사용)
     const rows: any[] = XLSX.utils.sheet_to_json(sheet, { defval: '', raw: false })
 
     if (rows.length === 0) {
@@ -65,7 +65,7 @@ const saveExcelResult = async (results: Record<string, string>) => {
     // ✅ "결과" 열이 없으면 추가
     if (!rows[0].hasOwnProperty('결과')) {
       rows.forEach(row => {
-        row['결과'] = '' // ✅ 새로운 열 추가
+        row['결과'] = '' // 새로운 열 추가
       })
     } else {
       // ✅ 기존 결과 초기화
@@ -74,14 +74,10 @@ const saveExcelResult = async (results: Record<string, string>) => {
       })
     }
 
-    // ✅ 결과 데이터 업데이트 (UK: 상품명 + 규격)
-    rows.forEach(row => {
-      const goodsName = row['물품명']?.toString() || ''
-      const spec = row['규격']?.toString() || ''
-
-      const ukKey = `${goodsName}_${spec}` // UK: 상품명 + 규격
-      if (results[ukKey]) {
-        row['결과'] = results[ukKey] // ✅ 결과 값이 정상적으로 입력됨
+    // ✅ 결과 데이터 업데이트 (행 순서 기반)
+    rows.forEach((row, index) => {
+      if (index < results.length) {
+        row['결과'] = results[index] // ✅ 행 순서대로 결과 저장
       }
     })
 
@@ -204,7 +200,7 @@ function setupIpcHandlers() {
   })
 
   ipcMain.handle('start-and-register-products', async (_, { productList }) => {
-    let results: Record<string, string> = {}
+    let results: string[] = []
 
     try {
       sendLogToRenderer('자동화 시작', 'info')
@@ -228,14 +224,13 @@ function setupIpcHandlers() {
       }
 
       // ✅ 상품 등록 순회 및 진행상황 로그 추가
-      for (const product of productList) {
-        const ukKey = `${product.goodsName}_${product.spec}`
+      for (let i = 0; i < productList.length; i++) {
+        const product = productList[i]
 
         try {
           await automation.registerProduct(product)
           sendLogToRenderer(`상품 등록 성공: ${product.goodsName}`, 'info')
-
-          results[ukKey] = '성공'
+          results[i] = '성공' // ✅ 행 순서대로 결과 저장
         } catch (error) {
           if (error.message && isIgnorableError(error.message)) {
             // ✅ 무시할 에러
@@ -243,8 +238,7 @@ function setupIpcHandlers() {
           } else {
             // ✅ 사용자에게 보여줘야 하는 에러만 처리
             sendLogToRenderer(`상품 등록 실패: ${product.goodsName} - ${error.message}`, 'error')
-
-            results[ukKey] = error.message || '알 수 없는 에러'
+            results[i] = error.message || '알 수 없는 에러' // ✅ 실패도 같은 순서로 저장
           }
         }
       }
