@@ -102,6 +102,7 @@ interface StoreSchema {
     excelPath: string
     loginId: string
     loginPw: string
+    registrationDelay: string
     imageOptimize: boolean
     headless: boolean
   }
@@ -115,6 +116,7 @@ const store = new Store<StoreSchema>({
       excelPath: '',
       loginId: '',
       loginPw: '',
+      registrationDelay: '',
       imageOptimize: false,
       headless: false,
     },
@@ -221,7 +223,12 @@ function setupIpcHandlers() {
         throw new Error('인증되지 않은 계정입니다. 상품 등록이 불가능합니다.')
       }
 
-      for (const product of allProducts) {
+      const delay = Number(settings.registrationDelay) || 0 // 등록 간격 (초)
+      const selectedProducts = allProducts.filter(p => p.selected) // ✅ 선택된 상품만 필터링
+
+      for (let i = 0; i < selectedProducts.length; i++) {
+        const product = selectedProducts[i]
+
         if (!product.selected) continue // ✅ 선택되지 않은 상품은 무시
 
         try {
@@ -237,6 +244,12 @@ function setupIpcHandlers() {
             sendLogToRenderer(`상품 등록 실패: ${product.goodsName} - ${error.message}`, 'error')
             product.result = error.message || '알 수 없는 에러' // ✅ 실패한 경우 결과 업데이트
           }
+        }
+
+        // ✅ 설정된 등록 간격만큼 대기
+        if (i < selectedProducts.length - 1 && delay > 0) {
+          sendLogToRenderer(`다음 상품 등록까지 ${delay}초 대기 중...`, 'info')
+          await new Promise(resolve => setTimeout(resolve, delay * 1000))
         }
       }
 

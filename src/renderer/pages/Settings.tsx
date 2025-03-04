@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { Button, Card, Form, Input, message, Switch } from 'antd'
+import { Button, Card, Divider, Form, Input, message, Switch } from 'antd'
 import { FolderOutlined } from '@ant-design/icons'
 
 const { ipcRenderer } = window.require('electron')
@@ -9,6 +9,7 @@ interface SettingsForm {
   excelPath: string
   loginId: string
   loginPw: string
+  registrationDelay: number
   imageOptimize: boolean // 이미지 최적화 여부
   headless: boolean // ✅ 헤드리스 모드 여부
 }
@@ -125,6 +126,8 @@ const Settings: React.FC = () => {
           />
         </Form.Item>
 
+        <Divider type="horizontal" />
+
         <Form.Item label="로그인 아이디" name="loginId" rules={[{ required: true, message: '아이디를 입력해주세요' }]}>
           <Input />
         </Form.Item>
@@ -132,6 +135,19 @@ const Settings: React.FC = () => {
         <Form.Item label="비밀번호" name="loginPw" rules={[{ required: true, message: '비밀번호를 입력해주세요' }]}>
           <Input.Password />
         </Form.Item>
+
+        <Divider type="horizontal" />
+
+        <Form.Item
+          label="상품 등록 간격 (초)"
+          name="registrationDelay"
+          initialValue={0}
+          tooltip="각 상품 등록 사이의 대기 시간 (초)을 설정합니다."
+        >
+          <Input type="number" min={0} addonAfter="초" />
+        </Form.Item>
+
+        <Divider type="horizontal" />
 
         {/* 이미지 최적화 설정 추가 */}
         <Form.Item
