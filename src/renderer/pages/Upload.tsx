@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { Alert, Button, Card, InputNumber, message, Space, Table } from 'antd'
-import { ReloadOutlined, UploadOutlined } from '@ant-design/icons'
+import { FolderOpenOutlined, ReloadOutlined, UploadOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import TerminalLog from './TerminalLog'
 
@@ -83,7 +83,22 @@ const Upload: React.FC = () => {
     }
   }
 
-  // ✅ 수정된 handleUpload 메서드
+  // ✅ 결과 폴더 열기
+  const openResultFolder = async () => {
+    try {
+      const settings = await ipcRenderer.invoke('get-settings')
+      if (!settings?.excelPath) {
+        message.warning('결과 폴더 경로가 설정되지 않았습니다.')
+        return
+      }
+
+      await ipcRenderer.invoke('open-folder', settings.excelPath)
+    } catch (error) {
+      console.error('Failed to open folder:', error)
+      message.error('폴더를 여는 중 오류가 발생했습니다.')
+    }
+  }
+
   const handleUpload = async () => {
     try {
       if (selectedKeys.length === 0) {
@@ -192,6 +207,9 @@ const Upload: React.FC = () => {
         style={{ marginBottom: '20px', opacity: isAccountValid === false ? 0.5 : 1 }}
         extra={
           <Space>
+            <Button type="default" icon={<FolderOpenOutlined />} onClick={openResultFolder}>
+              결과 폴더 열기
+            </Button>
             <Button
               icon={<ReloadOutlined />}
               onClick={loadExcelData}
