@@ -194,6 +194,15 @@ const CONSUMPTION_PERIOD_MAP: Record<string, string> = {
   직접입력: 'date',
 }
 
+const KC_TYPE_MAP: Record<string, string> = {
+  Y: 'Y',
+  F: 'F',
+  N: 'N',
+  인증번호등록: 'Y',
+  '공급자적합성확인 시험성적서등록': 'F',
+  인증표시대상아님: 'N',
+}
+
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
 export class S2BAutomation {
@@ -314,19 +323,19 @@ export class S2BAutomation {
         jejuDeliveryFee: row['제주추가배송비']?.toString(),
 
         // KC 인증 정보
-        kidsKcType: row['어린이제품KC유형']?.toString() || 'N',
+        kidsKcType: KC_TYPE_MAP[row['어린이제품KC유형']?.toString().trim()] || 'N',
         kidsKcCertId: row['어린이제품KC인증번호']?.toString(),
         kidsKcFile: row['어린이제품KC성적서']?.toString(),
 
-        elecKcType: row['전기용품KC유형']?.toString() || 'N',
+        elecKcType: KC_TYPE_MAP[row['전기용품KC유형']?.toString().trim()] || 'N',
         elecKcCertId: row['전기용품KC인증번호']?.toString(),
         elecKcFile: row['전기용품KC성적서']?.toString(),
 
-        dailyKcType: row['생활용품KC유형']?.toString() || 'N',
+        dailyKcType: KC_TYPE_MAP[row['생활용품KC유형']?.toString().trim()] || 'N',
         dailyKcCertId: row['생활용품KC인증번호']?.toString(),
         dailyKcFile: row['생활용품KC성적서']?.toString(),
 
-        broadcastingKcType: row['방송통신KC유형']?.toString() || 'N',
+        broadcastingKcType: KC_TYPE_MAP[row['방송통신KC유형']?.toString().trim()] || 'N',
         broadcastingKcCertId: row['방송통신KC인증번호']?.toString(),
         broadcastingKcFile: row['방송통신KC성적서']?.toString(),
 
