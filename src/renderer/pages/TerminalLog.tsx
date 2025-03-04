@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react'
 import { Card, Button } from 'antd'
+import dayjs from 'dayjs'
 
 const { ipcRenderer } = window.require('electron')
 
@@ -25,7 +26,10 @@ const TerminalLog: React.FC = () => {
         setProgress({ current, total })
 
         // ✅ 진행상황도 [INFO] 로그로 표시
-        setLogs(prevLogs => [...prevLogs, { log: `진행상황: ${current} / ${total}`, level: 'info' }])
+        setLogs(prevLogs => [
+          ...prevLogs,
+          { log: `[${dayjs().format('YYYY-MM-DD HH:mm:ss')}] 진행상황: ${current} / ${total}`, level: 'info' },
+        ])
       }
     })
 
@@ -46,7 +50,7 @@ const TerminalLog: React.FC = () => {
       case 'info':
         return '#00FF00' // 초록
       case 'warning':
-        return '#FFFF00' // 노랑
+        return '#FFA500' // 주황
       case 'error':
         return '#FF0000' // 빨강
       default:
@@ -80,7 +84,7 @@ const TerminalLog: React.FC = () => {
       >
         {logs.map((log, index) => (
           <div key={index} style={{ color: getLogColor(log.level) }}>
-            [{log.level.toUpperCase()}] {log.log}
+            {log.log}
           </div>
         ))}
       </div>

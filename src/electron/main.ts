@@ -128,8 +128,9 @@ const store = new Store<StoreSchema>({
 let mainWindow: BrowserWindow | null = null
 
 function sendLogToRenderer(message: string, level: 'info' | 'warning' | 'error' = 'info') {
+  const timestamp = dayjs().format('YYYY-MM-DD HH:mm:ss') // ✅ 타임스탬프 추가
   if (mainWindow) {
-    mainWindow.webContents.send('log-message', { log: message, level })
+    mainWindow.webContents.send('log-message', { log: `[${timestamp}] ${message}`, level })
   }
 }
 
@@ -209,6 +210,8 @@ function setupIpcHandlers() {
   })
 
   ipcMain.handle('start-and-register-products', async (_, { allProducts }) => {
+    isCancelled = false // ✅ 시작 시 중단 상태 초기화
+
     try {
       sendLogToRenderer('자동화 시작', 'info')
 
