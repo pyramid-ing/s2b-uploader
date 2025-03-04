@@ -219,20 +219,6 @@ function setupIpcHandlers() {
     }
   })
 
-  // 자동화 종료
-  ipcMain.handle('close-automation', async () => {
-    try {
-      if (automation) {
-        await automation.close()
-        automation = null
-      }
-      return true
-    } catch (error) {
-      console.error('Failed to close automation:', error)
-      throw error
-    }
-  })
-
   ipcMain.handle('check-account-validity', async (_, { accountId }) => {
     return await checkAccountValidity(accountId)
   })
@@ -284,44 +270,6 @@ function setupIpcHandlers() {
     })
 
     return result.canceled ? null : result.filePaths[0]
-  })
-
-  // 파일 다운로드
-  ipcMain.handle('download-file', async (_, filePath) => {
-    if (!mainWindow) return null
-
-    try {
-      // 파일 경로 확인
-      if (!filePath || !(await fs.stat(filePath).catch(() => false))) {
-        throw new Error(`파일이 존재하지 않습니다: ${filePath}`)
-      }
-
-      // 절대 경로로 변환
-      const absolutePath = path.resolve(filePath)
-
-      // 저장 경로 다이얼로그 열기
-      const saveDialog = await dialog.showSaveDialog(mainWindow, {
-        defaultPath: path.basename(absolutePath),
-        title: '파일 다운로드',
-      })
-
-      if (!saveDialog.canceled && saveDialog.filePath) {
-        const destinationPath = saveDialog.filePath
-
-        // 파일 복사
-        await fs.copyFile(absolutePath, destinationPath)
-        console.log(`파일이 저장되었습니다: ${destinationPath}`)
-
-        // 저장된 파일 열기
-        await shell.openPath(destinationPath)
-        return destinationPath
-      }
-    } catch (error) {
-      console.error('파일 다운로드 에러:', error.message)
-      throw error
-    }
-
-    return null
   })
 
   ipcMain.handle('extend-management-date', async (_, { weeks }) => {
