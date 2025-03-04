@@ -40,7 +40,7 @@ const isIgnorableError = (errorMessage: string): boolean => {
   return ignoredErrorPatterns.some(pattern => errorMessage.includes(pattern))
 }
 
-const saveExcelResult = async (results: string[]) => {
+const saveExcelResult = async (allProducts: any[]) => {
   try {
     const settings = store.get('settings')
     const originalPath = settings.excelPath // 원본 엑셀 파일 경로
@@ -74,10 +74,10 @@ const saveExcelResult = async (results: string[]) => {
       })
     }
 
-    // ✅ 결과 데이터 업데이트 (행 순서 기반)
-    rows.forEach((row, index) => {
-      if (index < results.length) {
-        row['결과'] = results[index] // ✅ 행 순서대로 결과 저장
+    // ✅ 선택된 상품만 결과 업데이트
+    allProducts.forEach((product, index) => {
+      if (product.selected) {
+        rows[index]['결과'] = product.result || '알 수 없음' // ✅ 선택된 상품만 결과 입력
       }
     })
 
@@ -199,9 +199,7 @@ function setupIpcHandlers() {
     }
   })
 
-  ipcMain.handle('start-and-register-products', async (_, { productList }) => {
-    let results: string[] = []
-
+  ipcMain.handle('start-and-register-products', async (_, { allProducts }) => {
     try {
       sendLogToRenderer('자동화 시작', 'info')
 
@@ -223,14 +221,13 @@ function setupIpcHandlers() {
         throw new Error('인증되지 않은 계정입니다. 상품 등록이 불가능합니다.')
       }
 
-      // ✅ 상품 등록 순회 및 진행상황 로그 추가
-      for (let i = 0; i < productList.length; i++) {
-        const product = productList[i]
+      for (const product of allProducts) {
+        if (!product.selected) continue // ✅ 선택되지 않은 상품은 무시
 
         try {
           await automation.registerProduct(product)
           sendLogToRenderer(`상품 등록 성공: ${product.goodsName}`, 'info')
-          results[i] = '성공' // ✅ 행 순서대로 결과 저장
+          product.result = '성공' // ✅ 성공한 경우 결과 업데이트
         } catch (error) {
           if (error.message && isIgnorableError(error.message)) {
             // ✅ 무시할 에러
@@ -238,7 +235,7 @@ function setupIpcHandlers() {
           } else {
             // ✅ 사용자에게 보여줘야 하는 에러만 처리
             sendLogToRenderer(`상품 등록 실패: ${product.goodsName} - ${error.message}`, 'error')
-            results[i] = error.message || '알 수 없는 에러' // ✅ 실패도 같은 순서로 저장
+            product.result = error.message || '알 수 없는 에러' // ✅ 실패한 경우 결과 업데이트
           }
         }
       }
@@ -247,7 +244,7 @@ function setupIpcHandlers() {
     } catch (error) {
       sendLogToRenderer(`에러 발생: ${error.message}`, 'error')
     } finally {
-      const resultPath = await saveExcelResult(results)
+      const resultPath = await saveExcelResult(allProducts)
       sendLogToRenderer(`결과 파일 저장 완료: ${resultPath}`, 'info')
       await automation.close()
     }

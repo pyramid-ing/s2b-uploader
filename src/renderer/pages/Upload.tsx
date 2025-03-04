@@ -114,10 +114,13 @@ const Upload: React.FC = () => {
 
       setLoading(true)
 
-      // ✅ 통합된 IPC 호출
-      const productList = data.filter(item => selectedKeys.includes(item.key)).map(item => item.originalData)
+      // ✅ 전체 데이터 유지, 선택 여부 포함
+      const allProducts = data.map(item => ({
+        ...item.originalData,
+        selected: selectedKeys.includes(item.key), // ✅ 선택된 상품만 true
+      }))
 
-      const result = await ipcRenderer.invoke('start-and-register-products', { productList })
+      const result = await ipcRenderer.invoke('start-and-register-products', { allProducts })
 
       if (result.success) {
         message.success('모든 상품이 성공적으로 처리했습니다')
