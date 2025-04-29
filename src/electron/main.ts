@@ -15,7 +15,7 @@ import dayjs from 'dayjs'
  */
 async function checkAccountValidity(accountId: string): Promise<boolean> {
   try {
-    const response = await axios.post('http://211.188.51.146:20001/webhook/check-s2b-id', {
+    const response = await axios.post('https://n8n.pyramid-ing.com/webhook/check-s2b-id', {
       accountId,
     })
     return response.data?.exist === true

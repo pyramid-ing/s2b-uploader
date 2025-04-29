@@ -1193,7 +1193,7 @@ export class S2BAutomation {
       formData.append('optimize', this.imageOptimize ? '1' : '0') // "1" 또는 "0"으로 변환
       formData.append('file', fsSync.createReadStream(filePath))
 
-      const n8nResponse = await axios.post('http://211.188.51.146:20001/webhook/s2b/edit-image', formData, {
+      const n8nResponse = await axios.post('https://n8n.pyramid-ing.com/webhook/s2b/edit-image', formData, {
         headers: formData.getHeaders(),
         responseType: 'arraybuffer',
       })
