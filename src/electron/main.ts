@@ -7,6 +7,7 @@ import * as fsSync from 'fs'
 import * as XLSX from 'xlsx'
 import axios from 'axios'
 import dayjs from 'dayjs'
+import { autoUpdater } from 'electron-updater'
 
 /**
  * 계정 유효성 확인 함수
@@ -134,6 +135,57 @@ function sendLogToRenderer(message: string, level: 'info' | 'warning' | 'error' 
   }
 }
 
+/**
+ * 자동 업데이트 설정
+ * @param win - BrowserWindow 인스턴스
+ */
+function setupAutoUpdater(win: BrowserWindow) {
+  autoUpdater.autoDownload = true
+
+  autoUpdater.on('checking-for-update', () => {
+    sendLogToRenderer('업데이트 확인 중...', 'info')
+  })
+
+  autoUpdater.on('update-available', () => {
+    sendLogToRenderer('업데이트 가능', 'info')
+    win.webContents.send('update_available')
+  })
+
+  autoUpdater.on('update-not-available', () => {
+    sendLogToRenderer('업데이트 없음', 'info')
+  })
+
+  autoUpdater.on('download-progress', progressObj => {
+    sendLogToRenderer(`다운로드 진행률: ${progressObj.percent}%`, 'info')
+  })
+
+  autoUpdater.on('update-downloaded', () => {
+    sendLogToRenderer('업데이트 다운로드 완료', 'info')
+    win.webContents.send('update_downloaded')
+    dialog
+      .showMessageBox(win, {
+        type: 'info',
+        title: '업데이트 완료',
+        message: '새로운 버전이 다운로드되었습니다. 지금 재시작하시겠습니까?',
+        buttons: ['지금 재시작', '나중에'],
+      })
+      .then(result => {
+        if (result.response === 0) {
+          sendLogToRenderer('재시작을 시작합니다...', 'info')
+          autoUpdater.quitAndInstall()
+        }
+      })
+  })
+
+  autoUpdater.on('error', err => {
+    sendLogToRenderer(`업데이트 에러: ${err.message}`, 'error')
+    win.webContents.send('update_error', err.message)
+  })
+
+  // 업데이트 체크 시작
+  autoUpdater.checkForUpdatesAndNotify()
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1200,
@@ -144,6 +196,10 @@ function createWindow() {
     },
     icon: path.join(__dirname, '../../build/icon.png'), // 개발 모드용 아이콘 경로
   })
+
+  // 자동 업데이트 설정
+  setupAutoUpdater(mainWindow)
+
   // main.ts 내부
   if (process.env.ELECTRON_DEBUG) {
     console.log('Loading dev server at http://localhost:8080')
