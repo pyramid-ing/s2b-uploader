@@ -468,7 +468,7 @@ export class S2BAutomation {
       switch (dialog.type()) {
         case 'alert':
           // 특정 메시지 필터링: 성공 처리 메시지
-          if (message.includes('S2B의 “견적정보 등록”은 지방자치단체를 당사자로 하는 계약에 관한 법률 시행령 제30조')) {
+          if (message.includes('S2B의 "견적정보 등록"은 지방자치단체를 당사자로 하는 계약에 관한 법률 시행령 제30조')) {
             await dialog.accept() // "확인" 버튼 자동 클릭
           } else if (message.includes('등록대기 상태로 변경되었으며')) {
             // register
@@ -1162,7 +1162,11 @@ export class S2BAutomation {
 
         console.log(`Downloaded external file to: ${filePath}`)
       } else {
-        filePath = path.join(this.baseFilePath, filePathOrUrl)
+        if (path.isAbsolute(filePathOrUrl)) {
+          filePath = filePathOrUrl
+        } else {
+          filePath = path.join(this.baseFilePath, filePathOrUrl)
+        }
         if (!fsSync.existsSync(filePath)) {
           throw new Error(`Local file not found at path: ${filePath}`)
         }
