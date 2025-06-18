@@ -143,11 +143,6 @@ const Upload: React.FC = () => {
         return
       }
 
-      await ipcRenderer.invoke('start-automation', {
-        loginId: settings.loginId,
-        loginPw: settings.loginPw,
-      })
-
       const result = await ipcRenderer.invoke('extend-management-date', { weeks })
     } catch (error) {
       console.error('관리일 연장 실패:', error)

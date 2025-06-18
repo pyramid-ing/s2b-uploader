@@ -389,6 +389,15 @@ function setupIpcHandlers() {
 
   ipcMain.handle('extend-management-date', async (_, { weeks }) => {
     try {
+      const settings = store.get('settings')
+      automation = new S2BAutomation(settings.fileDir, sendLogToRenderer, settings.headless)
+
+      await automation.start()
+      sendLogToRenderer('브라우저 시작 완료', 'info')
+
+      await automation.login(settings.loginId, settings.loginPw)
+      sendLogToRenderer(`로그인 성공 (ID: ${settings.loginId})`, 'info')
+
       await automation.extendManagementDateForWeeks(weeks)
 
       return { success: true, message: `상품 관리일이 ${weeks}주 이내로 설정되었습니다.` }

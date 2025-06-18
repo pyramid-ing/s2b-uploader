@@ -1363,15 +1363,83 @@ export class S2BAutomation {
 
   public async extendManagementDateForWeeks(weeks: number) {
     if (!this.page) throw new Error('Browser not initialized.')
+    try {
+      await this.gotoAndSearchListPage(weeks)
+      const products = await this.collectAllProductLinks()
+      console.log('-----------------products')
+      console.log(products)
+      console.log(products.length)
+      console.log('-----------------products')
+      await this.processProducts(products)
+    } finally {
+      await this.browser.close()
+    }
+  }
 
+  private async collectAllProductLinks(): Promise<{ name: string; link: string }[]> {
+    const products: { name: string; link: string }[] = []
+    let hasNextPage = true
+    while (hasNextPage) {
+      // 현재 페이지의 상품 정보 수집
+      const pageProducts = await this.page.$$eval('#listTable tr', rows => {
+        return Array.from(rows)
+          .map(row => {
+            const linkEl = row.querySelector('td.td_graylist_l a') as HTMLAnchorElement
+            const nameEl = row.querySelector('td.td_graylist_l')
+            if (linkEl && nameEl) {
+              return { name: nameEl.textContent?.trim() || '', link: linkEl.href }
+            }
+            return null
+          })
+          .filter(Boolean)
+      })
+      products.push(...(pageProducts as any[]))
+
+      // 페이지네이션 이동
+      hasNextPage = await this.page.evaluate(() => {
+        const paginate = document.querySelector('.paginate2')
+        if (!paginate) return false
+        const current = paginate.querySelector('strong')
+        if (!current) return false
+        const currentPage = parseInt(current.textContent.trim(), 10)
+        const pageLinks = Array.from(paginate.querySelectorAll('a')).filter(a => {
+          const num = parseInt(a.textContent.trim(), 10)
+          return !isNaN(num) && num > currentPage
+        })
+        if (pageLinks.length > 0) {
+          ;(pageLinks[0] as HTMLElement).click()
+          return true
+        }
+        return false
+      })
+      if (hasNextPage) {
+        await this.page.waitForNavigation({ waitUntil: 'domcontentloaded' })
+      }
+    }
+    return products
+  }
+
+  private async processProducts(products: { name: string; link: string }[]) {
+    for (const product of products) {
+      try {
+        await this.page.goto(product.link, { waitUntil: 'domcontentloaded' })
+        this.log(`상품명: ${product.name} 관리일 연장 처리 중입니다.`, 'info')
+        const extendButton = await this.page.$('a[href^="javascript:fnLimitDateUpdate()"]')
+        await extendButton?.click()
+        await delay(2000)
+      } catch (error) {
+        this.log(`상품 처리 중 오류가 발생했습니다: ${error}`, 'error')
+      }
+    }
+    this.log(`총 ${products.length}개의 상품 관리일 연장이 완료되었습니다.`, 'info')
+  }
+
+  private async gotoAndSearchListPage(weeks: number) {
     const today = dayjs().format('YYYYMMDD')
     const targetDate = dayjs().add(weeks, 'week').format('YYYYMMDD')
-
     await this.page.goto('https://www.s2b.kr/S2BNVendor/S2B/srcweb/remu/rema/rema100_list_new.jsp', {
       waitUntil: 'domcontentloaded',
     })
-
-    // 날짜 설정 및 검색 실행
     await this.page.evaluate(
       (startDate, endDate) => {
         ;(document.querySelector('#search_date') as HTMLSelectElement).value = 'LIMIT_DATE'
@@ -1381,38 +1449,10 @@ export class S2BAutomation {
       today,
       targetDate,
     )
-
     await Promise.all([
       this.page.click('[href^="javascript:search()"]'),
       this.page.waitForNavigation({ waitUntil: 'domcontentloaded' }),
     ])
-
-    // 상품 목록에서 링크 가져오기
-    const productLinks = await this.page.$$eval('#listTable tr td.td_graylist_l a', links =>
-      links.map(link => (link as HTMLAnchorElement).href),
-    )
-
-    if (!productLinks.length) {
-      console.log('No products found for the given criteria.')
-      return
-    }
-
-    // 각 링크 순회하며 관리일 연장
-    for (const link of productLinks) {
-      try {
-        await delay(1000)
-        console.log(`Processing product link: ${link}`)
-        await this.page.goto(link, { waitUntil: 'domcontentloaded' })
-
-        const extendButton = await this.page.$('a[href^="javascript:fnLimitDateUpdate()"]')
-        await extendButton.click()
-        console.log(`Product processed successfully: ${link}`)
-      } catch (error) {
-        console.error(`Error processing product: ${link}`, error)
-      }
-    }
-
-    console.log('All products processed.')
   }
 
   // 브라우저 종료
