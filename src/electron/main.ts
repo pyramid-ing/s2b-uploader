@@ -26,6 +26,37 @@ async function checkAccountValidity(accountId: string): Promise<boolean> {
   }
 }
 
+/**
+ * 문자열 정리 함수
+ * @param value - 정리할 값
+ * @returns 정리된 문자열 또는 원래 값
+ */
+function sanitizeString(value: any): any {
+  if (typeof value === 'string') {
+    // \u00A0 -> 띄어쓰기에서 이상한 문자섞이는 경우 있음
+    return value.replace(/\u00A0/g, ' ').trim()
+  }
+  return value
+}
+
+/**
+ * 상품 데이터 정리 함수
+ * @param product - 정리할 상품 객체
+ * @returns 정리된 상품 객체
+ */
+function sanitizeProductData(product: any): any {
+  const sanitizedProduct = { ...product }
+
+  // 상품 객체의 모든 속성에 대해 문자열 정리 적용
+  for (const key in sanitizedProduct) {
+    if (sanitizedProduct.hasOwnProperty(key)) {
+      sanitizedProduct[key] = sanitizeString(sanitizedProduct[key])
+    }
+  }
+
+  return sanitizedProduct
+}
+
 const ignoredErrorPatterns = [
   'Attempted to use detached Frame',
   'already handle',
@@ -78,7 +109,9 @@ const saveExcelResult = async (allProducts: any[]) => {
     // ✅ 선택된 상품만 결과 업데이트
     allProducts.forEach((product, index) => {
       if (product.selected) {
-        rows[index]['결과'] = product.result || '알 수 없음' // ✅ 선택된 상품만 결과 입력
+        // ✅ 상품 데이터 정리 적용
+        const sanitizedProduct = sanitizeProductData(product)
+        rows[index]['결과'] = sanitizedProduct.result || '알 수 없음' // ✅ 선택된 상품만 결과 입력
       }
     })
 
@@ -303,8 +336,11 @@ function setupIpcHandlers() {
         if (!product.selected) continue // ✅ 선택되지 않은 상품은 무시
 
         try {
-          await automation.registerProduct(product)
-          sendLogToRenderer(`상품 등록 성공: ${product.goodsName}`, 'info')
+          // ✅ 상품 등록 전 데이터 정리
+          const sanitizedProduct = sanitizeProductData(product)
+
+          await automation.registerProduct(sanitizedProduct)
+          sendLogToRenderer(`상품 등록 성공: ${sanitizedProduct.goodsName}`, 'info')
           product.result = '성공' // ✅ 성공한 경우 결과 업데이트
         } catch (error) {
           if (error.message && isIgnorableError(error.message)) {
