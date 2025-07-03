@@ -40,16 +40,24 @@ jobs:
       - name: Set GitHub Token
         run: echo "GH_TOKEN=${{ secrets.GH_TOKEN }}" >> $GITHUB_ENV
 
-      # 6. Electron 빌드 (package-win 스크립트 실행)
+      # 6. package.json에서 버전 읽기
+      - name: Get package version
+        id: package-version
+        shell: pwsh
+        run: |
+          $version = node -p "require('./package.json').version"
+          echo "version=$version" >> $env:GITHUB_OUTPUT
+
+      # 7. Electron 빌드 (package-win 스크립트 실행)
       - name: Build Windows App
         run: |
           $env:GH_TOKEN="${{ secrets.GH_TOKEN }}"
           yarn package-win
         shell: pwsh
 
-      # 7. 빌드된 파일 업로드
+      # 8. 빌드된 파일 업로드
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: 학교장터_자동등록
+          name: s2b-uploader-windows-v${{ steps.package-version.outputs.version }}
           path: release/
