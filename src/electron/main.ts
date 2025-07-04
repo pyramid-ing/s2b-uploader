@@ -423,7 +423,7 @@ function setupIpcHandlers() {
     return result.canceled ? null : result.filePaths[0]
   })
 
-  ipcMain.handle('extend-management-date', async (_, { weeks }) => {
+  ipcMain.handle('extend-management-date', async (_, { startDate, endDate }) => {
     try {
       const settings = store.get('settings')
       automation = new S2BAutomation(settings.fileDir, sendLogToRenderer, settings.headless)
@@ -434,9 +434,9 @@ function setupIpcHandlers() {
       await automation.login(settings.loginId, settings.loginPw)
       sendLogToRenderer(`로그인 성공 (ID: ${settings.loginId})`, 'info')
 
-      await automation.extendManagementDateForWeeks(weeks)
+      await automation.extendManagementDateForRange(startDate, endDate)
 
-      return { success: true, message: `상품 관리일이 ${weeks}주 이내로 설정되었습니다.` }
+      return { success: true, message: `상품 관리일이 ${startDate} ~ ${endDate}로 설정되었습니다.` }
     } catch (error) {
       console.error('Failed to extend management date:', error)
       return { success: false, error: error.message || 'Unknown error occurred.' }

@@ -1361,10 +1361,10 @@ export class S2BAutomation {
     }
   }
 
-  public async extendManagementDateForWeeks(weeks: number) {
+  public async extendManagementDateForRange(startDate: string, endDate: string) {
     if (!this.page) throw new Error('Browser not initialized.')
     try {
-      await this.gotoAndSearchListPage(weeks)
+      await this.gotoAndSearchListPageByRange(startDate, endDate)
       const products = await this.collectAllProductLinks()
       console.log('-----------------products')
       console.log(products)
@@ -1376,83 +1376,7 @@ export class S2BAutomation {
     }
   }
 
-  private async collectAllProductLinks(): Promise<{ name: string; link: string }[]> {
-    const products: { name: string; link: string }[] = []
-    let hasNextPage = true
-    while (hasNextPage) {
-      // 현재 페이지의 상품 정보 수집
-      const pageProducts = await this.page.$$eval('#listTable tr', rows => {
-        return Array.from(rows)
-          .map(row => {
-            const linkEl = row.querySelector('td.td_graylist_l a') as HTMLAnchorElement
-            const nameEl = row.querySelector('td.td_graylist_l')
-            if (linkEl && nameEl) {
-              return { name: nameEl.textContent?.trim() || '', link: linkEl.href }
-            }
-            return null
-          })
-          .filter(Boolean)
-      })
-      products.push(...(pageProducts as any[]))
-
-      await delay(3000)
-
-      // 페이지네이션 이동
-      hasNextPage = await this.page.evaluate(() => {
-        const paginate = document.querySelector('.paginate2')
-        if (!paginate) return false
-
-        const current = paginate.querySelector('strong')
-        if (!current) return false
-
-        const currentPage = parseInt(current.textContent.trim(), 10)
-
-        // 현재 페이지가 10의 배수일 경우 (10, 20, 30 등) next 버튼을 클릭
-        if (currentPage % 10 === 0) {
-          const nextButton = paginate.querySelector('a.next')
-          if (nextButton) {
-            ;(nextButton as HTMLElement).click()
-            return true
-          }
-        }
-
-        // 일반적인 페이지 이동
-        const pageLinks = Array.from(paginate.querySelectorAll('a')).filter(a => {
-          const num = parseInt(a.textContent.trim(), 10)
-          return !isNaN(num) && num > currentPage
-        })
-        if (pageLinks.length > 0) {
-          ;(pageLinks[0] as HTMLElement).click()
-          return true
-        }
-
-        return false
-      })
-      if (hasNextPage) {
-        await this.page.waitForNavigation({ waitUntil: 'domcontentloaded' })
-      }
-    }
-    return products
-  }
-
-  private async processExtendProducts(products: { name: string; link: string }[]) {
-    for (const product of products) {
-      try {
-        await this.page.goto(product.link, { waitUntil: 'domcontentloaded' })
-        this.log(`상품명: ${product.name} 관리일 연장 처리 중입니다.`, 'info')
-        const extendButton = await this.page.$('a[href^="javascript:fnLimitDateUpdate()"]')
-        await extendButton?.click()
-        await delay(3000)
-      } catch (error) {
-        this.log(`상품 처리 중 오류가 발생했습니다: ${error}`, 'error')
-      }
-    }
-    this.log(`총 ${products.length}개의 상품 관리일 연장이 완료되었습니다.`, 'info')
-  }
-
-  private async gotoAndSearchListPage(weeks: number) {
-    const today = dayjs().format('YYYYMMDD')
-    const targetDate = dayjs().add(weeks, 'week').format('YYYYMMDD')
+  private async gotoAndSearchListPageByRange(startDate: string, endDate: string) {
     await this.page.goto('https://www.s2b.kr/S2BNVendor/S2B/srcweb/remu/rema/rema100_list_new.jsp', {
       waitUntil: 'domcontentloaded',
     })
@@ -1467,13 +1391,13 @@ export class S2BAutomation {
 
     // 검색 조건 설정
     await this.page.evaluate(
-      (startDate, endDate) => {
+      (start, end) => {
         ;(document.querySelector('#search_date') as HTMLSelectElement).value = 'LIMIT_DATE'
-        ;(document.querySelector('#search_date_start') as HTMLInputElement).value = startDate
-        ;(document.querySelector('#search_date_end') as HTMLInputElement).value = endDate
+        ;(document.querySelector('#search_date_start') as HTMLInputElement).value = start
+        ;(document.querySelector('#search_date_end') as HTMLInputElement).value = end
       },
-      today,
-      targetDate,
+      startDate,
+      endDate,
     )
     await Promise.all([
       this.page.click('[href^="javascript:search()"]'),
@@ -1608,5 +1532,79 @@ export class S2BAutomation {
       console.error('Dialog 처리 중 오류 발생:', error)
       throw error
     }
+  }
+
+  public async collectAllProductLinks(): Promise<{ name: string; link: string }[]> {
+    const products: { name: string; link: string }[] = []
+    let hasNextPage = true
+    while (hasNextPage) {
+      // 현재 페이지의 상품 정보 수집
+      const pageProducts = await this.page.$$eval('#listTable tr', rows => {
+        return Array.from(rows)
+          .map(row => {
+            const linkEl = row.querySelector('td.td_graylist_l a') as HTMLAnchorElement
+            const nameEl = row.querySelector('td.td_graylist_l')
+            if (linkEl && nameEl) {
+              return { name: nameEl.textContent?.trim() || '', link: linkEl.href }
+            }
+            return null
+          })
+          .filter(Boolean)
+      })
+      products.push(...(pageProducts as any[]))
+
+      await delay(3000)
+
+      // 페이지네이션 이동
+      hasNextPage = await this.page.evaluate(() => {
+        const paginate = document.querySelector('.paginate2')
+        if (!paginate) return false
+
+        const current = paginate.querySelector('strong')
+        if (!current) return false
+
+        const currentPage = parseInt(current.textContent.trim(), 10)
+
+        // 현재 페이지가 10의 배수일 경우 (10, 20, 30 등) next 버튼을 클릭
+        if (currentPage % 10 === 0) {
+          const nextButton = paginate.querySelector('a.next')
+          if (nextButton) {
+            ;(nextButton as HTMLElement).click()
+            return true
+          }
+        }
+
+        // 일반적인 페이지 이동
+        const pageLinks = Array.from(paginate.querySelectorAll('a')).filter(a => {
+          const num = parseInt(a.textContent.trim(), 10)
+          return !isNaN(num) && num > currentPage
+        })
+        if (pageLinks.length > 0) {
+          ;(pageLinks[0] as HTMLElement).click()
+          return true
+        }
+
+        return false
+      })
+      if (hasNextPage) {
+        await this.page.waitForNavigation({ waitUntil: 'domcontentloaded' })
+      }
+    }
+    return products
+  }
+
+  public async processExtendProducts(products: { name: string; link: string }[]) {
+    for (const product of products) {
+      try {
+        await this.page.goto(product.link, { waitUntil: 'domcontentloaded' })
+        this.log(`상품명: ${product.name} 관리일 연장 처리 중입니다.`, 'info')
+        const extendButton = await this.page.$('a[href^="javascript:fnLimitDateUpdate()"]')
+        await extendButton?.click()
+        await delay(3000)
+      } catch (error) {
+        this.log(`상품 처리 중 오류가 발생했습니다: ${error}`, 'error')
+      }
+    }
+    this.log(`총 ${products.length}개의 상품 관리일 연장이 완료되었습니다.`, 'info')
   }
 }

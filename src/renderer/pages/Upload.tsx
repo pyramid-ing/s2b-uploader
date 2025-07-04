@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react'
-import { Alert, Button, Card, InputNumber, message, Space, Table } from 'antd'
+import { Alert, Button, Card, message, Space, Table, DatePicker } from 'antd'
 import { FolderOpenOutlined, ReloadOutlined, StopOutlined, UploadOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import TerminalLog from './TerminalLog'
+import { Dayjs } from 'dayjs'
 
 const { ipcRenderer } = window.require('electron')
 
@@ -14,11 +15,13 @@ interface ProductData {
   originalData?: any
 }
 
+const { RangePicker } = DatePicker
+
 const Upload: React.FC = () => {
   const [data, setData] = useState<ProductData[]>([])
   const [loading, setLoading] = useState(false)
   const [selectedKeys, setSelectedKeys] = useState<React.Key[]>([])
-  const [weeks, setWeeks] = useState<number>(12)
+  const [dateRange, setDateRange] = useState<[Dayjs, Dayjs] | null>(null)
   const [isAccountValid, setIsAccountValid] = useState<boolean | null>(null)
 
   useEffect(() => {
@@ -142,8 +145,15 @@ const Upload: React.FC = () => {
         message.error('로그인 정보가 설정되지 않았습니다.')
         return
       }
-
-      const result = await ipcRenderer.invoke('extend-management-date', { weeks })
+      if (!dateRange) {
+        message.error('기간을 선택해주세요.')
+        return
+      }
+      const [start, end] = dateRange
+      await ipcRenderer.invoke('extend-management-date', {
+        startDate: start.format('YYYYMMDD'),
+        endDate: end.format('YYYYMMDD'),
+      })
     } catch (error) {
       console.error('관리일 연장 실패:', error)
     }
@@ -190,15 +200,19 @@ const Upload: React.FC = () => {
       >
         <Space direction="vertical" size="middle">
           <Space>
-            <label>관리일 (몇 주 이내):</label>
-            <InputNumber
-              min={1}
-              value={weeks}
-              onChange={value => setWeeks(value || 1)}
+            <label>관리일(기간):</label>
+            <RangePicker
+              value={dateRange}
+              onChange={dates => setDateRange(dates as [Dayjs, Dayjs] | null)}
               disabled={isAccountValid === false}
+              format="YYYY-MM-DD"
             />
           </Space>
-          <Button type="primary" onClick={handleExtendManagementDate} disabled={isAccountValid === false || loading}>
+          <Button
+            type="primary"
+            onClick={handleExtendManagementDate}
+            disabled={isAccountValid === false || loading || !dateRange}
+          >
             관리일 연장
           </Button>
         </Space>
