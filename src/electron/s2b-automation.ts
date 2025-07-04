@@ -1370,7 +1370,7 @@ export class S2BAutomation {
       console.log(products)
       console.log(products.length)
       console.log('-----------------products')
-      await this.processProducts(products)
+      await this.processExtendProducts(products)
     } finally {
       await this.browser.close()
     }
@@ -1395,13 +1395,28 @@ export class S2BAutomation {
       })
       products.push(...(pageProducts as any[]))
 
+      await delay(3000)
+
       // 페이지네이션 이동
       hasNextPage = await this.page.evaluate(() => {
         const paginate = document.querySelector('.paginate2')
         if (!paginate) return false
+
         const current = paginate.querySelector('strong')
         if (!current) return false
+
         const currentPage = parseInt(current.textContent.trim(), 10)
+
+        // 현재 페이지가 10의 배수일 경우 (10, 20, 30 등) next 버튼을 클릭
+        if (currentPage % 10 === 0) {
+          const nextButton = paginate.querySelector('a.next')
+          if (nextButton) {
+            ;(nextButton as HTMLElement).click()
+            return true
+          }
+        }
+
+        // 일반적인 페이지 이동
         const pageLinks = Array.from(paginate.querySelectorAll('a')).filter(a => {
           const num = parseInt(a.textContent.trim(), 10)
           return !isNaN(num) && num > currentPage
@@ -1410,6 +1425,7 @@ export class S2BAutomation {
           ;(pageLinks[0] as HTMLElement).click()
           return true
         }
+
         return false
       })
       if (hasNextPage) {
@@ -1419,14 +1435,14 @@ export class S2BAutomation {
     return products
   }
 
-  private async processProducts(products: { name: string; link: string }[]) {
+  private async processExtendProducts(products: { name: string; link: string }[]) {
     for (const product of products) {
       try {
         await this.page.goto(product.link, { waitUntil: 'domcontentloaded' })
         this.log(`상품명: ${product.name} 관리일 연장 처리 중입니다.`, 'info')
         const extendButton = await this.page.$('a[href^="javascript:fnLimitDateUpdate()"]')
         await extendButton?.click()
-        await delay(2000)
+        await delay(3000)
       } catch (error) {
         this.log(`상품 처리 중 오류가 발생했습니다: ${error}`, 'error')
       }
@@ -1440,6 +1456,16 @@ export class S2BAutomation {
     await this.page.goto('https://www.s2b.kr/S2BNVendor/S2B/srcweb/remu/rema/rema100_list_new.jsp', {
       waitUntil: 'domcontentloaded',
     })
+
+    // 페이지당 항목 수를 100개로 설정하고 적용
+    await this.page.evaluate(() => {
+      ;(document.querySelector('#rowCount') as HTMLSelectElement).value = '100'
+      const setRowCountButton = document.querySelector('a[href^="javascript:setRowCount2()"]') as HTMLElement
+      if (setRowCountButton) setRowCountButton.click()
+    })
+    await this.page.waitForNavigation({ waitUntil: 'domcontentloaded' })
+
+    // 검색 조건 설정
     await this.page.evaluate(
       (startDate, endDate) => {
         ;(document.querySelector('#search_date') as HTMLSelectElement).value = 'LIMIT_DATE'
