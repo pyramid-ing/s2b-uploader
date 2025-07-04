@@ -4,6 +4,10 @@ import { FolderOpenOutlined, ReloadOutlined, StopOutlined, UploadOutlined } from
 import type { ColumnsType } from 'antd/es/table'
 import TerminalLog from './TerminalLog'
 import { Dayjs } from 'dayjs'
+import dayjs from 'dayjs'
+import 'dayjs/locale/ko'
+import koKR from 'antd/es/date-picker/locale/ko_KR'
+dayjs.locale('ko')
 
 const { ipcRenderer } = window.require('electron')
 
@@ -17,11 +21,14 @@ interface ProductData {
 
 const { RangePicker } = DatePicker
 
+const defaultStart = dayjs()
+const defaultEnd = dayjs().add(3, 'month')
+
 const Upload: React.FC = () => {
   const [data, setData] = useState<ProductData[]>([])
   const [loading, setLoading] = useState(false)
   const [selectedKeys, setSelectedKeys] = useState<React.Key[]>([])
-  const [dateRange, setDateRange] = useState<[Dayjs, Dayjs] | null>(null)
+  const [dateRange, setDateRange] = useState<[Dayjs, Dayjs]>([defaultStart, defaultEnd])
   const [isAccountValid, setIsAccountValid] = useState<boolean | null>(null)
 
   useEffect(() => {
@@ -203,9 +210,19 @@ const Upload: React.FC = () => {
             <label>관리일(기간):</label>
             <RangePicker
               value={dateRange}
-              onChange={dates => setDateRange(dates as [Dayjs, Dayjs] | null)}
+              onChange={dates => setDateRange(dates as [Dayjs, Dayjs])}
               disabled={isAccountValid === false}
               format="YYYY-MM-DD"
+              locale={koKR}
+              presets={[
+                { label: '전체', value: [dayjs('2000-01-01'), dayjs('2100-01-01')] },
+                { label: '1주일', value: [dayjs(), dayjs().add(1, 'week')] },
+                { label: '1개월', value: [dayjs(), dayjs().add(1, 'month')] },
+                { label: '3개월', value: [dayjs(), dayjs().add(3, 'month')] },
+                { label: '1년', value: [dayjs(), dayjs().add(1, 'year')] },
+              ]}
+              showNow
+              allowClear={false}
             />
           </Space>
           <Button
