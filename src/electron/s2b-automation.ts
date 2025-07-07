@@ -1586,8 +1586,6 @@ export class S2BAutomation {
       errorMessage?: string
     }[],
   ) {
-    let successCount = 0
-
     for (const product of products) {
       try {
         await this.page.goto(product.link, { waitUntil: 'domcontentloaded' })
@@ -1655,13 +1653,15 @@ export class S2BAutomation {
             ])
           } catch (error) {
             this.page?.off('dialog', handleExtensionDialog)
-            throw new Error('연장 처리 중 타임아웃이 발생했습니다.')
+            product.status = 'fail'
+            product.errorMessage = '연장 처리 중 타임아웃이 발생했습니다.'
+            this.log(`관리일 연장 실패 (타임아웃) - ${product.name}`, 'error')
+            continue
           }
 
           if (isSuccess) {
             product.status = 'success'
             this.log(`관리일 연장 성공: ${product.name}`, 'info')
-            successCount++
           } else {
             product.status = 'fail'
             product.errorMessage = errorMessage
@@ -1680,11 +1680,12 @@ export class S2BAutomation {
       }
     }
 
+    const successProducts = products.filter(p => p.status === 'success')
     const failedProducts = products.filter(p => p.status === 'fail')
 
     this.log(
-      `관리일 연장 처리 완료 - 총: ${products.length}개, 성공: ${successCount}개, 실패: ${failedProducts.length}개`,
-      successCount === products.length ? 'info' : 'warning',
+      `관리일 연장 처리 완료 - 총: ${products.length}개, 성공: ${successProducts.length}개, 실패: ${failedProducts.length}개`,
+      successProducts.length === products.length ? 'info' : 'warning',
     )
 
     // 실패한 상품 목록 로깅
