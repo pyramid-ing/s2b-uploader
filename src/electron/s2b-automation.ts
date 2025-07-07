@@ -1361,10 +1361,10 @@ export class S2BAutomation {
     }
   }
 
-  public async extendManagementDateForRange(startDate: string, endDate: string) {
+  public async extendManagementDateForRange(startDate: string, endDate: string, registrationStatus: string = '') {
     if (!this.page) throw new Error('Browser not initialized.')
     try {
-      await this.gotoAndSearchListPageByRange(startDate, endDate)
+      await this.gotoAndSearchListPageByRange(startDate, endDate, registrationStatus)
       const products = await this.collectAllProductLinks()
       console.log('-----------------products')
       console.log(products)
@@ -1376,7 +1376,7 @@ export class S2BAutomation {
     }
   }
 
-  private async gotoAndSearchListPageByRange(startDate: string, endDate: string) {
+  private async gotoAndSearchListPageByRange(startDate: string, endDate: string, registrationStatus: string = '') {
     await this.page.goto('https://www.s2b.kr/S2BNVendor/S2B/srcweb/remu/rema/rema100_list_new.jsp', {
       waitUntil: 'domcontentloaded',
     })
@@ -1391,13 +1391,21 @@ export class S2BAutomation {
 
     // 검색 조건 설정
     await this.page.evaluate(
-      (start, end) => {
+      (start, end, status) => {
         ;(document.querySelector('#search_date') as HTMLSelectElement).value = 'LIMIT_DATE'
         ;(document.querySelector('#search_date_start') as HTMLInputElement).value = start
         ;(document.querySelector('#search_date_end') as HTMLInputElement).value = end
+        if (status) {
+          const radio = document.querySelector(`input[name="tgruStatus"][value="${status}"]`) as HTMLInputElement
+          if (radio) {
+            radio.checked = true
+            radio.dispatchEvent(new Event('change', { bubbles: true }))
+          }
+        }
       },
       startDate,
       endDate,
+      registrationStatus,
     )
     await Promise.all([
       this.page.click('[href^="javascript:search()"]'),

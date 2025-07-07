@@ -1,15 +1,16 @@
 import React, { useEffect, useState } from 'react'
-import { Alert, Button, Card, message, Space, Table, DatePicker } from 'antd'
+import { Alert, Button, Card, message, Space, Table, DatePicker, Radio } from 'antd'
 import { FolderOpenOutlined, ReloadOutlined, StopOutlined, UploadOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import TerminalLog from './TerminalLog'
-import { Dayjs } from 'dayjs'
 import dayjs from 'dayjs'
+import type { Dayjs } from 'dayjs'
 import 'dayjs/locale/ko'
 import koKR from 'antd/es/date-picker/locale/ko_KR'
-dayjs.locale('ko')
 
 const { ipcRenderer } = window.require('electron')
+
+dayjs.locale('ko')
 
 interface ProductData {
   key: string
@@ -24,11 +25,27 @@ const { RangePicker } = DatePicker
 const defaultStart = dayjs()
 const defaultEnd = dayjs().add(3, 'month')
 
+const REGISTRATION_STATUS = {
+  ALL: '',
+  WAITING: '1',
+  REQUESTED: '2',
+  COMPLETED: '3',
+  STOPPED: '4',
+  REJECTED: '5',
+} as const
+
+const REGISTRATION_STATUS_LABELS = {
+  [REGISTRATION_STATUS.ALL]: '전체',
+  [REGISTRATION_STATUS.COMPLETED]: '등록완료',
+  [REGISTRATION_STATUS.STOPPED]: '등록중지',
+} as const
+
 const Upload: React.FC = () => {
   const [data, setData] = useState<ProductData[]>([])
   const [loading, setLoading] = useState(false)
   const [selectedKeys, setSelectedKeys] = useState<React.Key[]>([])
   const [dateRange, setDateRange] = useState<[Dayjs, Dayjs]>([defaultStart, defaultEnd])
+  const [registrationStatus, setRegistrationStatus] = useState<string>(REGISTRATION_STATUS.ALL)
   const [isAccountValid, setIsAccountValid] = useState<boolean | null>(null)
 
   useEffect(() => {
@@ -160,9 +177,12 @@ const Upload: React.FC = () => {
       await ipcRenderer.invoke('extend-management-date', {
         startDate: start.format('YYYYMMDD'),
         endDate: end.format('YYYYMMDD'),
+        registrationStatus,
       })
+      message.success('관리일이 성공적으로 변경되었습니다.')
     } catch (error) {
       console.error('관리일 연장 실패:', error)
+      message.error('관리일 연장 중 오류가 발생했습니다.')
     }
   }
 
@@ -224,6 +244,20 @@ const Upload: React.FC = () => {
               showNow
               allowClear={false}
             />
+          </Space>
+          <Space>
+            <label>등록상태:</label>
+            <Radio.Group
+              value={registrationStatus}
+              onChange={e => setRegistrationStatus(e.target.value)}
+              disabled={isAccountValid === false}
+            >
+              {Object.entries(REGISTRATION_STATUS_LABELS).map(([value, label]) => (
+                <Radio key={value} value={value}>
+                  {label}
+                </Radio>
+              ))}
+            </Radio.Group>
           </Space>
           <Button
             type="primary"
