@@ -461,33 +461,6 @@ export class S2BAutomation {
 
     this.page = await this.browser.newPage()
 
-    // Dialog 이벤트 처리
-    this.page.on('dialog', async dialog => {
-      const message = dialog.message()
-
-      switch (dialog.type()) {
-        case 'alert':
-          // 특정 메시지 필터링: 성공 처리 메시지
-          if (message.includes('S2B의 "견적정보 등록"은 지방자치단체를 당사자로 하는 계약에 관한 법률 시행령 제30조')) {
-            await dialog.accept() // "확인" 버튼 자동 클릭
-          } else if (message.includes('등록대기 상태로 변경되었으며')) {
-            // register
-          } else {
-            console.error('Registration Error:', message)
-            this.dialogErrorMessage = message // 에러 메시지 저장
-            await dialog.dismiss() // Alert 닫기
-          }
-          break
-
-        case 'confirm':
-          // 특정 메시지 필터링: 성공 처리 메시지
-          if (message.includes('최종관리일을 연장하시겠습니까?')) {
-            await dialog.accept()
-          }
-          break
-      }
-    })
-
     // 팝업 감지 및 처리
     this.browser.on('targetcreated', async target => {
       const page = await target.page()
@@ -562,6 +535,34 @@ export class S2BAutomation {
     if (!this.page) throw new Error('Browser not initialized')
 
     this.dialogErrorMessage = null // 초기화
+
+    // 등록 프로세스를 위한 dialog 이벤트 핸들러
+    const handleRegistrationDialog = async (dialog: puppeteer.Dialog) => {
+      const message = dialog.message()
+
+      switch (dialog.type()) {
+        case 'alert':
+          // 특정 메시지 필터링: 성공 처리 메시지
+          if (message.includes('S2B의 "견적정보 등록"은 지방자치단체를 당사자로 하는 계약에 관한 법률 시행령 제30조')) {
+            await dialog.accept() // "확인" 버튼 자동 클릭
+          } else if (message.includes('등록대기 상태로 변경되었으며')) {
+            await dialog.accept()
+          } else {
+            console.error('Registration Error:', message)
+            this.dialogErrorMessage = message // 에러 메시지 저장
+            await dialog.dismiss() // Alert 닫기
+          }
+          break
+
+        case 'confirm':
+          // 모든 confirm 다이얼로그는 기본적으로 거절
+          await dialog.dismiss()
+          break
+      }
+    }
+
+    // 등록 프로세스를 위한 dialog 이벤트 리스너 등록
+    this.page.on('dialog', handleRegistrationDialog)
 
     // ✅ 로그: 상품 등록 시작
     this.log(`상품 등록 시작: ${data.goodsName}`, 'info')
@@ -676,11 +677,18 @@ export class S2BAutomation {
 
         // ✅ 최종 성공 로그
         this.log(`✅ 상품 등록 성공: ${data.goodsName}`, 'info')
+        return true
       } catch (stepError) {
         throw stepError
       }
     } catch (error) {
-      throw error
+      this.log(`상품 등록 실패: ${error.message}`, 'error')
+      return false
+    } finally {
+      // 등록 프로세스 완료 후 dialog 이벤트 리스너 제거
+      if (this.page) {
+        this.page.off('dialog', handleRegistrationDialog)
+      }
     }
   }
 
@@ -1498,43 +1506,16 @@ export class S2BAutomation {
       })
     }
 
-    // Dialog 메시지 대기 Promise
-    const dialogPromise = new Promise<void>((resolve, reject) => {
-      const timeout = setTimeout(() => reject(new Error('Dialog message not received')), 20000)
-
-      const onDialog = async (dialog: puppeteer.Dialog) => {
-        try {
-          const message = dialog.message()
-
-          if (message.includes('등록대기 상태로 변경되었으며')) {
-            console.log('Registration successful: "등록대기 상태로 변경되었으며".')
-            await dialog.accept()
-            clearTimeout(timeout)
-            this.page?.off('dialog', onDialog) // 이벤트 제거
-            resolve()
-          } else {
-            throw new Error(message)
-          }
-        } catch (error) {
-          console.error('Dialog 처리 중 오류:', error)
-          reject(error)
-        }
-      }
-
-      this.page?.on('dialog', onDialog)
-    })
-
     // 임시저장 버튼 클릭
     await this.page.click('a[href="javascript:register(\'1\');"]')
     console.log('Register button clicked.')
 
-    // Dialog 처리 완료 대기
-    try {
-      await dialogPromise
-      console.log('Dialog 처리 완료.')
-    } catch (error) {
-      console.error('Dialog 처리 중 오류 발생:', error)
-      throw error
+    // 등록 완료 대기
+    await delay(5000)
+
+    // ✅ Dialog 에러 확인
+    if (this.dialogErrorMessage) {
+      throw new Error(this.dialogErrorMessage)
     }
   }
 
@@ -1597,18 +1578,123 @@ export class S2BAutomation {
     return products
   }
 
-  public async processExtendProducts(products: { name: string; link: string }[]) {
+  public async processExtendProducts(
+    products: {
+      name: string
+      link: string
+      status?: 'success' | 'fail'
+      errorMessage?: string
+    }[],
+  ) {
+    let successCount = 0
+
     for (const product of products) {
       try {
         await this.page.goto(product.link, { waitUntil: 'domcontentloaded' })
         this.log(`상품명: ${product.name} 관리일 연장 처리 중입니다.`, 'info')
+
+        // 관리일 연장 버튼 클릭
         const extendButton = await this.page.$('a[href^="javascript:fnLimitDateUpdate()"]')
-        await extendButton?.click()
-        await delay(3000)
+        if (!extendButton) {
+          product.status = 'fail'
+          product.errorMessage = '관리일 연장 버튼을 찾을 수 없습니다'
+          this.log(`관리일 연장 버튼을 찾을 수 없습니다: ${product.name}`, 'error')
+          continue
+        }
+
+        let isSuccess = undefined
+        let errorMessage = ''
+
+        // 관리일 연장 처리를 위한 임시 dialog 이벤트 핸들러
+        const handleExtensionDialog = async (dialog: puppeteer.Dialog) => {
+          const message = dialog.message()
+
+          switch (dialog.type()) {
+            case 'alert':
+              if (message.match(/\d{4}년\s\d{1,2}월\s\d{1,2}일\s까지\s관리기간이\s연장되었습니다/)) {
+                isSuccess = true
+                await dialog.accept()
+              } else {
+                isSuccess = false
+                errorMessage = message
+                this.log(`관리일 연장 실패 - ${message}`, 'error')
+                await dialog.dismiss()
+              }
+              break
+
+            case 'confirm':
+              if (message.includes('최종관리일을 연장하시겠습니까?')) {
+                await dialog.accept()
+              }
+              break
+          }
+        }
+        // dialog 이벤트 핸들러 등록
+        this.page?.on('dialog', handleExtensionDialog)
+
+        try {
+          // 연장 버튼 클릭
+          await extendButton.click()
+
+          // alert 처리 완료 대기 (5초 타임아웃)
+          try {
+            await Promise.race([
+              new Promise((_, reject) => {
+                setTimeout(() => reject(new Error('연장 다이얼로그 대기 시간 초과')), 5000)
+              }),
+              new Promise<void>(resolve => {
+                const checkInterval = setInterval(() => {
+                  if (isSuccess !== undefined) {
+                    // alert이 처리되었다면
+                    clearInterval(checkInterval)
+                    this.page?.off('dialog', handleExtensionDialog)
+                    resolve()
+                  }
+                }, 100)
+              }),
+            ])
+          } catch (error) {
+            this.page?.off('dialog', handleExtensionDialog)
+            throw new Error('연장 처리 중 타임아웃이 발생했습니다.')
+          }
+
+          if (isSuccess) {
+            product.status = 'success'
+            this.log(`관리일 연장 성공: ${product.name}`, 'info')
+            successCount++
+          } else {
+            product.status = 'fail'
+            product.errorMessage = errorMessage
+            this.log(`관리일 연장 실패: ${product.name}`, 'error')
+          }
+        } finally {
+          // 임시 이벤트 리스너 제거
+          this.page.off('dialog', handleExtensionDialog)
+        }
+
+        await delay(2000)
       } catch (error) {
-        this.log(`상품 처리 중 오류가 발생했습니다: ${error}`, 'error')
+        product.status = 'fail'
+        product.errorMessage = error.message
+        this.log(`상품 처리 중 오류가 발생했습니다 (${product.name}): ${error}`, 'error')
       }
     }
-    this.log(`총 ${products.length}개의 상품 관리일 연장이 완료되었습니다.`, 'info')
+
+    const failedProducts = products.filter(p => p.status === 'fail')
+
+    this.log(
+      `관리일 연장 처리 완료 - 총: ${products.length}개, 성공: ${successCount}개, 실패: ${failedProducts.length}개`,
+      successCount === products.length ? 'info' : 'warning',
+    )
+
+    // 실패한 상품 목록 로깅
+    if (failedProducts.length > 0) {
+      this.log('실패한 상품 목록:', 'error')
+      failedProducts.forEach(product => {
+        this.log(`- ${product.name}: ${product.errorMessage}`, 'error')
+      })
+    }
+
+    return products // 처리 결과가 포함된 상품 목록 반환
   }
 }
