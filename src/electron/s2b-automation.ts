@@ -1366,10 +1366,6 @@ export class S2BAutomation {
     try {
       await this.gotoAndSearchListPageByRange(startDate, endDate, registrationStatus)
       const products = await this.collectAllProductLinks()
-      console.log('-----------------products')
-      console.log(products)
-      console.log(products.length)
-      console.log('-----------------products')
       await this.processExtendProducts(products)
     } finally {
       await this.browser.close()
