@@ -1584,12 +1584,12 @@ export class S2BAutomation {
       link: string
       status?: 'success' | 'fail'
       errorMessage?: string
+      extendedDate?: string
     }[],
   ) {
     for (const product of products) {
       try {
         await this.page.goto(product.link, { waitUntil: 'domcontentloaded' })
-        this.log(`상품명: ${product.name} 관리일 연장 처리 중입니다.`, 'info')
 
         // 관리일 연장 버튼 클릭
         const extendButton = await this.page.$('a[href^="javascript:fnLimitDateUpdate()"]')
@@ -1611,6 +1611,8 @@ export class S2BAutomation {
             case 'alert':
               if (message.match(/\d{4}년\s\d{1,2}월\s\d{1,2}일\s까지\s관리기간이\s연장되었습니다/)) {
                 isSuccess = true
+                const dateMatch = message.match(/(\d{4}년\s\d{1,2}월\s\d{1,2}일)/)
+                product.extendedDate = dateMatch ? dateMatch[1] : null
                 await dialog.accept()
               } else {
                 isSuccess = false
@@ -1661,7 +1663,7 @@ export class S2BAutomation {
 
           if (isSuccess) {
             product.status = 'success'
-            this.log(`관리일 연장 성공: ${product.name}`, 'info')
+            this.log(`관리일 연장 성공: ${product.name} (${product.extendedDate}까지)`, 'info')
           } else {
             product.status = 'fail'
             product.errorMessage = errorMessage
