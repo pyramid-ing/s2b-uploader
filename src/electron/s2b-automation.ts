@@ -546,7 +546,11 @@ export class S2BAutomation {
           // 특정 메시지 필터링: 성공 처리 메시지
           if (message.includes('S2B의 "견적정보 등록"은 지방자치단체를 당사자로 하는 계약에 관한 법률 시행령 제30조')) {
             await dialog.accept() // "확인" 버튼 자동 클릭
-          } else if (message.includes('등록대기 상태로 변경되었으며')) {
+          } else if (
+            message.includes('등록대기 상태로 변경되었으며') ||
+            message.includes('식품을 등록 할 경우 소비기한은 필수 입력 값입니다')
+          ) {
+            // 무시
             await dialog.accept()
           } else {
             console.error('Registration Error:', message)
