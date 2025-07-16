@@ -6,6 +6,7 @@ import dayjs from 'dayjs'
 import axios from 'axios'
 import crypto from 'crypto'
 import FormData from 'form-data'
+import FileType from 'file-type'
 
 interface ProductData {
   // 등록구분을 위한 텍스트 값
@@ -1158,15 +1159,30 @@ export class S2BAutomation {
         filePath = path.join(tempDir, fileName)
 
         console.log(`Downloading external file from: ${filePathOrUrl}`)
-        const response = await axios.get(filePathOrUrl, { responseType: 'stream' })
-        const writer = fsSync.createWriteStream(filePath)
+        try {
+          const response = await axios.get(filePathOrUrl, { responseType: 'stream' })
+          const writer = fsSync.createWriteStream(filePath)
 
-        response.data.pipe(writer)
+          response.data.pipe(writer)
 
-        await new Promise((resolve, reject) => {
-          writer.on('finish', resolve)
-          writer.on('error', reject)
-        })
+          await new Promise((resolve, reject) => {
+            writer.on('finish', resolve)
+            writer.on('error', reject)
+          })
+        } catch (err) {
+          throw new Error(`외부 이미지 다운로드에 실패했습니다: ${filePathOrUrl}`)
+        }
+
+        // 다운로드 후 파일 존재 여부 확인
+        if (!fsSync.existsSync(filePath)) {
+          throw new Error(`외부 이미지를 찾을 수 없습니다: ${filePathOrUrl}`)
+        }
+
+        // 파일 타입 검사 (외부 URL)
+        const fileTypeResult = await FileType.fromFile(filePath)
+        if (!fileTypeResult || !fileTypeResult.mime.startsWith('image/')) {
+          throw new Error(`외부 파일이 이미지가 아닙니다: ${filePathOrUrl}`)
+        }
 
         console.log(`Downloaded external file to: ${filePath}`)
       } else {
@@ -1177,6 +1193,11 @@ export class S2BAutomation {
         }
         if (!fsSync.existsSync(filePath)) {
           throw new Error(`Local file not found at path: ${filePath}`)
+        }
+        // 파일 타입 검사 (로컬 파일)
+        const fileTypeResult = await FileType.fromFile(filePath)
+        if (!fileTypeResult || !fileTypeResult.mime.startsWith('image/')) {
+          throw new Error(`로컬 파일이 이미지가 아닙니다: ${filePath}`)
         }
       }
 
