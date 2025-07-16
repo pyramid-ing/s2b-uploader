@@ -598,101 +598,96 @@ export class S2BAutomation {
       }
 
       // ✅ 단계별 입력 처리
-      try {
-        // 기본 정보 입력
-        this.log('기본 정보 입력 중...', 'info')
-        await this.setBasicInfo(data)
-        this.log('기본 정보 입력 완료', 'info')
+      // 기본 정보 입력
+      this.log('기본 정보 입력 중...', 'info')
+      await this.setBasicInfo(data)
+      this.log('기본 정보 입력 완료', 'info')
 
-        // 이미지 업로드
-        this.log('이미지 업로드 시작', 'info')
-        await this.uploadAllImages(data)
-        this.log('이미지 업로드 완료', 'info')
+      // 이미지 업로드
+      this.log('이미지 업로드 시작', 'info')
+      await this.uploadAllImages(data)
+      this.log('이미지 업로드 완료', 'info')
 
-        // 카테고리 선택
-        this.log('카테고리 선택 중...', 'info')
-        await this.selectCategory(data)
-        this.log('카테고리 선택 완료', 'info')
+      // 카테고리 선택
+      this.log('카테고리 선택 중...', 'info')
+      await this.selectCategory(data)
+      this.log('카테고리 선택 완료', 'info')
 
-        // 카테고리별 입력사항 설정
-        this.log('카테고리별 상세 정보 입력 중...', 'info')
-        await this.setCategoryDetails(data)
+      // 카테고리별 입력사항 설정
+      this.log('카테고리별 상세 정보 입력 중...', 'info')
+      await this.setCategoryDetails(data)
 
-        // 인증정보 설정
-        this.log('인증 정보 입력 중...', 'info')
-        await this.setCertifications(data)
+      // 인증정보 설정
+      this.log('인증 정보 입력 중...', 'info')
+      await this.setCertifications(data)
 
-        // KC 인증 정보 설정
-        this.log('KC 인증 정보 입력 중...', 'info')
-        await this.setKcCertifications(data)
+      // KC 인증 정보 설정
+      this.log('KC 인증 정보 입력 중...', 'info')
+      await this.setKcCertifications(data)
 
-        // 기타첨부서류
-        this.log('기타 첨부 서류 업로드 중...', 'info')
-        await this.setOtherAttachments(data)
+      // 기타첨부서류
+      this.log('기타 첨부 서류 업로드 중...', 'info')
+      await this.setOtherAttachments(data)
 
-        // G2B 물품목록번호 설정
-        this.log(`G2B 정보 입력 중 (번호: ${data.g2bNumber})`, 'info')
-        await this.setG2bInformation(data.g2bNumber)
+      // G2B 물품목록번호 설정
+      this.log(`G2B 정보 입력 중 (번호: ${data.g2bNumber})`, 'info')
+      await this.setG2bInformation(data.g2bNumber)
 
-        // 조달청 계약여부
-        this.log('조달청 계약 여부 설정 중...', 'info')
-        await this.setPpsContract(data)
+      // 조달청 계약여부
+      this.log('조달청 계약 여부 설정 중...', 'info')
+      await this.setPpsContract(data)
 
-        // 배송정보
-        this.log('배송 정보 입력 중...', 'info')
-        await this.setDeliveryInfo(data)
+      // 배송정보
+      this.log('배송 정보 입력 중...', 'info')
+      await this.setDeliveryInfo(data)
 
-        // 배송비 설정
-        this.log('배송비 정보 입력 중...', 'info')
-        await this.setDeliveryFee(data)
+      // 배송비 설정
+      this.log('배송비 정보 입력 중...', 'info')
+      await this.setDeliveryFee(data)
 
-        // 상세설명 HTML 설정
-        this.log('상세 설명 입력 중...', 'info')
-        await this.setDetailHtml(data.detailHtml)
+      // 상세설명 HTML 설정
+      this.log('상세 설명 입력 중...', 'info')
+      await this.setDetailHtml(data.detailHtml)
 
-        // 나라장터 정보 설정
-        this.log('나라장터 정보 입력 중...', 'info')
-        await this.setNaraInformation(data)
+      // 나라장터 정보 설정
+      this.log('나라장터 정보 입력 중...', 'info')
+      await this.setNaraInformation(data)
 
-        // 타사이트 정보 설정
-        this.log('타 사이트 정보 입력 중...', 'info')
-        await this.setOtherSiteInformation(data)
+      // 타사이트 정보 설정
+      this.log('타 사이트 정보 입력 중...', 'info')
+      await this.setOtherSiteInformation(data)
 
-        // 판매단위와 과세여부 설정
-        this.log('판매 단위 및 과세 여부 설정 중...', 'info')
-        await this.setSalesUnitAndTax(data)
+      // 판매단위와 과세여부 설정
+      this.log('판매 단위 및 과세 여부 설정 중...', 'info')
+      await this.setSalesUnitAndTax(data)
 
-        // 반품/교환 배송비 입력
-        this.log('반품/교환 배송비 입력 중...', 'info')
-        await this.setReturnExchangeFee(data)
+      // 반품/교환 배송비 입력
+      this.log('반품/교환 배송비 입력 중...', 'info')
+      await this.setReturnExchangeFee(data)
 
-        // AS정보입력
-        this.log('AS 정보 입력 중...', 'info')
-        await this.setAsInfo(data)
+      // AS정보입력
+      this.log('AS 정보 입력 중...', 'info')
+      await this.setAsInfo(data)
 
-        // 원산지 정보 설정
-        this.log('원산지 정보 입력 중...', 'info')
-        await this.setOriginInfo(data)
+      // 원산지 정보 설정
+      this.log('원산지 정보 입력 중...', 'info')
+      await this.setOriginInfo(data)
 
-        // 청렴서약서 동의 및 등록
-        this.log('청렴서약서 등록 중...', 'info')
-        await this.submitRegistration()
+      // 청렴서약서 동의 및 등록
+      this.log('청렴서약서 등록 중...', 'info')
+      await this.submitRegistration()
 
-        // ✅ Dialog 에러 확인
-        if (this.dialogErrorMessage) {
-          this.log(`등록 중 에러 발생: ${this.dialogErrorMessage}`, 'error')
-          throw new Error(this.dialogErrorMessage) // 에러 발생 시 throw
-        }
-
-        // ✅ 최종 성공 로그
-        this.log(`✅ 상품 등록 성공: ${data.goodsName}`, 'info')
-        return true
-      } catch (stepError) {
-        throw stepError
+      // ✅ Dialog 에러 확인
+      if (this.dialogErrorMessage) {
+        this.log(`등록 중 에러 발생: ${this.dialogErrorMessage}`, 'error')
+        throw new Error(this.dialogErrorMessage) // 에러 발생 시 throw
       }
+
+      // ✅ 최종 성공 로그
+      this.log(`✅ 상품 등록 성공: ${data.goodsName}`, 'info')
     } catch (error) {
       this.log(`상품 등록 실패: ${error.message}`, 'error')
-      return false
+      throw error
     } finally {
       // 등록 프로세스 완료 후 dialog 이벤트 리스너 제거
       if (this.page) {

@@ -340,7 +340,6 @@ function setupIpcHandlers() {
           const sanitizedProduct = sanitizeProductData(product)
 
           await automation.registerProduct(sanitizedProduct)
-          sendLogToRenderer(`상품 등록 성공: ${sanitizedProduct.goodsName}`, 'info')
           product.result = '성공' // ✅ 성공한 경우 결과 업데이트
         } catch (error) {
           if (error.message && isIgnorableError(error.message)) {
