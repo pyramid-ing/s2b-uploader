@@ -262,7 +262,7 @@ export class S2BAutomation {
   }
 
   async login(id: string, password: string) {
-    if (!this.page) throw new Error('Browser not initialized')
+    if (!this.page) throw new Error('브라우저가 초기화되지 않았습니다.')
 
     await this.page.goto('https://www.s2b.kr/S2BNCustomer/Login.do?type=sp&userDomain=')
     await this.page.type('form[name="vendor_loginForm"] [name="uid"]', id)
@@ -533,7 +533,7 @@ export class S2BAutomation {
   }
   // 상품 등록
   async registerProduct(data: ProductData) {
-    if (!this.page) throw new Error('Browser not initialized')
+    if (!this.page) throw new Error('브라우저가 초기화되지 않았습니다.')
 
     this.dialogErrorMessage = null // 초기화
 
@@ -572,7 +572,15 @@ export class S2BAutomation {
       await this.page.goto('https://www.s2b.kr/S2BNVendor/rema100.do?forwardName=goRegistView')
       this.log('상품 등록 페이지 접속 완료', 'info')
 
-      await this.page.waitForSelector('select[name="sale_type"]')
+      // 상품 등록 폼
+      try {
+        await this.page.waitForSelector('select[name="sale_type"]', { timeout: 10000 })
+      } catch (error) {
+        if (error && error.name === 'TimeoutError') {
+          throw new Error('상품 등록 폼이 10초 내에 로드되지 않았습니다. (타임아웃)')
+        }
+        throw error
+      }
       this.log('상품 등록 폼 로드 완료', 'info')
 
       // ✅ 팝업 닫기 로직
@@ -753,7 +761,7 @@ export class S2BAutomation {
 
   // G2B 물품목록번호 등록
   private async setG2bInformation(g2bNumber: string) {
-    if (!this.page) throw new Error('Browser not initialized')
+    if (!this.page) throw new Error('브라우저가 초기화되지 않았습니다.')
 
     try {
       if (g2bNumber) {
@@ -765,7 +773,14 @@ export class S2BAutomation {
         console.log('G2B 물품목록번호 등록 버튼 클릭됨.')
 
         // G2B 데이터가 나타날 때까지 대기
-        await this.page.waitForSelector('#apiData', { timeout: 10000 })
+        try {
+          await this.page.waitForSelector('#apiData', { timeout: 10000 })
+        } catch (error) {
+          if (error && error.name === 'TimeoutError') {
+            throw new Error('G2B 데이터가 10초 내에 로드되지 않았습니다. (타임아웃)')
+          }
+          throw error
+        }
         console.log('G2B 물품목록번호 등록 성공.')
 
         // G2B 등록된 데이터 확인
@@ -946,7 +961,7 @@ export class S2BAutomation {
   }
 
   async setCategoryDetails(data: ProductData) {
-    if (!this.page) throw new Error('Browser not initialized')
+    if (!this.page) throw new Error('브라우저가 초기화되지 않았습니다.')
 
     // 소비기한 설정
     if (data.validateRadio) {
@@ -1092,7 +1107,7 @@ export class S2BAutomation {
   }
 
   async setOtherAttachments(data: ProductData) {
-    if (!this.page) throw new Error('Browser not initialized')
+    if (!this.page) throw new Error('브라우저가 초기화되지 않았습니다.')
 
     // 어린이 하차 확인 장치
     await this.page.click(`input[name="childexitcheckerKcUseGubunChk"][value="${data.childExitCheckerKcType}"]`)
@@ -1113,7 +1128,7 @@ export class S2BAutomation {
   }
 
   async setPpsContract(data: ProductData) {
-    if (!this.page) throw new Error('Browser not initialized')
+    if (!this.page) throw new Error('브라우저가 초기화되지 않았습니다.')
 
     // 계약 여부 설정
     await this.page.click(`input[name="f_pps_c_yn"][value="${data.ppsContractYn}"]`)
@@ -1192,7 +1207,7 @@ export class S2BAutomation {
           filePath = path.join(this.baseFilePath, filePathOrUrl)
         }
         if (!fsSync.existsSync(filePath)) {
-          throw new Error(`Local file not found at path: ${filePath}`)
+          throw new Error(`로컬 이미지를 찾을 수 없습니다: ${filePath}`)
         }
         // 파일 타입 검사 (로컬 파일)
         const fileTypeResult = await FileType.fromFile(filePath)
@@ -1241,14 +1256,21 @@ export class S2BAutomation {
         await inputElement.uploadFile(filePath)
 
         if (statusSelector) {
-          await this.page.waitForFunction(
-            selector => {
-              const element = document.querySelector(selector)
-              return element && element.textContent?.trim() === '이미지 용량 확인 완료'
-            },
-            { timeout: 20000 },
-            statusSelector,
-          )
+          try {
+            await this.page.waitForFunction(
+              selector => {
+                const element = document.querySelector(selector)
+                return element && element.textContent?.trim() === '이미지 용량 확인 완료'
+              },
+              { timeout: 20000 },
+              statusSelector,
+            )
+          } catch (error) {
+            if (error && error.name === 'TimeoutError') {
+              throw new Error('이미지 용량 확인이 20초 내에 완료되지 않았습니다. (타임아웃)')
+            }
+            throw error
+          }
         }
       } else {
         throw new Error(`Input element not found for selector: ${inputSelector}`)
@@ -1391,7 +1413,7 @@ export class S2BAutomation {
   }
 
   public async extendManagementDateForRange(startDate: string, endDate: string, registrationStatus: string = '') {
-    if (!this.page) throw new Error('Browser not initialized.')
+    if (!this.page) throw new Error('브라우저가 초기화되지 않았습니다.')
     try {
       await this.gotoAndSearchListPageByRange(startDate, endDate, registrationStatus)
       const products = await this.collectAllProductLinks()
