@@ -1,9 +1,10 @@
 {
   "name": "s2b-uploader",
-  "version": "1.8.0",
+  "version": "1.8.1",
   "description": "",
   "main": "dist/electron/main.js",
   "build": {
+    "productName": "s2b-uploader",
     "appId": "s2b-uploader",
     "publish": [
       {
@@ -20,13 +21,23 @@
     "win": {
       "icon": "build/icon.ico",
       "target": [
-        "nsis",
-        "zip"
-      ]
+        "nsis"
+      ],
+      "artifactName": "${productName}-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "runAfterFinish": true,
+      "perMachine": true,
+      "artifactName": "${productName}-Setup-${version}.${ext}"
     },
     "asar": true,
     "asarUnpack": [
-      "files/**/*"
+      "files/**/*",
+      "node_modules/sharp/**/*"
     ],
     "files": [
       "build/**/*",
