@@ -1,6 +1,6 @@
 {
   "name": "s2b-uploader",
-  "version": "1.8.3",
+  "version": "1.8.4",
   "description": "",
   "main": "dist/electron/main.js",
   "build": {
@@ -87,7 +87,7 @@
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^7.0.1",
-    "sharp": "^0.34.3",
+    "sharp": "0.32.6",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
@@ -98,7 +98,6 @@
     "@electron-forge/maker-zip": "^7.2.0",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
-    "@types/sharp": "^0.32.0",
     "@typescript-eslint/eslint-plugin": "^6.3.0",
     "@typescript-eslint/parser": "^6.3.0",
     "concurrently": "^9.1.0",
