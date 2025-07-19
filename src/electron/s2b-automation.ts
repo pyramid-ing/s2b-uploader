@@ -1181,8 +1181,21 @@ export class S2BAutomation {
       // 외부 파일 다운로드 또는 로컬 파일 경로 설정
       if (filePathOrUrl.startsWith('http')) {
         const url = new URL(filePathOrUrl)
-        const fileName = path.basename(url.pathname)
+        const originalFileName = path.basename(url.pathname) || `image.jpg`
+
+        // 파일명을 unique하게 만들기
+        let counter = 1
+        let fileName = originalFileName
         filePath = path.join(tempDir, fileName)
+
+        // 동일한 파일명이 존재하면 숫자를 붙여서 unique하게 만듦
+        while (fsSync.existsSync(filePath)) {
+          const nameWithoutExt = path.parse(originalFileName).name
+          const ext = path.parse(originalFileName).ext
+          fileName = `${nameWithoutExt}_${counter}${ext}`
+          filePath = path.join(tempDir, fileName)
+          counter++
+        }
 
         this.log(`외부 이미지 다운로드 시작: ${filePathOrUrl}`, 'info')
         try {
