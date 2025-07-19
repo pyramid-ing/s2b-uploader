@@ -1,6 +1,6 @@
 {
   "name": "s2b-uploader",
-  "version": "1.8.1",
+  "version": "1.8.2",
   "description": "",
   "main": "dist/electron/main.js",
   "build": {
@@ -51,6 +51,7 @@
     }
   },
   "scripts": {
+    "postinstall": "electron-builder install-app-deps",
     "lint": "eslint \"{src,test}/**/*.{ts,tsx}\" --fix",
     "start": "concurrently \"yarn start:renderer\" \"wait-on tcp:8080 && yarn start:main\"",
     "start:main": "tsc -p tsconfig.electron.json && electron .",
