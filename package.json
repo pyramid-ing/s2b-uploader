@@ -1,6 +1,6 @@
 {
   "name": "s2b-uploader",
-  "version": "1.8.2",
+  "version": "1.8.3",
   "description": "",
   "main": "dist/electron/main.js",
   "build": {
@@ -34,6 +34,7 @@
       "perMachine": true,
       "artifactName": "${productName}-Setup-${version}.${ext}"
     },
+    "npmRebuild": false,
     "asar": true,
     "asarUnpack": [
       "files/**/*",
@@ -45,6 +46,13 @@
       "dist/renderer/**/*",
       "package.json",
       "!**/*.map"
+    ],
+    "extraResources": [
+      {
+        "from": "node_modules/sharp",
+        "to": "node_modules/sharp",
+        "filter": ["**/*"]
+      }
     ],
     "directories": {
       "output": "release"
