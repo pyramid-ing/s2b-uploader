@@ -5,8 +5,8 @@ import * as fsSync from 'fs'
 import dayjs from 'dayjs'
 import axios from 'axios'
 import crypto from 'crypto'
-import FormData from 'form-data'
 import FileType from 'file-type'
+import sharp from 'sharp'
 
 interface ProductData {
   // 등록구분을 위한 텍스트 값
@@ -1247,20 +1247,39 @@ export class S2BAutomation {
           break
       }
 
-      // 크기 조정 요청 (n8n 웹훅 호출)
+      // sharp를 사용한 이미지 변환 처리
       this.log(`이미지 변환 처리 시작: ${imageType}`, 'info')
-      const formData = new FormData()
-      formData.append('type', type)
-      formData.append('optimize', this.imageOptimize ? '1' : '0') // "1" 또는 "0"으로 변환
-      formData.append('file', fsSync.createReadStream(filePath))
 
-      const n8nResponse = await axios.post('https://n8n.pyramid-ing.com/webhook/s2b/edit-image', formData, {
-        headers: formData.getHeaders(),
-        responseType: 'arraybuffer',
-      })
+      let sharpInstance = sharp(filePath)
+
+      // n8n의 ImageMagick 명령어와 동일한 로직 구현
+      switch (type) {
+        case 'thumb':
+          // 1단계: 262x262로 cover 리사이즈 (크롭 포함) - ImageMagick의 '262x262^>'와 동일
+          sharpInstance = sharpInstance.resize(262, 262, {
+            fit: 'cover',
+          })
+
+          // 2단계: 1000x1000 이하로 inside 리사이즈 (확대 방지) - ImageMagick의 '1000x1000>'와 동일
+          sharpInstance = sharpInstance.resize(1000, 1000, {
+            fit: 'inside',
+            withoutEnlargement: true,
+          })
+          break
+        case 'detail':
+          // 너비 680px로 리사이즈 (높이는 비율에 맞춤) - ImageMagick의 '680x>'와 동일
+          sharpInstance = sharpInstance.resize(680, null, {
+            withoutEnlargement: true,
+          })
+          break
+      }
+
+      // quality 설정 (n8n과 동일: optimize가 true면 70, false면 100)
+      const quality = this.imageOptimize ? 70 : 100
+      sharpInstance = sharpInstance.jpeg({ quality })
 
       const tempFilePath = path.join(tempDir, `${crypto.randomUUID()}.jpg`)
-      fsSync.writeFileSync(tempFilePath, n8nResponse.data)
+      await sharpInstance.toFile(tempFilePath)
       filePath = tempFilePath
 
       this.log(`이미지 변환 처리 완료: ${imageType}`, 'info')
