@@ -1157,6 +1157,18 @@ export class S2BAutomation {
   private async uploadFile(inputSelector: string, filePathOrUrl: string, statusSelector?: string) {
     if (!this.page) return
 
+    // 이미지 타입별 이름 매핑
+    const imageTypeMap: { [key: string]: string } = {
+      '#f_img1_file': '기본이미지1',
+      '#f_img2_file': '기본이미지2',
+      '#f_img3_file': '추가이미지1',
+      '#f_img4_file': '추가이미지2',
+      '#f_goods_explain_img_file': '상세이미지',
+    }
+
+    const imageType = imageTypeMap[inputSelector] || '이미지'
+    this.log(`${imageType} 업로드 시작: ${filePathOrUrl}`, 'info')
+
     let filePath: string
 
     try {
@@ -1172,7 +1184,7 @@ export class S2BAutomation {
         const fileName = path.basename(url.pathname)
         filePath = path.join(tempDir, fileName)
 
-        console.log(`Downloading external file from: ${filePathOrUrl}`)
+        this.log(`외부 이미지 다운로드 시작: ${filePathOrUrl}`, 'info')
         try {
           const response = await axios.get(filePathOrUrl, { responseType: 'stream' })
           const writer = fsSync.createWriteStream(filePath)
@@ -1198,7 +1210,7 @@ export class S2BAutomation {
           throw new Error(`외부 파일이 이미지가 아닙니다: ${filePathOrUrl}`)
         }
 
-        console.log(`Downloaded external file to: ${filePath}`)
+        this.log(`외부 이미지 확인완료: ${filePathOrUrl}`, 'info')
       } else {
         if (path.isAbsolute(filePathOrUrl)) {
           filePath = filePathOrUrl
@@ -1213,6 +1225,8 @@ export class S2BAutomation {
         if (!fileTypeResult || !fileTypeResult.mime.startsWith('image/')) {
           throw new Error(`로컬 파일이 이미지가 아닙니다: ${filePath}`)
         }
+
+        this.log(`컴퓨터 이미지 확인완료: ${filePathOrUrl}`, 'info')
       }
 
       // 이미지 유형별 크기 조정
@@ -1229,12 +1243,12 @@ export class S2BAutomation {
           type = 'detail'
           break
         default:
-          console.log(`No resizing needed for selector: ${inputSelector}`)
+          this.log(`이미지 변환 처리 불필요: ${inputSelector}`, 'info')
           break
       }
 
       // 크기 조정 요청 (n8n 웹훅 호출)
-      console.log(`Resizing image for selector: ${inputSelector}`)
+      this.log(`이미지 변환 처리 시작: ${imageType}`, 'info')
       const formData = new FormData()
       formData.append('type', type)
       formData.append('optimize', this.imageOptimize ? '1' : '0') // "1" 또는 "0"으로 변환
@@ -1249,10 +1263,13 @@ export class S2BAutomation {
       fsSync.writeFileSync(tempFilePath, n8nResponse.data)
       filePath = tempFilePath
 
+      this.log(`이미지 변환 처리 완료: ${imageType}`, 'info')
+
       // 파일 업로드
       const inputElement = (await this.page.$(inputSelector)) as puppeteer.ElementHandle<HTMLInputElement>
       if (inputElement) {
         await inputElement.uploadFile(filePath)
+        this.log(`${imageType} 파일 업로드 완료`, 'info')
 
         if (statusSelector) {
           try {
@@ -1264,6 +1281,7 @@ export class S2BAutomation {
               { timeout: 20000 },
               statusSelector,
             )
+            this.log(`${imageType} 용량 확인 완료`, 'info')
           } catch (error) {
             if (error && error.name === 'TimeoutError') {
               throw new Error('이미지 용량 확인이 20초 내에 완료되지 않았습니다. (타임아웃)')
@@ -1275,7 +1293,7 @@ export class S2BAutomation {
         throw new Error(`Input element not found for selector: ${inputSelector}`)
       }
     } catch (error) {
-      console.error(`Failed to upload image ${filePathOrUrl}:`, error)
+      this.log(`${imageType} 업로드 실패: ${error.message}`, 'error')
       throw error
     }
   }
@@ -1283,30 +1301,44 @@ export class S2BAutomation {
   private async uploadAllImages(data: ProductData) {
     if (!this.page) return
 
+    this.log('이미지 업로드 프로세스 시작', 'info')
+
     if (data.image1) {
+      this.log('기본이미지1 업로드 시작', 'info')
       await this.uploadFile('#f_img1_file', data.image1, '#f_img1_file_size_ck')
       await delay(5000)
+      this.log('기본이미지1 업로드 완료', 'info')
     }
 
     if (data.image2) {
+      this.log('기본이미지2 업로드 시작', 'info')
       await this.uploadFile('#f_img2_file', data.image2, '#f_img2_file_size_ck')
       await delay(5000)
+      this.log('기본이미지2 업로드 완료', 'info')
     }
 
     if (data.addImage1) {
+      this.log('추가이미지1 업로드 시작', 'info')
       await this.uploadFile('#f_img3_file', data.addImage1, '#f_img3_file_size_ck')
       await delay(5000)
+      this.log('추가이미지1 업로드 완료', 'info')
     }
 
     if (data.addImage2) {
+      this.log('추가이미지2 업로드 시작', 'info')
       await this.uploadFile('#f_img4_file', data.addImage2, '#f_img4_file_size_ck')
       await delay(5000)
+      this.log('추가이미지2 업로드 완료', 'info')
     }
 
     if (data.detailImage) {
+      this.log('상세이미지 업로드 시작', 'info')
       await this.uploadFile('#f_goods_explain_img_file', data.detailImage, '#f_goods_explain_img_file_size_ck')
       await delay(5000)
+      this.log('상세이미지 업로드 완료', 'info')
     }
+
+    this.log('이미지 업로드 프로세스 완료', 'info')
 
     // 이미지 업로드 결과 확인
     await this.verifyImageUploads()
