@@ -289,11 +289,13 @@ function setupIpcHandlers() {
         throw new Error(`File directory does not exist: ${resolvedFileDir}`)
       }
 
+      sendLogToRenderer(`엑셀 데이터 로드 시작: ${resolvedExcelPath}`, 'info')
       const automation = new S2BAutomation(resolvedFileDir, sendLogToRenderer)
       const data = await automation.readExcelFile(resolvedExcelPath)
       return data
     } catch (error) {
       console.error('Error loading Excel data:', error)
+      sendLogToRenderer(`엑셀 로드 실패: ${error.message || '알 수 없는 오류'}`, 'error')
       throw error
     }
   })

@@ -2,6 +2,7 @@ import * as puppeteer from 'puppeteer-core'
 import * as XLSX from 'xlsx'
 import path from 'node:path'
 import * as fsSync from 'fs'
+import * as fs from 'fs'
 import dayjs from 'dayjs'
 import axios from 'axios'
 import crypto from 'crypto'
@@ -271,14 +272,15 @@ export class S2BAutomation {
     await this.page.waitForNavigation()
   }
 
-  // Excel 파일 읽기
+  // Excel 파일 읽기 (스트리밍 방식)
   async readExcelFile(filePath: string): Promise<any[]> {
-    const workbook = XLSX.readFile(filePath)
-    const sheetName = workbook.SheetNames[0]
-    const worksheet = workbook.Sheets[sheetName]
+    this.log('엑셀 파일 스트림 읽기 시작', 'info')
 
-    const data = XLSX.utils.sheet_to_json(worksheet)
-    return data.map((row: any) => {
+    const stream = fs.createReadStream(filePath)
+    const rawData = await this.readExcelStream(stream)
+
+    // 5) 데이터 변환 및 반환
+    return rawData.map((row: any) => {
       const rawSaleType = row['등록구분']?.toString() || '물품'
       const saleTypeText = this.validateSaleType(rawSaleType)
 
@@ -425,6 +427,51 @@ export class S2BAutomation {
 
         approvalRequest: row['승인관련 요청사항']?.toString() || '',
       }
+    })
+  }
+
+  // 스트리밍 헬퍼 메서드
+  private async readExcelStream(stream: fs.ReadStream): Promise<any[]> {
+    return new Promise((resolve, reject) => {
+      const chunks: Buffer[] = []
+
+      stream.on('data', (chunk: Buffer) => {
+        chunks.push(chunk)
+      })
+
+      stream.on('end', () => {
+        try {
+          const buffer = Buffer.concat(chunks)
+          const workbook = XLSX.read(buffer, {
+            type: 'buffer',
+            cellNF: false,
+            cellHTML: false,
+            cellFormula: false,
+            sheetStubs: false,
+            bookDeps: false,
+            bookFiles: false,
+            bookProps: false,
+            bookSheets: false,
+            bookVBA: false,
+          })
+
+          const sheetName = workbook.SheetNames[0]
+          if (!sheetName) {
+            throw new Error('시트를 찾을 수 없습니다')
+          }
+
+          const worksheet = workbook.Sheets[sheetName]
+          const jsonData = XLSX.utils.sheet_to_json(worksheet, { defval: '', blankrows: false })
+
+          resolve(jsonData as any[])
+        } catch (error) {
+          reject(error)
+        }
+      })
+
+      stream.on('error', error => {
+        reject(error)
+      })
     })
   }
 
