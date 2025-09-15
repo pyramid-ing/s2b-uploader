@@ -272,18 +272,13 @@ export class S2BAutomation {
     }
   }
 
-  // 이미지 최적화 여부 설정
-  public setImageOptimize(optimize: boolean) {
+  // ==================== PUBLIC METHODS ====================
+
+  public setImageOptimize(optimize: boolean): void {
     this.imageOptimize = optimize
   }
 
-  private log(message: string, level: 'info' | 'warning' | 'error' = 'info') {
-    if (this.logCallback) {
-      this.logCallback(message, level)
-    }
-  }
-
-  async login(id: string, password: string) {
+  public async login(id: string, password: string): Promise<void> {
     if (!this.page) throw new Error('브라우저가 초기화되지 않았습니다.')
 
     await this.page.goto('https://www.s2b.kr/S2BNCustomer/Login.do?type=sp&userDomain=')
@@ -293,8 +288,7 @@ export class S2BAutomation {
     await this.page.waitForNavigation()
   }
 
-  // Excel 파일 읽기 (스트리밍 방식)
-  async readExcelFile(filePath: string): Promise<any[]> {
+  public async readExcelFile(filePath: string): Promise<any[]> {
     this.log('엑셀 파일 스트림 읽기 시작', 'info')
 
     const stream = fs.createReadStream(filePath)
@@ -451,76 +445,7 @@ export class S2BAutomation {
     })
   }
 
-  // 스트리밍 헬퍼 메서드
-  private async readExcelStream(stream: fs.ReadStream): Promise<any[]> {
-    return new Promise((resolve, reject) => {
-      const chunks: Buffer[] = []
-
-      stream.on('data', (chunk: Buffer) => {
-        chunks.push(chunk)
-      })
-
-      stream.on('end', () => {
-        try {
-          const buffer = Buffer.concat(chunks)
-          const workbook = XLSX.read(buffer, {
-            type: 'buffer',
-            cellNF: false,
-            cellHTML: false,
-            cellFormula: false,
-            sheetStubs: false,
-            bookDeps: false,
-            bookFiles: false,
-            bookProps: false,
-            bookSheets: false,
-            bookVBA: false,
-          })
-
-          const sheetName = workbook.SheetNames[0]
-          if (!sheetName) {
-            throw new Error('시트를 찾을 수 없습니다')
-          }
-
-          const worksheet = workbook.Sheets[sheetName]
-          const jsonData = XLSX.utils.sheet_to_json(worksheet, { defval: '', blankrows: false })
-
-          resolve(jsonData as any[])
-        } catch (error) {
-          reject(error)
-        }
-      })
-
-      stream.on('error', error => {
-        reject(error)
-      })
-    })
-  }
-
-  // 타입 검증 헬퍼 메서드 추가
-  private validateDeliveryLimit(value: string): DeliveryLimitType {
-    if (value.endsWith('일') && value in DELIVERY_LIMIT_MAP) {
-      return value as DeliveryLimitType
-    }
-    return '7일' // 기본값
-  }
-
-  // 타입 검증 헬퍼 메서드 추가
-  private validateSaleType(value: string): SaleType {
-    if (value === '물품' || value === '용역') {
-      return value
-    }
-    return '물품' // 기본값
-  }
-
-  private validateDeliveryFeeType(value: string): DeliveryFeeType {
-    if (value === '무료' || value === '유료' || value === '조건부무료') {
-      return value
-    }
-    return '무료' // 기본값
-  }
-
-  // 브라우저 시작
-  async start() {
+  public async start(): Promise<void> {
     this.browser = await puppeteer.launch({
       headless: this.headless,
       defaultViewport: null,
@@ -599,8 +524,8 @@ export class S2BAutomation {
       this.page.setDefaultTimeout(30000)
     }
   }
-  // 상품 등록
-  async registerProduct(data: ProductData) {
+
+  public async registerProduct(data: ProductData): Promise<void> {
     if (!this.page) throw new Error('브라우저가 초기화되지 않았습니다.')
 
     this.dialogErrorMessage = null // 초기화
@@ -768,7 +693,7 @@ export class S2BAutomation {
     }
   }
 
-  private async setBasicInfo(data: ProductData) {
+  private async setBasicInfo(data: ProductData): Promise<void> {
     if (!this.page) return
 
     // 등록구분 선택 (텍스트 기반 매핑 사용)
@@ -826,8 +751,7 @@ export class S2BAutomation {
     }
   }
 
-  // G2B 물품목록번호 등록
-  private async setG2bInformation(g2bNumber: string) {
+  private async setG2bInformation(g2bNumber: string): Promise<void> {
     if (!this.page) throw new Error('브라우저가 초기화되지 않았습니다.')
 
     try {
@@ -877,7 +801,7 @@ export class S2BAutomation {
     }
   }
 
-  private async setReturnExchangeFee(data: ProductData) {
+  private async setReturnExchangeFee(data: ProductData): Promise<void> {
     if (!this.page) return
 
     // 반품배송비 입력
@@ -893,7 +817,7 @@ export class S2BAutomation {
     }
   }
 
-  private async setOriginInfo(data: ProductData) {
+  private async setOriginInfo(data: ProductData): Promise<void> {
     if (!this.page) return
 
     // 원산지구분 선택
@@ -924,7 +848,7 @@ export class S2BAutomation {
     }
   }
 
-  private async setDeliveryFee(data: ProductData) {
+  private async setDeliveryFee(data: ProductData): Promise<void> {
     if (!this.page) return
 
     // 배송비 종류 선택 (텍스트 기반 매핑 사용)
@@ -949,7 +873,7 @@ export class S2BAutomation {
     }
   }
 
-  private async setSalesUnitAndTax(data: ProductData) {
+  private async setSalesUnitAndTax(data: ProductData): Promise<void> {
     if (!this.page) return
 
     // 판매단위 선택
@@ -979,7 +903,7 @@ export class S2BAutomation {
     }, data.taxType)
   }
 
-  private async selectCategory(data: ProductData) {
+  private async selectCategory(data: ProductData): Promise<void> {
     if (!this.page) return
 
     // 등록구분 선택
@@ -1027,7 +951,7 @@ export class S2BAutomation {
     }, data.category3)
   }
 
-  async setCategoryDetails(data: ProductData) {
+  private async setCategoryDetails(data: ProductData): Promise<void> {
     if (!this.page) throw new Error('브라우저가 초기화되지 않았습니다.')
 
     // 소비기한 설정
@@ -1049,7 +973,7 @@ export class S2BAutomation {
     if (data.selSpecification) await this.page.type('input[name="f_sel_specification"]', data.selSpecification)
   }
 
-  private async setCertifications(data: ProductData) {
+  private async setCertifications(data: ProductData): Promise<void> {
     if (!this.page) return
 
     const certFields = [
@@ -1082,7 +1006,7 @@ export class S2BAutomation {
     }
   }
 
-  private async setDetailHtml(html: string) {
+  private async setDetailHtml(html: string): Promise<void> {
     if (!this.page) return
 
     // iframe 내부의 에디터에 접근
@@ -1132,8 +1056,7 @@ export class S2BAutomation {
     }
   }
 
-  // KC 인증 정보 설정 메서드
-  private async setKcCertifications(data: ProductData) {
+  private async setKcCertifications(data: ProductData): Promise<void> {
     if (!this.page) return
 
     // 어린이제품 KC
@@ -1173,7 +1096,7 @@ export class S2BAutomation {
     }
   }
 
-  async setOtherAttachments(data: ProductData) {
+  private async setOtherAttachments(data: ProductData): Promise<void> {
     if (!this.page) throw new Error('브라우저가 초기화되지 않았습니다.')
 
     // 어린이 하차 확인 장치
@@ -1194,7 +1117,7 @@ export class S2BAutomation {
     }
   }
 
-  async setPpsContract(data: ProductData) {
+  private async setPpsContract(data: ProductData): Promise<void> {
     if (!this.page) throw new Error('브라우저가 초기화되지 않았습니다.')
 
     // 계약 여부 설정
@@ -1222,7 +1145,7 @@ export class S2BAutomation {
     }
   }
 
-  private async uploadFile(inputSelector: string, filePathOrUrl: string, statusSelector?: string) {
+  private async uploadFile(inputSelector: string, filePathOrUrl: string, statusSelector?: string): Promise<void> {
     if (!this.page) return
 
     // 이미지 타입별 이름 매핑
@@ -1398,7 +1321,7 @@ export class S2BAutomation {
     }
   }
 
-  private async uploadAllImages(data: ProductData) {
+  private async uploadAllImages(data: ProductData): Promise<void> {
     if (!this.page) return
 
     this.log('이미지 업로드 프로세스 시작', 'info')
@@ -1444,7 +1367,7 @@ export class S2BAutomation {
     await this.verifyImageUploads()
   }
 
-  private async verifyImageUploads() {
+  private async verifyImageUploads(): Promise<void> {
     if (!this.page) return
 
     const imageInputs = ['f_img1', 'f_img2', 'f_img3', 'f_img4', 'f_goods_explain_img']
@@ -1460,7 +1383,7 @@ export class S2BAutomation {
     }
   }
 
-  private async setAsInfo(data: ProductData) {
+  private async setAsInfo(data: ProductData): Promise<void> {
     if (!this.page) return
 
     // 전화번호 입력
@@ -1514,7 +1437,7 @@ export class S2BAutomation {
     }
   }
 
-  private async setDeliveryInfo(data: ProductData) {
+  private async setDeliveryInfo(data: ProductData): Promise<void> {
     if (!this.page) return
 
     // 배송 방법 선택
@@ -1560,7 +1483,11 @@ export class S2BAutomation {
     }
   }
 
-  public async extendManagementDateForRange(startDate: string, endDate: string, registrationStatus: string = '') {
+  public async extendManagementDateForRange(
+    startDate: string,
+    endDate: string,
+    registrationStatus: string = '',
+  ): Promise<void> {
     if (!this.page) throw new Error('브라우저가 초기화되지 않았습니다.')
     try {
       await this.gotoAndSearchListPageByRange(startDate, endDate, registrationStatus)
@@ -1568,145 +1495,6 @@ export class S2BAutomation {
       await this.processExtendProducts(products)
     } finally {
       await this.browser.close()
-    }
-  }
-
-  private async gotoAndSearchListPageByRange(startDate: string, endDate: string, registrationStatus: string = '') {
-    await this.page.goto('https://www.s2b.kr/S2BNVendor/S2B/srcweb/remu/rema/rema100_list_new.jsp', {
-      waitUntil: 'domcontentloaded',
-    })
-
-    // 페이지당 항목 수를 100개로 설정하고 적용
-    await this.page.evaluate(() => {
-      ;(document.querySelector('#rowCount') as HTMLSelectElement).value = '100'
-      const setRowCountButton = document.querySelector('a[href^="javascript:setRowCount2()"]') as HTMLElement
-      if (setRowCountButton) setRowCountButton.click()
-    })
-    await this.page.waitForNavigation({ waitUntil: 'domcontentloaded' })
-
-    // 검색 조건 설정
-    await this.page.evaluate(
-      (start, end, status) => {
-        ;(document.querySelector('#search_date') as HTMLSelectElement).value = 'LIMIT_DATE'
-        ;(document.querySelector('#search_date_start') as HTMLInputElement).value = start
-        ;(document.querySelector('#search_date_end') as HTMLInputElement).value = end
-        if (status) {
-          const radio = document.querySelector(`input[name="tgruStatus"][value="${status}"]`) as HTMLInputElement
-          if (radio) {
-            radio.checked = true
-            radio.dispatchEvent(new Event('change', { bubbles: true }))
-          }
-        }
-      },
-      startDate,
-      endDate,
-      registrationStatus,
-    )
-    await Promise.all([
-      this.page.click('[href^="javascript:search()"]'),
-      this.page.waitForNavigation({ waitUntil: 'domcontentloaded' }),
-    ])
-  }
-
-  // 브라우저 종료
-  async close() {
-    if (this.browser) {
-      await this.browser.close()
-    }
-  }
-
-  // 타사이트 등록 여부 및 정보 설정
-  private async setOtherSiteInformation(data: ProductData) {
-    if (!this.page) return
-
-    // 타사이트 등록 여부
-    if (data.otherSiteRegisterYn) {
-      await this.page.click(`input[name="f_site_register_yn"][value="${data.otherSiteRegisterYn}"]`)
-    }
-
-    // 타사이트 등록 가격
-    if (data.otherSiteAmt) {
-      await this.page.evaluate(amt => {
-        const input = document.querySelector<HTMLInputElement>('input[name="f_site_amt"]')
-        if (input) {
-          input.value = amt
-          input.dispatchEvent(new Event('change', { bubbles: true }))
-        }
-      }, data.otherSiteAmt)
-    }
-  }
-
-  // 나라장터 등록 여부 및 정보 설정
-  private async setNaraInformation(data: ProductData) {
-    if (!this.page) return
-
-    // 나라장터 등록 여부
-    if (data.naraRegisterYn) {
-      await this.page.click(`input[name="f_nara_register_yn"][value="${data.naraRegisterYn}"]`)
-    }
-
-    // 나라장터 등록 가격
-    if (data.naraAmt) {
-      await this.page.evaluate(amt => {
-        const input = document.querySelector<HTMLInputElement>('input[name="f_nara_amt"]')
-        if (input) {
-          input.value = amt
-          input.dispatchEvent(new Event('change', { bubbles: true }))
-        }
-      }, data.naraAmt)
-    }
-
-    // 사이트명
-    if (data.siteName) {
-      await this.page.evaluate(name => {
-        const input = document.querySelector<HTMLInputElement>('input[name="f_site_name"]')
-        if (input) {
-          input.value = name
-          input.dispatchEvent(new Event('change', { bubbles: true }))
-        }
-      }, data.siteName)
-    }
-
-    // 사이트주소
-    if (data.siteUrl) {
-      await this.page.evaluate(url => {
-        const input = document.querySelector<HTMLInputElement>('input[name="f_site_url"]')
-        if (input) {
-          input.value = url
-          input.dispatchEvent(new Event('change', { bubbles: true }))
-        }
-      }, data.siteUrl)
-    }
-  }
-
-  // 상품등록 완료 메서드 수정
-  private async submitRegistration() {
-    if (!this.page) return
-
-    // 청렴서약서 체크 상태 확인
-    const isChecked = await this.page.$eval('#uprightContract', (el: Element) => (el as HTMLInputElement).checked)
-
-    // 혹시 체크가 안되어 있다면 다시 체크
-    if (!isChecked) {
-      await this.page.evaluate(() => {
-        const checkbox = document.querySelector('#uprightContract') as HTMLInputElement
-        if (checkbox) {
-          checkbox.checked = true
-          checkbox.dispatchEvent(new Event('change', { bubbles: true }))
-        }
-      })
-    }
-
-    // 임시저장 버튼 클릭
-    await this.page.click('a[href="javascript:register(\'1\');"]')
-    console.log('Register button clicked.')
-
-    // 등록 완료 대기
-    await delay(5000)
-
-    // ✅ Dialog 에러 확인
-    if (this.dialogErrorMessage) {
-      throw new Error(this.dialogErrorMessage)
     }
   }
 
@@ -1777,7 +1565,9 @@ export class S2BAutomation {
       errorMessage?: string
       extendedDate?: string
     }[],
-  ) {
+  ): Promise<
+    { name: string; link: string; status?: 'success' | 'fail'; errorMessage?: string; extendedDate?: string }[]
+  > {
     for (const product of products) {
       try {
         await this.page.goto(product.link, { waitUntil: 'domcontentloaded' })
@@ -1890,5 +1680,217 @@ export class S2BAutomation {
     }
 
     return products // 처리 결과가 포함된 상품 목록 반환
+  }
+
+  public async close(): Promise<void> {
+    if (this.browser) {
+      await this.browser.close()
+    }
+  }
+
+  // ==================== PRIVATE METHODS ====================
+
+  private log(message: string, level: 'info' | 'warning' | 'error' = 'info'): void {
+    if (this.logCallback) {
+      this.logCallback(message, level)
+    }
+  }
+
+  private async readExcelStream(stream: fs.ReadStream): Promise<any[]> {
+    return new Promise((resolve, reject) => {
+      const chunks: Buffer[] = []
+
+      stream.on('data', (chunk: Buffer) => {
+        chunks.push(chunk)
+      })
+
+      stream.on('end', () => {
+        try {
+          const buffer = Buffer.concat(chunks)
+          const workbook = XLSX.read(buffer, {
+            type: 'buffer',
+            cellNF: false,
+            cellHTML: false,
+            cellFormula: false,
+            sheetStubs: false,
+            bookDeps: false,
+            bookFiles: false,
+            bookProps: false,
+            bookSheets: false,
+            bookVBA: false,
+          })
+
+          const sheetName = workbook.SheetNames[0]
+          if (!sheetName) {
+            throw new Error('시트를 찾을 수 없습니다')
+          }
+
+          const worksheet = workbook.Sheets[sheetName]
+          const jsonData = XLSX.utils.sheet_to_json(worksheet, { defval: '', blankrows: false })
+
+          resolve(jsonData as any[])
+        } catch (error) {
+          reject(error)
+        }
+      })
+
+      stream.on('error', error => {
+        reject(error)
+      })
+    })
+  }
+
+  private validateDeliveryLimit(value: string): DeliveryLimitType {
+    if (value.endsWith('일') && value in DELIVERY_LIMIT_MAP) {
+      return value as DeliveryLimitType
+    }
+    return '7일' // 기본값
+  }
+
+  private validateSaleType(value: string): SaleType {
+    if (value === '물품' || value === '용역') {
+      return value
+    }
+    return '물품' // 기본값
+  }
+
+  private validateDeliveryFeeType(value: string): DeliveryFeeType {
+    if (value === '무료' || value === '유료' || value === '조건부무료') {
+      return value
+    }
+    return '무료' // 기본값
+  }
+
+  private async gotoAndSearchListPageByRange(
+    startDate: string,
+    endDate: string,
+    registrationStatus: string = '',
+  ): Promise<void> {
+    await this.page.goto('https://www.s2b.kr/S2BNVendor/S2B/srcweb/remu/rema/rema100_list_new.jsp', {
+      waitUntil: 'domcontentloaded',
+    })
+
+    // 페이지당 항목 수를 100개로 설정하고 적용
+    await this.page.evaluate(() => {
+      ;(document.querySelector('#rowCount') as HTMLSelectElement).value = '100'
+      const setRowCountButton = document.querySelector('a[href^="javascript:setRowCount2()"]') as HTMLElement
+      if (setRowCountButton) setRowCountButton.click()
+    })
+    await this.page.waitForNavigation({ waitUntil: 'domcontentloaded' })
+
+    // 검색 조건 설정
+    await this.page.evaluate(
+      (start, end, status) => {
+        ;(document.querySelector('#search_date') as HTMLSelectElement).value = 'LIMIT_DATE'
+        ;(document.querySelector('#search_date_start') as HTMLInputElement).value = start
+        ;(document.querySelector('#search_date_end') as HTMLInputElement).value = end
+        if (status) {
+          const radio = document.querySelector(`input[name="tgruStatus"][value="${status}"]`) as HTMLInputElement
+          if (radio) {
+            radio.checked = true
+            radio.dispatchEvent(new Event('change', { bubbles: true }))
+          }
+        }
+      },
+      startDate,
+      endDate,
+      registrationStatus,
+    )
+    await Promise.all([
+      this.page.click('[href^="javascript:search()"]'),
+      this.page.waitForNavigation({ waitUntil: 'domcontentloaded' }),
+    ])
+  }
+
+  private async setOtherSiteInformation(data: ProductData): Promise<void> {
+    if (!this.page) return
+
+    // 타사이트 등록 여부
+    if (data.otherSiteRegisterYn) {
+      await this.page.click(`input[name="f_site_register_yn"][value="${data.otherSiteRegisterYn}"]`)
+    }
+
+    // 타사이트 등록 가격
+    if (data.otherSiteAmt) {
+      await this.page.evaluate(amt => {
+        const input = document.querySelector<HTMLInputElement>('input[name="f_site_amt"]')
+        if (input) {
+          input.value = amt
+          input.dispatchEvent(new Event('change', { bubbles: true }))
+        }
+      }, data.otherSiteAmt)
+    }
+  }
+
+  private async setNaraInformation(data: ProductData): Promise<void> {
+    if (!this.page) return
+
+    // 나라장터 등록 여부
+    if (data.naraRegisterYn) {
+      await this.page.click(`input[name="f_nara_register_yn"][value="${data.naraRegisterYn}"]`)
+    }
+
+    // 나라장터 등록 가격
+    if (data.naraAmt) {
+      await this.page.evaluate(amt => {
+        const input = document.querySelector<HTMLInputElement>('input[name="f_nara_amt"]')
+        if (input) {
+          input.value = amt
+          input.dispatchEvent(new Event('change', { bubbles: true }))
+        }
+      }, data.naraAmt)
+    }
+
+    // 사이트명
+    if (data.siteName) {
+      await this.page.evaluate(name => {
+        const input = document.querySelector<HTMLInputElement>('input[name="f_site_name"]')
+        if (input) {
+          input.value = name
+          input.dispatchEvent(new Event('change', { bubbles: true }))
+        }
+      }, data.siteName)
+    }
+
+    // 사이트주소
+    if (data.siteUrl) {
+      await this.page.evaluate(url => {
+        const input = document.querySelector<HTMLInputElement>('input[name="f_site_url"]')
+        if (input) {
+          input.value = url
+          input.dispatchEvent(new Event('change', { bubbles: true }))
+        }
+      }, data.siteUrl)
+    }
+  }
+
+  private async submitRegistration(): Promise<void> {
+    if (!this.page) return
+
+    // 청렴서약서 체크 상태 확인
+    const isChecked = await this.page.$eval('#uprightContract', (el: Element) => (el as HTMLInputElement).checked)
+
+    // 혹시 체크가 안되어 있다면 다시 체크
+    if (!isChecked) {
+      await this.page.evaluate(() => {
+        const checkbox = document.querySelector('#uprightContract') as HTMLInputElement
+        if (checkbox) {
+          checkbox.checked = true
+          checkbox.dispatchEvent(new Event('change', { bubbles: true }))
+        }
+      })
+    }
+
+    // 임시저장 버튼 클릭
+    await this.page.click('a[href="javascript:register(\'1\');"]')
+    console.log('Register button clicked.')
+
+    // 등록 완료 대기
+    await delay(5000)
+
+    // ✅ Dialog 에러 확인
+    if (this.dialogErrorMessage) {
+      throw new Error(this.dialogErrorMessage)
+    }
   }
 }
