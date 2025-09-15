@@ -289,23 +289,23 @@ export class S2BAutomation {
   }
 
   public async readExcelFile(filePath: string): Promise<any[]> {
-    this.log('엑셀 파일 스트림 읽기 시작', 'info')
+    this._log('엑셀 파일 스트림 읽기 시작', 'info')
 
     const stream = fs.createReadStream(filePath)
-    const rawData = await this.readExcelStream(stream)
+    const rawData = await this._readExcelStream(stream)
 
     // 5) 데이터 변환 및 반환
     return rawData.map((row: any) => {
       const rawSaleType = row['등록구분']?.toString() || '물품'
-      const saleTypeText = this.validateSaleType(rawSaleType)
+      const saleTypeText = this._validateSaleType(rawSaleType)
 
       // 배송비종류 타입 체크 및 변환
       const rawDeliveryFeeType = row['배송비종류']?.toString() || '무료'
-      const deliveryFeeKindText = this.validateDeliveryFeeType(rawDeliveryFeeType)
+      const deliveryFeeKindText = this._validateDeliveryFeeType(rawDeliveryFeeType)
 
       // 납품가능기간 타입 체크 및 변환
       const rawDeliveryLimit = row['납품가능기간']?.toString() || '7일'
-      const deliveryLimitText = this.validateDeliveryLimit(rawDeliveryLimit)
+      const deliveryLimitText = this._validateDeliveryLimit(rawDeliveryLimit)
 
       return {
         goodsName: row['물품명']?.toString() || '',
@@ -563,11 +563,11 @@ export class S2BAutomation {
     this.page.on('dialog', handleRegistrationDialog)
 
     // ✅ 로그: 상품 등록 시작
-    this.log(`상품 등록 시작: ${data.goodsName}`, 'info')
+    this._log(`상품 등록 시작: ${data.goodsName}`, 'info')
 
     try {
       await this.page.goto('https://www.s2b.kr/S2BNVendor/rema100.do?forwardName=goRegistView')
-      this.log('상품 등록 페이지 접속 완료', 'info')
+      this._log('상품 등록 페이지 접속 완료', 'info')
 
       // 상품 등록 폼
       try {
@@ -578,7 +578,7 @@ export class S2BAutomation {
         }
         throw error
       }
-      this.log('상품 등록 폼 로드 완료', 'info')
+      this._log('상품 등록 폼 로드 완료', 'info')
 
       // ✅ 팝업 닫기 로직
       try {
@@ -589,101 +589,101 @@ export class S2BAutomation {
             closeButton.click() // 닫기 버튼 클릭
           }
         })
-        this.log('팝업이 성공적으로 닫혔습니다.', 'info')
+        this._log('팝업이 성공적으로 닫혔습니다.', 'info')
       } catch (error) {
-        this.log('팝업이 발견되지 않았습니다. 계속 진행합니다.', 'warning')
+        this._log('팝업이 발견되지 않았습니다. 계속 진행합니다.', 'warning')
       }
 
       // ✅ 단계별 입력 처리
       // 기본 정보 입력
-      this.log('기본 정보 입력 중...', 'info')
-      await this.setBasicInfo(data)
-      this.log('기본 정보 입력 완료', 'info')
+      this._log('기본 정보 입력 중...', 'info')
+      await this._setBasicInfo(data)
+      this._log('기본 정보 입력 완료', 'info')
 
       // 이미지 업로드
-      this.log('이미지 업로드 시작', 'info')
-      await this.uploadAllImages(data)
-      this.log('이미지 업로드 완료', 'info')
+      this._log('이미지 업로드 시작', 'info')
+      await this._uploadAllImages(data)
+      this._log('이미지 업로드 완료', 'info')
 
       // 카테고리 선택
-      this.log('카테고리 선택 중...', 'info')
-      await this.selectCategory(data)
-      this.log('카테고리 선택 완료', 'info')
+      this._log('카테고리 선택 중...', 'info')
+      await this._selectCategory(data)
+      this._log('카테고리 선택 완료', 'info')
 
       // 카테고리별 입력사항 설정
-      this.log('카테고리별 상세 정보 입력 중...', 'info')
-      await this.setCategoryDetails(data)
+      this._log('카테고리별 상세 정보 입력 중...', 'info')
+      await this._setCategoryDetails(data)
 
       // 인증정보 설정
-      this.log('인증 정보 입력 중...', 'info')
-      await this.setCertifications(data)
+      this._log('인증 정보 입력 중...', 'info')
+      await this._setCertifications(data)
 
       // KC 인증 정보 설정
-      this.log('KC 인증 정보 입력 중...', 'info')
-      await this.setKcCertifications(data)
+      this._log('KC 인증 정보 입력 중...', 'info')
+      await this._setKcCertifications(data)
 
       // 기타첨부서류
-      this.log('기타 첨부 서류 업로드 중...', 'info')
-      await this.setOtherAttachments(data)
+      this._log('기타 첨부 서류 업로드 중...', 'info')
+      await this._setOtherAttachments(data)
 
       // G2B 물품목록번호 설정
-      this.log(`G2B 정보 입력 중 (번호: ${data.g2bNumber})`, 'info')
-      await this.setG2bInformation(data.g2bNumber)
+      this._log(`G2B 정보 입력 중 (번호: ${data.g2bNumber})`, 'info')
+      await this._setG2bInformation(data.g2bNumber)
 
       // 조달청 계약여부
-      this.log('조달청 계약 여부 설정 중...', 'info')
-      await this.setPpsContract(data)
+      this._log('조달청 계약 여부 설정 중...', 'info')
+      await this._setPpsContract(data)
 
       // 배송정보
-      this.log('배송 정보 입력 중...', 'info')
-      await this.setDeliveryInfo(data)
+      this._log('배송 정보 입력 중...', 'info')
+      await this._setDeliveryInfo(data)
 
       // 배송비 설정
-      this.log('배송비 정보 입력 중...', 'info')
-      await this.setDeliveryFee(data)
+      this._log('배송비 정보 입력 중...', 'info')
+      await this._setDeliveryFee(data)
 
       // 상세설명 HTML 설정
-      this.log('상세 설명 입력 중...', 'info')
-      await this.setDetailHtml(data.detailHtml)
+      this._log('상세 설명 입력 중...', 'info')
+      await this._setDetailHtml(data.detailHtml)
 
       // 나라장터 정보 설정
-      this.log('나라장터 정보 입력 중...', 'info')
-      await this.setNaraInformation(data)
+      this._log('나라장터 정보 입력 중...', 'info')
+      await this._setNaraInformation(data)
 
       // 타사이트 정보 설정
-      this.log('타 사이트 정보 입력 중...', 'info')
-      await this.setOtherSiteInformation(data)
+      this._log('타 사이트 정보 입력 중...', 'info')
+      await this._setOtherSiteInformation(data)
 
       // 판매단위와 과세여부 설정
-      this.log('판매 단위 및 과세 여부 설정 중...', 'info')
-      await this.setSalesUnitAndTax(data)
+      this._log('판매 단위 및 과세 여부 설정 중...', 'info')
+      await this._setSalesUnitAndTax(data)
 
       // 반품/교환 배송비 입력
-      this.log('반품/교환 배송비 입력 중...', 'info')
-      await this.setReturnExchangeFee(data)
+      this._log('반품/교환 배송비 입력 중...', 'info')
+      await this._setReturnExchangeFee(data)
 
       // AS정보입력
-      this.log('AS 정보 입력 중...', 'info')
-      await this.setAsInfo(data)
+      this._log('AS 정보 입력 중...', 'info')
+      await this._setAsInfo(data)
 
       // 원산지 정보 설정
-      this.log('원산지 정보 입력 중...', 'info')
-      await this.setOriginInfo(data)
+      this._log('원산지 정보 입력 중...', 'info')
+      await this._setOriginInfo(data)
 
       // 청렴서약서 동의 및 등록
-      this.log('청렴서약서 등록 중...', 'info')
-      await this.submitRegistration()
+      this._log('청렴서약서 등록 중...', 'info')
+      await this._submitRegistration()
 
       // ✅ Dialog 에러 확인
       if (this.dialogErrorMessage) {
-        this.log(`등록 중 에러 발생: ${this.dialogErrorMessage}`, 'error')
+        this._log(`등록 중 에러 발생: ${this.dialogErrorMessage}`, 'error')
         throw new Error(this.dialogErrorMessage) // 에러 발생 시 throw
       }
 
       // ✅ 최종 성공 로그
-      this.log(`✅ 상품 등록 성공: ${data.goodsName}`, 'info')
+      this._log(`✅ 상품 등록 성공: ${data.goodsName}`, 'info')
     } catch (error) {
-      this.log(`상품 등록 실패: ${error.message}`, 'error')
+      this._log(`상품 등록 실패: ${error.message}`, 'error')
       throw error
     } finally {
       // 등록 프로세스 완료 후 dialog 이벤트 리스너 제거
@@ -693,7 +693,7 @@ export class S2BAutomation {
     }
   }
 
-  private async setBasicInfo(data: ProductData): Promise<void> {
+  private async _setBasicInfo(data: ProductData): Promise<void> {
     if (!this.page) return
 
     // 등록구분 선택 (텍스트 기반 매핑 사용)
@@ -751,7 +751,7 @@ export class S2BAutomation {
     }
   }
 
-  private async setG2bInformation(g2bNumber: string): Promise<void> {
+  private async _setG2bInformation(g2bNumber: string): Promise<void> {
     if (!this.page) throw new Error('브라우저가 초기화되지 않았습니다.')
 
     try {
@@ -801,7 +801,7 @@ export class S2BAutomation {
     }
   }
 
-  private async setReturnExchangeFee(data: ProductData): Promise<void> {
+  private async _setReturnExchangeFee(data: ProductData): Promise<void> {
     if (!this.page) return
 
     // 반품배송비 입력
@@ -817,7 +817,7 @@ export class S2BAutomation {
     }
   }
 
-  private async setOriginInfo(data: ProductData): Promise<void> {
+  private async _setOriginInfo(data: ProductData): Promise<void> {
     if (!this.page) return
 
     // 원산지구분 선택
@@ -848,7 +848,7 @@ export class S2BAutomation {
     }
   }
 
-  private async setDeliveryFee(data: ProductData): Promise<void> {
+  private async _setDeliveryFee(data: ProductData): Promise<void> {
     if (!this.page) return
 
     // 배송비 종류 선택 (텍스트 기반 매핑 사용)
@@ -873,7 +873,7 @@ export class S2BAutomation {
     }
   }
 
-  private async setSalesUnitAndTax(data: ProductData): Promise<void> {
+  private async _setSalesUnitAndTax(data: ProductData): Promise<void> {
     if (!this.page) return
 
     // 판매단위 선택
@@ -903,7 +903,7 @@ export class S2BAutomation {
     }, data.taxType)
   }
 
-  private async selectCategory(data: ProductData): Promise<void> {
+  private async _selectCategory(data: ProductData): Promise<void> {
     if (!this.page) return
 
     // 등록구분 선택
@@ -951,7 +951,7 @@ export class S2BAutomation {
     }, data.category3)
   }
 
-  private async setCategoryDetails(data: ProductData): Promise<void> {
+  private async _setCategoryDetails(data: ProductData): Promise<void> {
     if (!this.page) throw new Error('브라우저가 초기화되지 않았습니다.')
 
     // 소비기한 설정
@@ -973,7 +973,7 @@ export class S2BAutomation {
     if (data.selSpecification) await this.page.type('input[name="f_sel_specification"]', data.selSpecification)
   }
 
-  private async setCertifications(data: ProductData): Promise<void> {
+  private async _setCertifications(data: ProductData): Promise<void> {
     if (!this.page) return
 
     const certFields = [
@@ -1006,7 +1006,7 @@ export class S2BAutomation {
     }
   }
 
-  private async setDetailHtml(html: string): Promise<void> {
+  private async _setDetailHtml(html: string): Promise<void> {
     if (!this.page) return
 
     // iframe 내부의 에디터에 접근
@@ -1056,7 +1056,7 @@ export class S2BAutomation {
     }
   }
 
-  private async setKcCertifications(data: ProductData): Promise<void> {
+  private async _setKcCertifications(data: ProductData): Promise<void> {
     if (!this.page) return
 
     // 어린이제품 KC
@@ -1065,7 +1065,7 @@ export class S2BAutomation {
       await this.page.type('#kidsKcCertId', data.kidsKcCertId)
       await this.page.click('a[href="JavaScript:KcCertRegist(\'kids\');"]')
     } else if (data.kidsKcType === 'F' && data.kidsKcFile) {
-      await this.uploadFile('#f_kcCertKidsImg_file', data.kidsKcFile)
+      await this._uploadFile('#f_kcCertKidsImg_file', data.kidsKcFile)
     }
 
     // 전기용품 KC
@@ -1074,7 +1074,7 @@ export class S2BAutomation {
       await this.page.type('#elecKcCertId', data.elecKcCertId)
       await this.page.click('a[href="JavaScript:KcCertRegist(\'elec\');"]')
     } else if (data.elecKcType === 'F' && data.elecKcFile) {
-      await this.uploadFile('#f_kcCertElecImg_file', data.elecKcFile)
+      await this._uploadFile('#f_kcCertElecImg_file', data.elecKcFile)
     }
 
     // 생활용품 KC
@@ -1083,7 +1083,7 @@ export class S2BAutomation {
       await this.page.type('#dailyKcCertId', data.dailyKcCertId)
       await this.page.click('a[href="JavaScript:KcCertRegist(\'daily\');"]')
     } else if (data.dailyKcType === 'F' && data.dailyKcFile) {
-      await this.uploadFile('#f_kcCertDailyImg_file', data.dailyKcFile)
+      await this._uploadFile('#f_kcCertDailyImg_file', data.dailyKcFile)
     }
 
     // 방송통신기자재 KC
@@ -1092,11 +1092,11 @@ export class S2BAutomation {
       await this.page.type('#broadcastingKcCertId', data.broadcastingKcCertId)
       await this.page.click('a[href="JavaScript:KcCertRegist(\'broadcasting\');"]')
     } else if (data.broadcastingKcType === 'F' && data.broadcastingKcFile) {
-      await this.uploadFile('#f_kcCertBroadcastingImg_file', data.broadcastingKcFile)
+      await this._uploadFile('#f_kcCertBroadcastingImg_file', data.broadcastingKcFile)
     }
   }
 
-  private async setOtherAttachments(data: ProductData): Promise<void> {
+  private async _setOtherAttachments(data: ProductData): Promise<void> {
     if (!this.page) throw new Error('브라우저가 초기화되지 않았습니다.')
 
     // 어린이 하차 확인 장치
@@ -1105,7 +1105,7 @@ export class S2BAutomation {
       await this.page.type('#childexitcheckerKcCertId', data.childExitCheckerKcCertId)
       await this.page.click('a[href="JavaScript:KcCertRegist(\'childexitchecker\');"]')
     } else if (data.childExitCheckerKcType === 'F' && data.childExitCheckerKcFile) {
-      await this.uploadFile('#f_kcCertChildExitCheckerImg_file', data.childExitCheckerKcFile)
+      await this._uploadFile('#f_kcCertChildExitCheckerImg_file', data.childExitCheckerKcFile)
     }
 
     // 안전확인대상 생활화학제품
@@ -1113,11 +1113,11 @@ export class S2BAutomation {
     if (data.safetyCheckKcType === 'Y' && data.safetyCheckKcCertId) {
       await this.page.type('#safetycheckKcCertId', data.safetyCheckKcCertId)
     } else if (data.safetyCheckKcType === 'F' && data.safetyCheckKcFile) {
-      await this.uploadFile('#f_kcCertSafetycheckImg_file', data.safetyCheckKcFile)
+      await this._uploadFile('#f_kcCertSafetycheckImg_file', data.safetyCheckKcFile)
     }
   }
 
-  private async setPpsContract(data: ProductData): Promise<void> {
+  private async _setPpsContract(data: ProductData): Promise<void> {
     if (!this.page) throw new Error('브라우저가 초기화되지 않았습니다.')
 
     // 계약 여부 설정
@@ -1145,7 +1145,7 @@ export class S2BAutomation {
     }
   }
 
-  private async uploadFile(inputSelector: string, filePathOrUrl: string, statusSelector?: string): Promise<void> {
+  private async _uploadFile(inputSelector: string, filePathOrUrl: string, statusSelector?: string): Promise<void> {
     if (!this.page) return
 
     // 이미지 타입별 이름 매핑
@@ -1158,7 +1158,7 @@ export class S2BAutomation {
     }
 
     const imageType = imageTypeMap[inputSelector] || '이미지'
-    this.log(`${imageType} 업로드 시작: ${filePathOrUrl}`, 'info')
+    this._log(`${imageType} 업로드 시작: ${filePathOrUrl}`, 'info')
 
     let filePath: string
 
@@ -1188,7 +1188,7 @@ export class S2BAutomation {
           counter++
         }
 
-        this.log(`외부 이미지 다운로드 시작: ${filePathOrUrl}`, 'info')
+        this._log(`외부 이미지 다운로드 시작: ${filePathOrUrl}`, 'info')
         try {
           const response = await axios.get(filePathOrUrl, { responseType: 'stream' })
           const writer = fsSync.createWriteStream(filePath)
@@ -1214,7 +1214,7 @@ export class S2BAutomation {
           throw new Error(`외부 파일이 이미지가 아닙니다: ${filePathOrUrl}`)
         }
 
-        this.log(`외부 이미지 확인완료: ${filePathOrUrl}`, 'info')
+        this._log(`외부 이미지 확인완료: ${filePathOrUrl}`, 'info')
       } else {
         if (path.isAbsolute(filePathOrUrl)) {
           filePath = filePathOrUrl
@@ -1230,7 +1230,7 @@ export class S2BAutomation {
           throw new Error(`로컬 파일이 이미지가 아닙니다: ${filePath}`)
         }
 
-        this.log(`컴퓨터 이미지 확인완료: ${filePathOrUrl}`, 'info')
+        this._log(`컴퓨터 이미지 확인완료: ${filePathOrUrl}`, 'info')
       }
 
       // 이미지 유형별 크기 조정
@@ -1247,12 +1247,12 @@ export class S2BAutomation {
           type = 'detail'
           break
         default:
-          this.log(`이미지 변환 처리 불필요: ${inputSelector}`, 'info')
+          this._log(`이미지 변환 처리 불필요: ${inputSelector}`, 'info')
           break
       }
 
       // sharp를 사용한 이미지 변환 처리
-      this.log(`이미지 변환 처리 시작: ${imageType}`, 'info')
+      this._log(`이미지 변환 처리 시작: ${imageType}`, 'info')
 
       let sharpInstance = sharp(filePath)
 
@@ -1286,13 +1286,13 @@ export class S2BAutomation {
       await sharpInstance.toFile(tempFilePath)
       filePath = tempFilePath
 
-      this.log(`이미지 변환 처리 완료: ${imageType}`, 'info')
+      this._log(`이미지 변환 처리 완료: ${imageType}`, 'info')
 
       // 파일 업로드
       const inputElement = (await this.page.$(inputSelector)) as puppeteer.ElementHandle<HTMLInputElement>
       if (inputElement) {
         await inputElement.uploadFile(filePath)
-        this.log(`${imageType} 파일 업로드 완료`, 'info')
+        this._log(`${imageType} 파일 업로드 완료`, 'info')
 
         if (statusSelector) {
           try {
@@ -1304,7 +1304,7 @@ export class S2BAutomation {
               { timeout: 20000 },
               statusSelector,
             )
-            this.log(`${imageType} 용량 확인 완료`, 'info')
+            this._log(`${imageType} 용량 확인 완료`, 'info')
           } catch (error) {
             if (error && error.name === 'TimeoutError') {
               throw new Error('이미지 용량 확인이 20초 내에 완료되지 않았습니다. (타임아웃)')
@@ -1316,58 +1316,58 @@ export class S2BAutomation {
         throw new Error(`Input element not found for selector: ${inputSelector}`)
       }
     } catch (error) {
-      this.log(`${imageType} 업로드 실패: ${error.message}`, 'error')
+      this._log(`${imageType} 업로드 실패: ${error.message}`, 'error')
       throw error
     }
   }
 
-  private async uploadAllImages(data: ProductData): Promise<void> {
+  private async _uploadAllImages(data: ProductData): Promise<void> {
     if (!this.page) return
 
-    this.log('이미지 업로드 프로세스 시작', 'info')
+    this._log('이미지 업로드 프로세스 시작', 'info')
 
     if (data.image1) {
-      this.log('기본이미지1 업로드 시작', 'info')
-      await this.uploadFile('#f_img1_file', data.image1, '#f_img1_file_size_ck')
+      this._log('기본이미지1 업로드 시작', 'info')
+      await this._uploadFile('#f_img1_file', data.image1, '#f_img1_file_size_ck')
       await delay(5000)
-      this.log('기본이미지1 업로드 완료', 'info')
+      this._log('기본이미지1 업로드 완료', 'info')
     }
 
     if (data.image2) {
-      this.log('기본이미지2 업로드 시작', 'info')
-      await this.uploadFile('#f_img2_file', data.image2, '#f_img2_file_size_ck')
+      this._log('기본이미지2 업로드 시작', 'info')
+      await this._uploadFile('#f_img2_file', data.image2, '#f_img2_file_size_ck')
       await delay(5000)
-      this.log('기본이미지2 업로드 완료', 'info')
+      this._log('기본이미지2 업로드 완료', 'info')
     }
 
     if (data.addImage1) {
-      this.log('추가이미지1 업로드 시작', 'info')
-      await this.uploadFile('#f_img3_file', data.addImage1, '#f_img3_file_size_ck')
+      this._log('추가이미지1 업로드 시작', 'info')
+      await this._uploadFile('#f_img3_file', data.addImage1, '#f_img3_file_size_ck')
       await delay(5000)
-      this.log('추가이미지1 업로드 완료', 'info')
+      this._log('추가이미지1 업로드 완료', 'info')
     }
 
     if (data.addImage2) {
-      this.log('추가이미지2 업로드 시작', 'info')
-      await this.uploadFile('#f_img4_file', data.addImage2, '#f_img4_file_size_ck')
+      this._log('추가이미지2 업로드 시작', 'info')
+      await this._uploadFile('#f_img4_file', data.addImage2, '#f_img4_file_size_ck')
       await delay(5000)
-      this.log('추가이미지2 업로드 완료', 'info')
+      this._log('추가이미지2 업로드 완료', 'info')
     }
 
     if (data.detailImage) {
-      this.log('상세이미지 업로드 시작', 'info')
-      await this.uploadFile('#f_goods_explain_img_file', data.detailImage, '#f_goods_explain_img_file_size_ck')
+      this._log('상세이미지 업로드 시작', 'info')
+      await this._uploadFile('#f_goods_explain_img_file', data.detailImage, '#f_goods_explain_img_file_size_ck')
       await delay(5000)
-      this.log('상세이미지 업로드 완료', 'info')
+      this._log('상세이미지 업로드 완료', 'info')
     }
 
-    this.log('이미지 업로드 프로세스 완료', 'info')
+    this._log('이미지 업로드 프로세스 완료', 'info')
 
     // 이미지 업로드 결과 확인
-    await this.verifyImageUploads()
+    await this._verifyImageUploads()
   }
 
-  private async verifyImageUploads(): Promise<void> {
+  private async _verifyImageUploads(): Promise<void> {
     if (!this.page) return
 
     const imageInputs = ['f_img1', 'f_img2', 'f_img3', 'f_img4', 'f_goods_explain_img']
@@ -1383,7 +1383,7 @@ export class S2BAutomation {
     }
   }
 
-  private async setAsInfo(data: ProductData): Promise<void> {
+  private async _setAsInfo(data: ProductData): Promise<void> {
     if (!this.page) return
 
     // 전화번호 입력
@@ -1437,7 +1437,7 @@ export class S2BAutomation {
     }
   }
 
-  private async setDeliveryInfo(data: ProductData): Promise<void> {
+  private async _setDeliveryInfo(data: ProductData): Promise<void> {
     if (!this.page) return
 
     // 배송 방법 선택
@@ -1490,7 +1490,7 @@ export class S2BAutomation {
   ): Promise<void> {
     if (!this.page) throw new Error('브라우저가 초기화되지 않았습니다.')
     try {
-      await this.gotoAndSearchListPageByRange(startDate, endDate, registrationStatus)
+      await this._gotoAndSearchListPageByRange(startDate, endDate, registrationStatus)
       const products = await this.collectAllProductLinks()
       await this.processExtendProducts(products)
     } finally {
@@ -1577,7 +1577,7 @@ export class S2BAutomation {
         if (!extendButton) {
           product.status = 'fail'
           product.errorMessage = '관리일 연장 버튼을 찾을 수 없습니다'
-          this.log(`관리일 연장 버튼을 찾을 수 없습니다: ${product.name}`, 'error')
+          this._log(`관리일 연장 버튼을 찾을 수 없습니다: ${product.name}`, 'error')
           continue
         }
 
@@ -1598,7 +1598,7 @@ export class S2BAutomation {
               } else {
                 isSuccess = false
                 errorMessage = message
-                this.log(`관리일 연장 실패 - ${message}`, 'error')
+                this._log(`관리일 연장 실패 - ${message}`, 'error')
                 await dialog.dismiss()
               }
               break
@@ -1638,17 +1638,17 @@ export class S2BAutomation {
             this.page?.off('dialog', handleExtensionDialog)
             product.status = 'fail'
             product.errorMessage = '연장 처리 중 타임아웃이 발생했습니다.'
-            this.log(`관리일 연장 실패 (타임아웃) - ${product.name}`, 'error')
+            this._log(`관리일 연장 실패 (타임아웃) - ${product.name}`, 'error')
             continue
           }
 
           if (isSuccess) {
             product.status = 'success'
-            this.log(`관리일 연장 성공: ${product.name} (${product.extendedDate}까지)`, 'info')
+            this._log(`관리일 연장 성공: ${product.name} (${product.extendedDate}까지)`, 'info')
           } else {
             product.status = 'fail'
             product.errorMessage = errorMessage
-            this.log(`관리일 연장 실패: ${product.name}`, 'error')
+            this._log(`관리일 연장 실패: ${product.name}`, 'error')
           }
         } finally {
           // 임시 이벤트 리스너 제거
@@ -1659,23 +1659,23 @@ export class S2BAutomation {
       } catch (error) {
         product.status = 'fail'
         product.errorMessage = error.message
-        this.log(`상품 처리 중 오류가 발생했습니다 (${product.name}): ${error}`, 'error')
+        this._log(`상품 처리 중 오류가 발생했습니다 (${product.name}): ${error}`, 'error')
       }
     }
 
     const successProducts = products.filter(p => p.status === 'success')
     const failedProducts = products.filter(p => p.status === 'fail')
 
-    this.log(
+    this._log(
       `관리일 연장 처리 완료 - 총: ${products.length}개, 성공: ${successProducts.length}개, 실패: ${failedProducts.length}개`,
       successProducts.length === products.length ? 'info' : 'warning',
     )
 
     // 실패한 상품 목록 로깅
     if (failedProducts.length > 0) {
-      this.log('실패한 상품 목록:', 'error')
+      this._log('실패한 상품 목록:', 'error')
       failedProducts.forEach(product => {
-        this.log(`- ${product.name}: ${product.errorMessage}`, 'error')
+        this._log(`- ${product.name}: ${product.errorMessage}`, 'error')
       })
     }
 
@@ -1690,13 +1690,13 @@ export class S2BAutomation {
 
   // ==================== PRIVATE METHODS ====================
 
-  private log(message: string, level: 'info' | 'warning' | 'error' = 'info'): void {
+  private _log(message: string, level: 'info' | 'warning' | 'error' = 'info'): void {
     if (this.logCallback) {
       this.logCallback(message, level)
     }
   }
 
-  private async readExcelStream(stream: fs.ReadStream): Promise<any[]> {
+  private async _readExcelStream(stream: fs.ReadStream): Promise<any[]> {
     return new Promise((resolve, reject) => {
       const chunks: Buffer[] = []
 
@@ -1740,28 +1740,28 @@ export class S2BAutomation {
     })
   }
 
-  private validateDeliveryLimit(value: string): DeliveryLimitType {
+  private _validateDeliveryLimit(value: string): DeliveryLimitType {
     if (value.endsWith('일') && value in DELIVERY_LIMIT_MAP) {
       return value as DeliveryLimitType
     }
     return '7일' // 기본값
   }
 
-  private validateSaleType(value: string): SaleType {
+  private _validateSaleType(value: string): SaleType {
     if (value === '물품' || value === '용역') {
       return value
     }
     return '물품' // 기본값
   }
 
-  private validateDeliveryFeeType(value: string): DeliveryFeeType {
+  private _validateDeliveryFeeType(value: string): DeliveryFeeType {
     if (value === '무료' || value === '유료' || value === '조건부무료') {
       return value
     }
     return '무료' // 기본값
   }
 
-  private async gotoAndSearchListPageByRange(
+  private async _gotoAndSearchListPageByRange(
     startDate: string,
     endDate: string,
     registrationStatus: string = '',
@@ -1802,7 +1802,7 @@ export class S2BAutomation {
     ])
   }
 
-  private async setOtherSiteInformation(data: ProductData): Promise<void> {
+  private async _setOtherSiteInformation(data: ProductData): Promise<void> {
     if (!this.page) return
 
     // 타사이트 등록 여부
@@ -1822,7 +1822,7 @@ export class S2BAutomation {
     }
   }
 
-  private async setNaraInformation(data: ProductData): Promise<void> {
+  private async _setNaraInformation(data: ProductData): Promise<void> {
     if (!this.page) return
 
     // 나라장터 등록 여부
@@ -1864,7 +1864,7 @@ export class S2BAutomation {
     }
   }
 
-  private async submitRegistration(): Promise<void> {
+  private async _submitRegistration(): Promise<void> {
     if (!this.page) return
 
     // 청렴서약서 체크 상태 확인
