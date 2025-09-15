@@ -205,6 +205,27 @@ const KC_TYPE_MAP: Record<string, string> = {
   인증표시대상아님: 'N',
 }
 
+// 유효한 배송 지역 목록
+const VALID_DELIVERY_AREAS = [
+  '강원',
+  '경기',
+  '경남',
+  '경북',
+  '광주',
+  '대구',
+  '대전',
+  '부산',
+  '서울',
+  '울산',
+  '인천',
+  '전남',
+  '전북',
+  '제주',
+  '충남',
+  '충북',
+  '세종',
+]
+
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
 export class S2BAutomation {
@@ -1501,23 +1522,40 @@ export class S2BAutomation {
       await this.page.click(`input[name="f_delivery_method"][value="${data.deliveryMethod}"]`)
     }
 
-    // 배송 지역 선택
-    if (data.deliveryAreas?.length > 0 && !data.deliveryAreas.includes('전국')) {
-      // "지역선택" 라디오 버튼 클릭
-      await this.page.click('input[name="delivery_area"][value="2"]')
+    // 배송 지역 검증 및 선택
+    if (data.deliveryAreas?.length > 0) {
+      // 빈 문자열만 있는 경우 전국으로 처리
+      const filteredAreas = data.deliveryAreas.filter(area => area.trim() !== '')
 
-      for (const area of data.deliveryAreas) {
-        await this.page.evaluate(areaName => {
-          const checkboxes = document.querySelectorAll('#area1 input[type="checkbox"]')
-          checkboxes.forEach(checkbox => {
-            const label = checkbox.nextSibling?.textContent?.trim()
-            if (label === areaName) {
-              ;(checkbox as HTMLInputElement).checked = true // 체크박스 선택
-            }
-          })
-        }, area)
+      if (filteredAreas.length === 0 || data.deliveryAreas.includes('전국')) {
+        // 전국 배송 선택
+        await this.page.click('input[name="delivery_area"][value="1"]')
+      } else {
+        // 유효하지 않은 지역 검증
+        const invalidAreas = filteredAreas.filter(area => !VALID_DELIVERY_AREAS.includes(area))
+
+        if (invalidAreas.length > 0) {
+          const errorMessage = `${invalidAreas.join(', ')}는 유효하지않은 지역입니다. 유효한 지역을 확인하고 입력해주세요.\n\n유효한 지역: ${VALID_DELIVERY_AREAS.join(', ')}`
+          throw new Error(errorMessage)
+        }
+
+        // "지역선택" 라디오 버튼 클릭
+        await this.page.click('input[name="delivery_area"][value="2"]')
+
+        for (const area of filteredAreas) {
+          await this.page.evaluate(areaName => {
+            const checkboxes = document.querySelectorAll('#area1 input[type="checkbox"]')
+            checkboxes.forEach(checkbox => {
+              const label = checkbox.nextSibling?.textContent?.trim()
+              if (label === areaName) {
+                ;(checkbox as HTMLInputElement).checked = true // 체크박스 선택
+              }
+            })
+          }, area)
+        }
       }
     } else {
+      // 배송 지역이 지정되지 않은 경우 전국으로 설정
       await this.page.click('input[name="delivery_area"][value="1"]')
     }
   }
