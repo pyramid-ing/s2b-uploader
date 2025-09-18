@@ -2,6 +2,7 @@ import { chromium, Browser, BrowserContext, Page } from 'playwright'
 import * as XLSX from 'xlsx'
 import path from 'node:path'
 import * as fsSync from 'fs'
+import fsPromises from 'fs/promises'
 import * as fs from 'fs'
 import dayjs from 'dayjs'
 import axios from 'axios'
@@ -1709,6 +1710,225 @@ export class S2BAutomation {
     const digits = text.replace(/[^0-9]/g, '')
     if (!digits) return null
     return Number(digits)
+  }
+
+  // ---------------- Image helpers ----------------
+  private async _downloadToBuffer(url: string): Promise<Buffer | null> {
+    try {
+      const res = await axios.get(url, { responseType: 'arraybuffer' })
+      return Buffer.from(res.data)
+    } catch {
+      return null
+    }
+  }
+
+  private async _saveJpg(buffer: Buffer, outPath: string): Promise<string> {
+    await fsPromises.writeFile(outPath, await sharp(buffer).jpeg({ quality: 90 }).toBuffer())
+    return outPath
+  }
+
+  private async _screenshotElement(outPath: string, xpath?: string): Promise<string | null> {
+    try {
+      if (!xpath) return null
+      const locator = this.page.locator(`xpath=${xpath}`)
+      // Playwright screenshot options do not accept 'quality' for jpeg in some versions; use default
+      await locator.first().screenshot({ path: outPath })
+      return outPath
+    } catch {
+      return null
+    }
+  }
+
+  // ---------------- Normalized detail collection ----------------
+  public async collectNormalizedDetailForUrls(urls: string[]): Promise<
+    {
+      url: string
+      vendor: VendorKey | null
+      name?: string
+      productCode?: string
+      categories?: string[]
+      price?: number
+      shippingFee?: string
+      origin?: string
+      manufacturer?: string
+      options?: { name: string; price?: number; qty?: number }[][]
+      mainImages?: string[]
+      detailImages?: string[]
+      detailCapturePath?: string | null
+    }[]
+  > {
+    if (!this.page) throw new Error('Browser page not initialized')
+    const outputs: any[] = []
+
+    for (const url of urls) {
+      const vendorKey = this.detectVendorByUrl(url)
+      const vendor = vendorKey ? VENDOR_CONFIG[vendorKey] : undefined
+
+      await this.page.goto(url, { waitUntil: 'domcontentloaded' })
+
+      const name = vendor ? await this._textByXPath(vendor.product_name_xpath) : null
+      const productCode = vendor?.product_code_xpath ? await this._textByXPath(vendor.product_code_xpath) : null
+
+      let priceText: string | null = null
+      if (vendor?.price_xpaths && vendor.price_xpaths.length) {
+        for (const px of vendor.price_xpaths) {
+          priceText = await this._textByXPath(px)
+          if (priceText) break
+        }
+      } else if (vendor?.price_xpath) {
+        priceText = await this._textByXPath(vendor.price_xpath)
+      }
+      const price = this._parsePrice(priceText)
+
+      const shippingFee = vendor?.shipping_fee_xpath ? await this._textByXPath(vendor.shipping_fee_xpath) : null
+      const origin = vendor?.origin_xpath ? await this._textByXPath(vendor.origin_xpath) : null
+      let manufacturer = vendor?.manufacturer_xpath ? await this._textByXPath(vendor.manufacturer_xpath) : null
+      if ((!manufacturer || !manufacturer.trim()) && vendor?.fallback_manufacturer) {
+        manufacturer = vendor.fallback_manufacturer
+      }
+
+      const categories: string[] = []
+      for (const cx of [
+        vendor?.category_1_xpath,
+        vendor?.category_2_xpath,
+        vendor?.category_3_xpath,
+        vendor?.category_4_xpath,
+      ]) {
+        if (!cx) continue
+        const val = await this._textByXPath(cx)
+        if (val) categories.push(val)
+      }
+
+      // options
+      let options: { name: string; price?: number; qty?: number }[][] | undefined
+      if (vendor?.option_xpath && vendor.option_xpath.length > 0) {
+        options = await this._collectOptionsByXpaths(vendor.option_xpath)
+      } else {
+        const xpaths: string[] = []
+        if (vendor?.option1_item_xpaths) xpaths.push(vendor.option1_item_xpaths)
+        if (vendor?.option2_item_xpaths) xpaths.push(vendor.option2_item_xpaths)
+        if (xpaths.length > 0) {
+          options = await this._collectOptionsByXpaths(xpaths)
+        }
+      }
+
+      // images
+      const imageUrls: string[] = vendor?.detail_image_xpath
+        ? await this.page.$$eval(`xpath=${vendor.detail_image_xpath}`, nodes =>
+            Array.from(nodes)
+              .map(n => (n as HTMLImageElement).src || (n as HTMLSourceElement).getAttribute('srcset') || '')
+              .filter(Boolean),
+          )
+        : []
+
+      // download and convert jpg into temp dir
+      const savedDetailImages: string[] = []
+      const tempDir = path.join(this.baseFilePath, 'temp')
+      if (!fsSync.existsSync(tempDir)) fsSync.mkdirSync(tempDir, { recursive: true })
+      for (let i = 0; i < imageUrls.length; i++) {
+        const buf = await this._downloadToBuffer(imageUrls[i])
+        if (!buf) continue
+        const outPath = path.join(tempDir, `detail_${Date.now()}_${i}.jpg`)
+        await this._saveJpg(buf, outPath)
+        savedDetailImages.push(outPath)
+      }
+
+      // detail capture
+      const detailCapturePath = vendor?.detail_capture_xpath
+        ? await this._screenshotElement(
+            path.join(tempDir, `detail_capture_${Date.now()}.jpg`),
+            vendor.detail_capture_xpath,
+          )
+        : null
+
+      outputs.push({
+        url,
+        vendor: vendorKey,
+        name: name || undefined,
+        productCode: productCode || undefined,
+        categories,
+        price: price ?? undefined,
+        shippingFee: shippingFee || undefined,
+        origin: origin || undefined,
+        manufacturer: manufacturer || undefined,
+        options,
+        mainImages: undefined,
+        detailImages: savedDetailImages,
+        detailCapturePath,
+      })
+    }
+    return outputs
+  }
+
+  private async _collectOptionsByXpaths(xpaths: string[]): Promise<{ name: string; price?: number; qty?: number }[][]> {
+    if (!this.page) return []
+    const levels: { name: string; price?: number; qty?: number }[][] = []
+    for (const xp of xpaths) {
+      try {
+        const items: { name: string; price?: number; qty?: number }[] = await this.page.evaluate((xpath: string) => {
+          const result: { name: string; price?: number; qty?: number }[] = []
+          const iterator = document.evaluate(xpath, document, null, XPathResult.ORDERED_NODE_ITERATOR_TYPE, null)
+          let node = iterator.iterateNext() as any
+          while (node) {
+            const el = node as Element
+            // 텍스트/값 우선순위 추출
+            let t = ''
+            const isOption = el.tagName.toLowerCase() === 'option'
+            const btnLabel = el.querySelector('label')
+            if (isOption) {
+              const opt = el as HTMLOptionElement
+              t = (opt.textContent || opt.value || '').trim()
+              const name = t.replace(/\s+/g, ' ').trim()
+              if (name && !/선택|옵션|선택하세요|옵션선택/i.test(name)) {
+                result.push({ name, price: 0, qty: 9999 })
+              }
+            } else {
+              // 버튼 기반 UI: 내부 label 수량 표기 제거
+              let nameText = (el.textContent || '').trim()
+              const labels = Array.from(el.querySelectorAll('label')).map(l => (l.textContent || '').trim())
+              for (const lbl of labels) {
+                nameText = nameText.replace(lbl, '')
+              }
+              nameText = nameText.replace(/\s+/g, ' ').trim()
+
+              // price delta: (+200원) 형태
+              let delta: number | undefined
+              const priceLabel = labels.find(v => /\([+\-]?\d{1,3}(?:,\d{3})*원\)/.test(v))
+              if (priceLabel) {
+                const sign = priceLabel.includes('-') ? -1 : 1
+                const digits = priceLabel.replace(/[^0-9]/g, '')
+                if (digits) delta = sign * Number(digits)
+              }
+
+              // qty: (495개) 형태
+              let qty: number | undefined
+              const qtyLabel = labels.find(v => /\([0-9,]+개\)/.test(v))
+              if (qtyLabel) {
+                const q = qtyLabel.replace(/[^0-9]/g, '')
+                if (q) qty = Number(q)
+              }
+
+              // placeholder/disabled 제외
+              const isDisabled = (el as any).disabled === true || el.getAttribute('disabled') !== null
+              if (nameText && !isDisabled && !/선택|옵션|선택하세요|옵션선택/i.test(nameText)) {
+                // 기본값: price 0, qty 9999
+                result.push({
+                  name: nameText,
+                  price: typeof delta === 'number' ? delta : 0,
+                  qty: typeof qty === 'number' ? qty : 9999,
+                })
+              }
+            }
+            node = iterator.iterateNext() as any
+          }
+          return result
+        }, xp)
+        levels.push(items)
+      } catch {
+        levels.push([])
+      }
+    }
+    return levels
   }
 
   private async _processExtendProducts(

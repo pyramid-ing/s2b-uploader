@@ -13,6 +13,7 @@ export interface VendorConfig {
   price_xpath?: string
   price_xpaths?: string[]
   shipping_fee_xpath?: string
+  detail_capture_xpath?: string
   hover_price?: boolean
   category_1_xpath?: string
   category_2_xpath?: string
@@ -66,14 +67,15 @@ export const VENDOR_CONFIG: Record<VendorKey, VendorConfig> = {
     option1_box_xpath: '//*[@id="lPayInfoBody"]/table/tbody/tr/td/div[1]/div/div/div[1]/button',
     option2_box_xpath: '//*[@id="lPayInfoBody"]/table/tbody/tr/td/div[1]/div/div[2]/div[1]/button',
     option_xpath: [
-      '//*[@id="lPayInfoBody"]/table/tbody/tr/td/div[1]/div/div/div[2]/ul/li/button',
-      '//*[@id="lPayInfoBody"]/table/tbody/tr/td/div[1]/div/div[2]/div[2]/ul/li/button',
+      '(//div[contains(@class, "pSelectUI")])[1]//ul[contains(@class, "pSelectUIMenu")]/li/button',
+      '(//div[contains(@class, "pSelectUI")])[2]//ul[contains(@class, "pSelectUIMenu")]/li/button',
     ],
     fixed_spec_xpath: '//*[@id="lInfoBody"]/div[2]/table/tbody/tr[2]/td',
     main_image_xpath: '//*[@id="lThumbImg"]',
     click_to_load_detail_image: false,
     detail_image_button_xpath: '',
     detail_image_xpath: '//*[@id="lInfoViewItemContents"]//img',
+    detail_capture_xpath: '//*[@id="lInfoViewItemContents"]',
     detail_image_url_prefix: null,
     url_mode: 'relative',
     custom_url_prefix: 'https://domeggook.com',
@@ -125,6 +127,7 @@ export const VENDOR_CONFIG: Record<VendorKey, VendorConfig> = {
     ],
     main_image_xpath: '//*[@id="mainimg"]',
     detail_image_xpath: '/html/body/table[3]/tbody/tr/td/div[9]//img',
+    detail_capture_xpath: '/html/body/table[3]/tbody/tr/td/div[9]',
     additional_info_pairs: [
       {
         label_xpath:

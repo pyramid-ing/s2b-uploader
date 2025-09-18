@@ -157,11 +157,15 @@ const Sourcing: React.FC = () => {
       const urls = targetItems.map(i => i.url)
       const res = await ipcRenderer.invoke('sourcing-collect-details', { urls })
       if (!res?.success) throw new Error(res?.error || '상세 수집 실패')
-      // 상세 수집 결과를 테이블에 반영 (가격 등 업데이트)
+      // 상세 수집 결과를 테이블에 반영 (가격/이름 업데이트)
       const updated = items.map(it => {
         const found = (res.items || []).find((d: any) => d.url === it.url)
         if (!found) return it
-        return { ...it, name: found.name || it.name, price: typeof found.price === 'number' ? found.price : it.price }
+        return {
+          ...it,
+          name: found.name || it.name,
+          price: typeof found.price === 'number' ? found.price : it.price,
+        }
       })
       setItems(updated)
       message.success(`${urls.length}건 상세 수집 완료`)

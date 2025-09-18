@@ -418,7 +418,7 @@ function setupIpcHandlers() {
       const settings = store.get('settings')
       automation = new S2BAutomation(settings.fileDir, sendLogToRenderer, settings.headless)
       await automation.start()
-      const details = await automation.collectDetailForUrls(urls)
+      const details = await automation.collectNormalizedDetailForUrls(urls)
       await automation.close()
       return { success: true, items: details }
     } catch (error) {
@@ -434,7 +434,6 @@ function setupIpcHandlers() {
   ipcMain.handle('get-settings', () => {
     try {
       const settings = store.get('settings')
-      console.log('Settings loaded:', settings)
       return settings
     } catch (error) {
       console.error('Error loading settings:', error)
@@ -445,7 +444,6 @@ function setupIpcHandlers() {
   // 설정 저장하기
   ipcMain.handle('save-settings', async (_, settings) => {
     try {
-      console.log('Saving settings:', settings)
       store.set('settings', settings)
       return true
     } catch (error) {
