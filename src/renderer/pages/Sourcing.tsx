@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react'
-import { Button, Card, Divider, Form, Input, message, Select, Space, Table, Typography } from 'antd'
+import { Button, Card, Divider, Form, Input, message, Select, Space, Table, Typography, Tooltip } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { DeleteOutlined, PlusOutlined, SendOutlined } from '@ant-design/icons'
 
@@ -10,6 +10,8 @@ interface SourcingItem {
   name: string
   url: string
   price: number
+  productCode?: string
+  additionalInfo?: any
 }
 
 const VENDORS = [
@@ -32,18 +34,17 @@ const Sourcing: React.FC = () => {
 
   const columns: ColumnsType<SourcingItem> = useMemo(
     () => [
-      { title: '상품명', dataIndex: 'name', key: 'name' },
       {
-        title: 'URL',
-        dataIndex: 'url',
-        key: 'url',
-        render: (text: string) => (
+        title: '상품명',
+        dataIndex: 'name',
+        key: 'name',
+        render: (text: string, record: SourcingItem) => (
           <Typography.Link
             onClick={e => {
               e.preventDefault()
-              if (!text) return
+              if (!record.url) return
               try {
-                shell.openExternal(text)
+                shell.openExternal(record.url)
               } catch (err) {
                 message.error('링크를 열 수 없습니다.')
               }
@@ -54,11 +55,35 @@ const Sourcing: React.FC = () => {
         ),
       },
       {
-        title: '가격',
-        dataIndex: 'price',
-        key: 'price',
-        render: (value: number) => `${currency(value)}원`,
-        align: 'right',
+        title: '품목코드',
+        dataIndex: 'productCode',
+        key: 'productCode',
+        render: (text: string, record: SourcingItem) => {
+          const displayText = text || '-'
+          return (
+            <Tooltip
+              title={
+                <pre
+                  style={{
+                    fontFamily: 'monospace',
+                    fontSize: '12px',
+                    margin: 0,
+                    whiteSpace: 'pre-wrap',
+                    maxWidth: '400px',
+                    maxHeight: '300px',
+                    overflow: 'auto',
+                  }}
+                >
+                  {JSON.stringify(record, null, 2)}
+                </pre>
+              }
+              placement="topLeft"
+              overlayStyle={{ maxWidth: '500px' }}
+            >
+              <Typography.Text style={{ cursor: 'help' }}>{displayText}</Typography.Text>
+            </Tooltip>
+          )
+        },
       },
       {
         title: '액션',
@@ -110,32 +135,29 @@ const Sourcing: React.FC = () => {
     }
   }
 
-  const handleFetchOneByUrl = () => {
+  const handleFetchOneByUrl = async () => {
     if (!urlInput) {
       message.warning('URL을 입력하세요.')
       return
     }
     try {
-      const url = new URL(urlInput)
-      const host = url.hostname
-      const item: SourcingItem = {
-        key: `${Date.now()}`,
-        name: `수동 1개 가져오기 (${host})`,
-        url: urlInput,
-        price: 0,
+      setLoading(true)
+      const res = await ipcRenderer.invoke('sourcing-collect-details', { urls: [urlInput] })
+      if (!res?.success) throw new Error(res?.error || '상세 수집 실패')
+
+      const found = (res.items || []).find((d: any) => d.url === urlInput)
+      if (found) {
+        const item: SourcingItem = {
+          ...found,
+          key: `${Date.now()}`,
+        }
+        setItems(prev => [item, ...prev])
+        message.success('URL 기준으로 1개 항목을 가져왔습니다.')
       }
-      setItems(prev => [item, ...prev])
-      message.success('URL 기준으로 1개 항목을 가져왔습니다. (서버 연동 예정)')
     } catch (e) {
-      const item: SourcingItem = {
-        key: `${Date.now()}`,
-        name: '수동 1개 가져오기',
-        url: urlInput,
-        price: 0,
-      }
-      setItems(prev => [item, ...prev])
-      message.info('유효하지 않은 URL 형식입니다. 그대로 추가했습니다.')
+      message.error('제품 수집 중 오류가 발생했습니다.')
     } finally {
+      setLoading(false)
       setUrlInput('')
     }
   }
@@ -157,14 +179,13 @@ const Sourcing: React.FC = () => {
       const urls = targetItems.map(i => i.url)
       const res = await ipcRenderer.invoke('sourcing-collect-details', { urls })
       if (!res?.success) throw new Error(res?.error || '상세 수집 실패')
-      // 상세 수집 결과를 테이블에 반영 (가격/이름 업데이트)
+      // 상세 수집 결과를 테이블에 반영 (가격/이름/품목코드/추가정보 업데이트)
       const updated = items.map(it => {
         const found = (res.items || []).find((d: any) => d.url === it.url)
         if (!found) return it
         return {
           ...it,
-          name: found.name || it.name,
-          price: typeof found.price === 'number' ? found.price : it.price,
+          ...found,
         }
       })
       setItems(updated)
