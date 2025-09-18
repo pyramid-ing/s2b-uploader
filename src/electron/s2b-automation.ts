@@ -1696,10 +1696,16 @@ export class S2BAutomation {
   private async _textByXPath(xpath: string | undefined): Promise<string | null> {
     if (!xpath) return null
     try {
-      const locator = this.page.locator(`xpath=${xpath}`)
-      const el = locator.first()
-      const text = await el.textContent()
-      return (text || '').trim() || null
+      const text = await this.page.evaluate((xp: string) => {
+        try {
+          const res = document.evaluate(xp, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null)
+          const node = res.singleNodeValue as Element | null
+          return node ? (node.textContent || '').trim() : null
+        } catch {
+          return null
+        }
+      }, xpath)
+      return text || null
     } catch {
       return null
     }

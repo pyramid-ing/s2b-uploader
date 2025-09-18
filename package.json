@@ -51,7 +51,9 @@
       {
         "from": "node_modules/sharp",
         "to": "node_modules/sharp",
-        "filter": ["**/*"]
+        "filter": [
+          "**/*"
+        ]
       }
     ],
     "directories": {
@@ -88,6 +90,7 @@
     "react-dom": "^18.3.1",
     "react-router-dom": "^7.0.1",
     "sharp": "0.32.6",
+    "tesseract.js": "^6.0.1",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
