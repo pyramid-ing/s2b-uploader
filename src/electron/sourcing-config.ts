@@ -13,7 +13,6 @@ export interface VendorConfig {
   price_xpath?: string
   price_xpaths?: string[]
   shipping_fee_xpath?: string
-  detail_capture_xpath?: string
   hover_price?: boolean
   category_1_xpath?: string
   category_2_xpath?: string
@@ -74,8 +73,7 @@ export const VENDOR_CONFIG: Record<VendorKey, VendorConfig> = {
     main_image_xpath: '//*[@id="lThumbImg"]',
     click_to_load_detail_image: false,
     detail_image_button_xpath: '',
-    detail_image_xpath: '//*[@id="lInfoViewItemContents"]//img',
-    detail_capture_xpath: '//*[@id="lInfoViewItemContents"]',
+    detail_image_xpath: '//*[@id="lInfoViewItemContents"]',
     detail_image_url_prefix: null,
     url_mode: 'relative',
     custom_url_prefix: 'https://domeggook.com',
@@ -126,8 +124,7 @@ export const VENDOR_CONFIG: Record<VendorKey, VendorConfig> = {
       '/html/body/table[3]/tbody/tr/td/table[1]/tbody/tr/td[2]/table/tbody/tr[12]/td[2]/select/option[position()>1]',
     ],
     main_image_xpath: '//*[@id="mainimg"]',
-    detail_image_xpath: '/html/body/table[3]/tbody/tr/td/div[9]//img',
-    detail_capture_xpath: '/html/body/table[3]/tbody/tr/td/div[9]',
+    detail_image_xpath: '/html/body/table[3]/tbody/tr/td/div[9]',
     additional_info_pairs: [
       {
         label_xpath:

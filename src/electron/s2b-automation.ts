@@ -1754,7 +1754,6 @@ export class S2BAutomation {
       options?: { name: string; price?: number; qty?: number }[][]
       mainImages?: string[]
       detailImages?: string[]
-      detailCapturePath?: string | null
     }[]
   > {
     if (!this.page) throw new Error('Browser page not initialized')
@@ -1812,34 +1811,42 @@ export class S2BAutomation {
         }
       }
 
-      // images
-      const imageUrls: string[] = vendor?.detail_image_xpath
-        ? await this.page.$$eval(`xpath=${vendor.detail_image_xpath}`, nodes =>
+      // images - main
+      const mainImageUrls: string[] = vendor?.main_image_xpath
+        ? await this.page.$$eval(`xpath=${vendor.main_image_xpath}`, nodes =>
             Array.from(nodes)
               .map(n => (n as HTMLImageElement).src || (n as HTMLSourceElement).getAttribute('srcset') || '')
               .filter(Boolean),
           )
         : []
 
-      // download and convert jpg into temp dir
-      const savedDetailImages: string[] = []
-      const tempDir = path.join(this.baseFilePath, 'temp')
-      if (!fsSync.existsSync(tempDir)) fsSync.mkdirSync(tempDir, { recursive: true })
-      for (let i = 0; i < imageUrls.length; i++) {
-        const buf = await this._downloadToBuffer(imageUrls[i])
-        if (!buf) continue
-        const outPath = path.join(tempDir, `detail_${Date.now()}_${i}.jpg`)
-        await this._saveJpg(buf, outPath)
-        savedDetailImages.push(outPath)
+      // detail capture as single image from container xpath
+      let detailCapturePath: string | null = null
+      if (vendor?.detail_image_xpath) {
+        const tempDir = path.join(this.baseFilePath, 'temp')
+        if (!fsSync.existsSync(tempDir)) fsSync.mkdirSync(tempDir, { recursive: true })
+        detailCapturePath = await this._screenshotElement(
+          path.join(tempDir, `detail_capture_${Date.now()}.jpg`),
+          vendor.detail_image_xpath,
+        )
       }
 
-      // detail capture
-      const detailCapturePath = vendor?.detail_capture_xpath
-        ? await this._screenshotElement(
-            path.join(tempDir, `detail_capture_${Date.now()}.jpg`),
-            vendor.detail_capture_xpath,
-          )
-        : null
+      // download and convert jpg into temp dir
+      const savedDetailImages: string[] = []
+      const savedMainImages: string[] = []
+      const tempDir = path.join(this.baseFilePath, 'temp')
+      if (!fsSync.existsSync(tempDir)) fsSync.mkdirSync(tempDir, { recursive: true })
+      // save main images first
+      for (let i = 0; i < mainImageUrls.length; i++) {
+        const buf = await this._downloadToBuffer(mainImageUrls[i])
+        if (!buf) continue
+        const outPath = path.join(tempDir, `main_${Date.now()}_${i}.jpg`)
+        await this._saveJpg(buf, outPath)
+        savedMainImages.push(outPath)
+      }
+      // no longer downloading detail img list; using single capture
+
+      // detail capture (already captured above using detail_image_xpath)
 
       outputs.push({
         url,
@@ -1852,9 +1859,8 @@ export class S2BAutomation {
         origin: origin || undefined,
         manufacturer: manufacturer || undefined,
         options,
-        mainImages: undefined,
-        detailImages: savedDetailImages,
-        detailCapturePath,
+        mainImages: savedMainImages,
+        detailImages: detailCapturePath ? [detailCapturePath] : [],
       })
     }
     return outputs
