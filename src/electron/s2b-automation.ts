@@ -1754,6 +1754,7 @@ export class S2BAutomation {
       options?: { name: string; price?: number; qty?: number }[][]
       mainImages?: string[]
       detailImages?: string[]
+      additionalInfo?: { label: string; value: string }[]
     }[]
   > {
     if (!this.page) throw new Error('Browser page not initialized')
@@ -1882,6 +1883,34 @@ export class S2BAutomation {
       // no longer downloading detail img list; using single capture
 
       // detail capture (already captured above using detail_image_xpath)
+      // additional info pairs (generic)
+      let additionalInfo: { label: string; value: string }[] | undefined
+      if (vendor?.additional_info_pairs && vendor.additional_info_pairs.length > 0) {
+        const collected: { label: string; value: string }[] = []
+        for (const pair of vendor.additional_info_pairs) {
+          try {
+            const labels: string[] = pair.label_xpath
+              ? await this.page.$$eval(`xpath=${pair.label_xpath}`, nodes =>
+                  Array.from(nodes)
+                    .map(n => (n.textContent || '').trim())
+                    .filter(Boolean),
+                )
+              : []
+            const values: string[] = pair.value_xpath
+              ? await this.page.$$eval(`xpath=${pair.value_xpath}`, nodes =>
+                  Array.from(nodes)
+                    .map(n => (n.textContent || '').trim())
+                    .filter(Boolean),
+                )
+              : []
+            const len = Math.min(labels.length, values.length)
+            for (let i = 0; i < len; i++) {
+              collected.push({ label: labels[i], value: values[i] })
+            }
+          } catch {}
+        }
+        if (collected.length > 0) additionalInfo = collected
+      }
 
       outputs.push({
         url,
@@ -1899,6 +1928,7 @@ export class S2BAutomation {
         options,
         mainImages: savedMainImages,
         detailImages: detailCapturePath ? [detailCapturePath] : [],
+        additionalInfo,
       })
     }
     return outputs

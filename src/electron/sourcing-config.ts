@@ -100,6 +100,12 @@ export const VENDOR_CONFIG: Record<VendorKey, VendorConfig> = {
         label_xpath: '//*[@id="lInfoViewItemInfoWrap"]/div[2]/div[2]/div[2]/label',
         value_xpath: '//*[@id="lInfoViewItemInfoWrap"]/div[2]/div[2]/div[2]/div',
       },
+      // 추가 테이블 구조(반응형) 대응
+      {
+        label_xpath: '//*[@id="lInfoViewItemInfoWrap"]//div[contains(@class, "lTblCellLabel")]',
+        value_xpath:
+          '//*[@id="lInfoViewItemInfoWrap"]//div[contains(@class, "lTblCellLabel")]/following-sibling::div[contains(@class, "lTblCell")]',
+      },
     ],
     fallback_prefix: 'DMG',
     fallback_sheet: 'DMG',
