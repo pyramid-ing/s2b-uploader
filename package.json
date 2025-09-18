@@ -83,7 +83,7 @@
     "electron-store": "^8.1.0",
     "electron-updater": "^6.6.2",
     "file-type": "16",
-    "puppeteer-core": "^23.7.1",
+    "playwright": "^1.49.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^7.0.1",

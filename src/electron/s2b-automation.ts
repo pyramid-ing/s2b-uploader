@@ -1,4 +1,4 @@
-import * as puppeteer from 'puppeteer-core'
+import { chromium, Browser, BrowserContext, Page } from 'playwright'
 import * as XLSX from 'xlsx'
 import path from 'node:path'
 import * as fsSync from 'fs'
@@ -229,8 +229,9 @@ const VALID_DELIVERY_AREAS = [
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
 export class S2BAutomation {
-  private browser: puppeteer.Browser | null = null
-  private page: puppeteer.Page | null = null
+  private browser: Browser | null = null
+  private context: BrowserContext | null = null
+  private page: Page | null = null
   private baseFilePath: string // 이미지 기본 경로
   private chromePath: string // Chrome 실행 파일 경로 추가
   private dialogErrorMessage: string | null = null // dialog 에러 메시지 추적
@@ -282,10 +283,10 @@ export class S2BAutomation {
     if (!this.page) throw new Error('브라우저가 초기화되지 않았습니다.')
 
     await this.page.goto('https://www.s2b.kr/S2BNCustomer/Login.do?type=sp&userDomain=')
-    await this.page.type('form[name="vendor_loginForm"] [name="uid"]', id)
-    await this.page.type('form[name="vendor_loginForm"] [name="pwd"]', password)
+    await this.page.fill('form[name="vendor_loginForm"] [name="uid"]', id)
+    await this.page.fill('form[name="vendor_loginForm"] [name="pwd"]', password)
     await this.page.click('form[name="vendor_loginForm"] .btn_login > a')
-    await this.page.waitForNavigation()
+    await this.page.waitForLoadState('networkidle')
   }
 
   public async readExcelFile(filePath: string): Promise<any[]> {
@@ -446,51 +447,51 @@ export class S2BAutomation {
   }
 
   public async start(): Promise<void> {
-    this.browser = await puppeteer.launch({
+    this.browser = await chromium.launch({
       headless: this.headless,
-      defaultViewport: null,
       executablePath: this.chromePath, // Chrome 실행 파일 경로 지정
       args: ['--no-sandbox', '--disable-setuid-sandbox'],
     })
 
-    this.page = await this.browser.newPage()
+    this.context = await this.browser.newContext({
+      viewport: null,
+    })
+
+    this.page = await this.context.newPage()
 
     // 팝업 감지 및 처리
-    this.browser.on('targetcreated', async target => {
-      const page = await target.page()
-      if (!page) return // 페이지가 없는 경우 무시
-
-      const url = target.url()
+    this.context.on('page', async newPage => {
+      const url = newPage.url()
       console.log(`Detected popup with URL: ${url}`)
 
       // 팝업 URL별 처리
       if (url.includes('certificateInfo_pop.jsp')) {
         // certificateInfo_pop.jsp 팝업은 바로 닫기
         console.log('Closing popup for certificateInfo_pop.jsp.')
-        await page.close()
+        await newPage.close()
       } else if (url.includes('mygPreviewerThumb.jsp')) {
         // mygPreviewerThumb.jsp 팝업에서 iframe 내 상태 검사
         try {
           await delay(3000)
 
           // iframe 로드 대기
-          await page.waitForSelector('#MpreviewerImg', { timeout: 20000 })
-          const iframeElement = await page.$('#MpreviewerImg')
-          if (!iframeElement) throw new Error('Iframe not found.')
+          await newPage.waitForSelector('#MpreviewerImg', { timeout: 20000 })
+          const iframeElement = newPage.locator('#MpreviewerImg')
 
-          const iframe = await iframeElement.contentFrame()
-          await iframe.waitForSelector('#reSizeStatus', { timeout: 20000 })
-          const resizeStatus = await iframe.$eval('#reSizeStatus', element => element.textContent?.trim())
+          const iframe = iframeElement.frameLocator('iframe')
 
-          if (resizeStatus === 'pass') {
+          await iframe.locator('#reSizeStatus').waitFor({ timeout: 20000 })
+          const resizeStatus = await iframe.locator('#reSizeStatus').textContent()
+
+          if (resizeStatus?.trim() === 'pass') {
             console.log('Upload passed. Closing popup.')
-            await page.close() // 조건 충족 시 팝업 닫기
+            await newPage.close() // 조건 충족 시 팝업 닫기
           } else {
             console.log(`Upload status: ${resizeStatus}. Popup remains open.`)
           }
         } catch (error) {
           console.error('Error while interacting with mygPreviewerThumb.jsp:', error)
-          await page.close() // 에러 발생 시 팝업 닫기
+          await newPage.close() // 에러 발생 시 팝업 닫기
         }
       } else if (url.includes('rema100_statusWaitPopup.jsp')) {
         // rema100_statusWaitPopup.jsp 팝업 처리
@@ -498,9 +499,9 @@ export class S2BAutomation {
           console.log('Interacting with rema100_statusWaitPopup.jsp popup.')
 
           // 팝업 로드 대기 및 버튼 클릭
-          await page.waitForSelector('[onclick^="fnConfirm("]', { timeout: 5000 })
+          await newPage.waitForSelector('[onclick^="fnConfirm("]', { timeout: 5000 })
 
-          await page.evaluate(() => {
+          await newPage.evaluate(() => {
             const confirmButton = document.querySelector('[onclick^="fnConfirm(\'1\')"]')
             if (confirmButton instanceof HTMLElement) {
               confirmButton.click() // 버튼 클릭
@@ -511,7 +512,7 @@ export class S2BAutomation {
           })
         } catch (error) {
           console.error('Error interacting with rema100_statusWaitPopup.jsp:', error)
-          await page.close() // 에러 발생 시 팝업 닫기
+          await newPage.close() // 에러 발생 시 팝업 닫기
         }
       } else {
         console.log('Popup URL does not match any criteria. Leaving it open.')
@@ -531,7 +532,7 @@ export class S2BAutomation {
     this.dialogErrorMessage = null // 초기화
 
     // 등록 프로세스를 위한 dialog 이벤트 핸들러
-    const handleRegistrationDialog = async (dialog: puppeteer.Dialog) => {
+    const handleRegistrationDialog = async dialog => {
       const message = dialog.message()
 
       switch (dialog.type()) {
@@ -697,24 +698,27 @@ export class S2BAutomation {
     if (!this.page) return
 
     // 등록구분 선택 (텍스트 기반 매핑 사용)
-    await this.page.select('select[name="sale_type"]', SALE_TYPE_MAP[data.saleTypeText] || '1')
+    await this.page.selectOption('select[name="sale_type"]', SALE_TYPE_MAP[data.saleTypeText] || '1')
 
-    await this.page.type('input[name="f_goods_name"]', data.goodsName)
-    await this.page.type('input[name="f_size"]', data.spec)
+    await this.page.fill('input[name="f_goods_name"]', data.goodsName)
+    await this.page.fill('input[name="f_size"]', data.spec)
 
     // 보증기간 초기화 후 입력
-    await this.page.$eval('input[name="f_assure"]', el => ((el as HTMLInputElement).value = ''))
-    await this.page.type('input[name="f_assure"]', data.assure)
+    await this.page.evaluate(() => {
+      const el = document.querySelector('input[name="f_assure"]') as HTMLInputElement
+      if (el) el.value = ''
+    })
+    await this.page.fill('input[name="f_assure"]', data.assure)
 
     if (data.modelName) {
-      await this.page.click('input[name="f_model_yn"][value="N"]')
-      await this.page.type('input[name="f_model"]', data.modelName)
+      await this.page.check('input[name="f_model_yn"][value="N"]')
+      await this.page.fill('input[name="f_model"]', data.modelName)
     }
 
-    await this.page.type('input[name="f_estimate_amt"]', data.estimateAmt)
-    await this.page.type('input[name="f_factory"]', data.factory)
-    await this.page.type('input[name="f_material"]', data.material)
-    await this.page.type('input[name="f_remain_qnt"]', data.remainQnt)
+    await this.page.fill('input[name="f_estimate_amt"]', data.estimateAmt)
+    await this.page.fill('input[name="f_factory"]', data.factory)
+    await this.page.fill('input[name="f_material"]', data.material)
+    await this.page.fill('input[name="f_remain_qnt"]', data.remainQnt)
 
     // 납품가능기간 설정
     await this.page.evaluate(
@@ -730,7 +734,7 @@ export class S2BAutomation {
 
     // 승인관련 요청사항 입력
     if (data.approvalRequest) {
-      await this.page.type('input[name="f_memo"]', data.approvalRequest)
+      await this.page.fill('input[name="f_memo"]', data.approvalRequest)
     }
 
     // 견적서 유효기간 선택
@@ -744,7 +748,7 @@ export class S2BAutomation {
 
       const optionValue = validityMap[data.estimateValidity]
       if (optionValue) {
-        await this.page.select('select[name="f_estimate_validate_code"]', optionValue)
+        await this.page.selectOption('select[name="f_estimate_validate_code"]', optionValue)
       } else {
         console.error(`Invalid estimate validity: ${data.estimateValidity}`)
       }
@@ -757,7 +761,7 @@ export class S2BAutomation {
     try {
       if (g2bNumber) {
         // G2B 물품목록번호 입력
-        await this.page.type('input[name="f_uid2"]', g2bNumber)
+        await this.page.fill('input[name="f_uid2"]', g2bNumber)
 
         // 등록 버튼 클릭
         await this.page.click('a[href^="javascript:fnCheckApiG2B();"]')
@@ -767,7 +771,7 @@ export class S2BAutomation {
         try {
           await this.page.waitForSelector('#apiData', { timeout: 10000 })
         } catch (error) {
-          if (error && error.name === 'TimeoutError') {
+          if (error.name === 'TimeoutError') {
             throw new Error('G2B 데이터가 10초 내에 로드되지 않았습니다. (타임아웃)')
           }
           throw error
@@ -806,14 +810,20 @@ export class S2BAutomation {
 
     // 반품배송비 입력
     if (data.returnFee) {
-      await this.page.$eval('input[name="f_return_fee"]', el => ((el as HTMLInputElement).value = ''))
-      await this.page.type('input[name="f_return_fee"]', data.returnFee)
+      await this.page.evaluate(() => {
+        const el = document.querySelector('input[name="f_return_fee"]') as HTMLInputElement
+        if (el) el.value = ''
+      })
+      await this.page.fill('input[name="f_return_fee"]', data.returnFee)
     }
 
     // 교환배송비 입력 (반품배송비의 2배)
     if (data.exchangeFee) {
-      await this.page.$eval('input[name="f_exchange_fee"]', el => ((el as HTMLInputElement).value = ''))
-      await this.page.type('input[name="f_exchange_fee"]', data.exchangeFee)
+      await this.page.evaluate(() => {
+        const el = document.querySelector('input[name="f_exchange_fee"]') as HTMLInputElement
+        if (el) el.value = ''
+      })
+      await this.page.fill('input[name="f_exchange_fee"]', data.exchangeFee)
     }
   }
 
@@ -822,7 +832,7 @@ export class S2BAutomation {
 
     // 원산지구분 선택
     const homeValue = HOME_DIVI_MAP[data.originType] || '1'
-    await this.page.click(`input[name="f_home_divi"][value="${homeValue}"]`)
+    await this.page.check(`input[name="f_home_divi"][value="${homeValue}"]`)
     await delay(500)
 
     if (data.originType === '국내' && data.originLocal) {
@@ -853,22 +863,22 @@ export class S2BAutomation {
 
     // 배송비 종류 선택 (텍스트 기반 매핑 사용)
     const deliveryType = DELIVERY_TYPE_MAP[data.deliveryFeeKindText] || '1'
-    await this.page.click(`input[name="f_delivery_fee_kind"][value="${deliveryType}"]`)
+    await this.page.check(`input[name="f_delivery_fee_kind"][value="${deliveryType}"]`)
 
     if (deliveryType === '2' && data.deliveryFee) {
       // 유료배송
-      await this.page.type('input[name="f_delivery_fee1"]', data.deliveryFee)
+      await this.page.fill('input[name="f_delivery_fee1"]', data.deliveryFee)
     } else if (deliveryType === '3') {
       // 조건부무료
     }
 
     // 나머지 배송 관련 설정들...
-    await this.page.click(`input[name="f_delivery_group_yn"][value="${data.deliveryGroupYn}"]`)
+    await this.page.check(`input[name="f_delivery_group_yn"][value="${data.deliveryGroupYn}"]`)
 
     if (data.jejuDeliveryYn === 'Y') {
-      await this.page.click('input[name="f_jeju_delivery_yn"]')
+      await this.page.check('input[name="f_jeju_delivery_yn"]')
       if (data.jejuDeliveryFee) {
-        await this.page.type('input[name="f_jeju_delivery_fee"]', data.jejuDeliveryFee)
+        await this.page.fill('input[name="f_jeju_delivery_fee"]', data.jejuDeliveryFee)
       }
     }
   }
@@ -907,7 +917,7 @@ export class S2BAutomation {
     if (!this.page) return
 
     // 등록구분 선택
-    await this.page.select('select[name="sale_type"]', data.saleTypeText)
+    await this.page.selectOption('select[name="sale_type"]', data.saleTypeText)
 
     // 1차 카테고리 선택 - 텍스트 기반으로 선택
     await this.page.evaluate(categoryText => {
@@ -956,21 +966,21 @@ export class S2BAutomation {
 
     // 소비기한 설정
     if (data.validateRadio) {
-      await this.page.click(`input[name="validateRadio"][value="${data.validateRadio}"]`)
+      await this.page.check(`input[name="validateRadio"][value="${data.validateRadio}"]`)
       if (data.validateRadio === 'date' && data.fValidate) {
-        await this.page.type('input[name="f_validate"]', data.fValidate)
+        await this.page.fill('input[name="f_validate"]', data.fValidate)
       }
     }
 
     // 기존 카테고리별 입력사항 설정 로직
-    if (data.selPower) await this.page.type('input[name="f_sel_power"]', data.selPower)
-    if (data.selWeight) await this.page.type('input[name="f_sel_weight"]', data.selWeight)
-    if (data.selSameDate) await this.page.type('input[name="f_sel_samedate"]', data.selSameDate)
-    if (data.selArea) await this.page.type('input[name="f_sel_area"]', data.selArea)
-    if (data.selProduct) await this.page.type('input[name="f_sel_product"]', data.selProduct)
-    if (data.selSafety) await this.page.type('input[name="f_sel_safety"]', data.selSafety)
-    if (data.selCapacity) await this.page.type('input[name="f_sel_capacity"]', data.selCapacity)
-    if (data.selSpecification) await this.page.type('input[name="f_sel_specification"]', data.selSpecification)
+    if (data.selPower) await this.page.fill('input[name="f_sel_power"]', data.selPower)
+    if (data.selWeight) await this.page.fill('input[name="f_sel_weight"]', data.selWeight)
+    if (data.selSameDate) await this.page.fill('input[name="f_sel_samedate"]', data.selSameDate)
+    if (data.selArea) await this.page.fill('input[name="f_sel_area"]', data.selArea)
+    if (data.selProduct) await this.page.fill('input[name="f_sel_product"]', data.selProduct)
+    if (data.selSafety) await this.page.fill('input[name="f_sel_safety"]', data.selSafety)
+    if (data.selCapacity) await this.page.fill('input[name="f_sel_capacity"]', data.selCapacity)
+    if (data.selSpecification) await this.page.fill('input[name="f_sel_specification"]', data.selSpecification)
   }
 
   private async _setCertifications(data: ProductData): Promise<void> {
@@ -1001,7 +1011,7 @@ export class S2BAutomation {
 
     for (const cert of certFields) {
       if (cert.value === 'Y') {
-        await this.page.click(`input[name="${cert.name}"][value="Y"]`)
+        await this.page.check(`input[name="${cert.name}"][value="Y"]`)
       }
     }
   }
@@ -1010,46 +1020,20 @@ export class S2BAutomation {
     if (!this.page) return
 
     // iframe 내부의 에디터에 접근
-    const se2Frame = this.page.frames().find(f => f.url().includes('SmartEditor2Skin.html'))
-
-    if (!se2Frame) throw new Error('Editor iframe not found')
+    const se2Frame = this.page.frameLocator('iframe[src*="SmartEditor2Skin.html"]')
 
     try {
       // 메인 페이지에서 HTML 버튼 클릭
-      await se2Frame.evaluate(() => {
-        const htmlButton = document.querySelector('.se2_to_html')
-        if (htmlButton instanceof HTMLButtonElement) {
-          htmlButton.click()
-        } else {
-          throw new Error('HTML button not found')
-        }
-      })
+      await se2Frame.locator('.se2_to_html').click()
 
       // 버튼 클릭 후 약간의 대기 시간
       await delay(500)
 
-      // 편집기 영역 선택
-      await se2Frame.waitForSelector('.se2_input_htmlsrc') // 편집기 컨테이너
-      const $editorArea = await se2Frame.$('.se2_input_htmlsrc')
-      if (!$editorArea) {
-        throw new Error('Editor area not found')
-      }
-
-      // 편집기에 포커스 설정
-      await $editorArea.click()
-
-      // 텍스트 입력 (키보드 방식)
-      await this.page.keyboard.type(html)
+      // 편집기 영역 선택 및 텍스트 입력
+      await se2Frame.locator('.se2_input_htmlsrc').fill(html)
 
       // 메인 페이지에서 Editor 버튼 클릭하여 다시 에디터 모드로 전환
-      await se2Frame.evaluate(() => {
-        const editorButton = document.querySelector('.se2_to_editor')
-        if (editorButton instanceof HTMLButtonElement) {
-          editorButton.click()
-        } else {
-          throw new Error('Editor button not found')
-        }
-      })
+      await se2Frame.locator('.se2_to_editor').click()
     } catch (error) {
       console.error('Failed to set detail HTML:', error)
       throw error
@@ -1060,36 +1044,36 @@ export class S2BAutomation {
     if (!this.page) return
 
     // 어린이제품 KC
-    await this.page.click(`input[name="kidsKcUseGubunChk"][value="${data.kidsKcType}"]`)
+    await this.page.check(`input[name="kidsKcUseGubunChk"][value="${data.kidsKcType}"]`)
     if (data.kidsKcType === 'Y' && data.kidsKcCertId) {
-      await this.page.type('#kidsKcCertId', data.kidsKcCertId)
+      await this.page.fill('#kidsKcCertId', data.kidsKcCertId)
       await this.page.click('a[href="JavaScript:KcCertRegist(\'kids\');"]')
     } else if (data.kidsKcType === 'F' && data.kidsKcFile) {
       await this._uploadFile('#f_kcCertKidsImg_file', data.kidsKcFile)
     }
 
     // 전기용품 KC
-    await this.page.click(`input[name="elecKcUseGubunChk"][value="${data.elecKcType}"]`)
+    await this.page.check(`input[name="elecKcUseGubunChk"][value="${data.elecKcType}"]`)
     if (data.elecKcType === 'Y' && data.elecKcCertId) {
-      await this.page.type('#elecKcCertId', data.elecKcCertId)
+      await this.page.fill('#elecKcCertId', data.elecKcCertId)
       await this.page.click('a[href="JavaScript:KcCertRegist(\'elec\');"]')
     } else if (data.elecKcType === 'F' && data.elecKcFile) {
       await this._uploadFile('#f_kcCertElecImg_file', data.elecKcFile)
     }
 
     // 생활용품 KC
-    await this.page.click(`input[name="dailyKcUseGubunChk"][value="${data.dailyKcType}"]`)
+    await this.page.check(`input[name="dailyKcUseGubunChk"][value="${data.dailyKcType}"]`)
     if (data.dailyKcType === 'Y' && data.dailyKcCertId) {
-      await this.page.type('#dailyKcCertId', data.dailyKcCertId)
+      await this.page.fill('#dailyKcCertId', data.dailyKcCertId)
       await this.page.click('a[href="JavaScript:KcCertRegist(\'daily\');"]')
     } else if (data.dailyKcType === 'F' && data.dailyKcFile) {
       await this._uploadFile('#f_kcCertDailyImg_file', data.dailyKcFile)
     }
 
     // 방송통신기자재 KC
-    await this.page.click(`input[name="broadcastingKcUseGubunChk"][value="${data.broadcastingKcType}"]`)
+    await this.page.check(`input[name="broadcastingKcUseGubunChk"][value="${data.broadcastingKcType}"]`)
     if (data.broadcastingKcType === 'Y' && data.broadcastingKcCertId) {
-      await this.page.type('#broadcastingKcCertId', data.broadcastingKcCertId)
+      await this.page.fill('#broadcastingKcCertId', data.broadcastingKcCertId)
       await this.page.click('a[href="JavaScript:KcCertRegist(\'broadcasting\');"]')
     } else if (data.broadcastingKcType === 'F' && data.broadcastingKcFile) {
       await this._uploadFile('#f_kcCertBroadcastingImg_file', data.broadcastingKcFile)
@@ -1100,18 +1084,18 @@ export class S2BAutomation {
     if (!this.page) throw new Error('브라우저가 초기화되지 않았습니다.')
 
     // 어린이 하차 확인 장치
-    await this.page.click(`input[name="childexitcheckerKcUseGubunChk"][value="${data.childExitCheckerKcType}"]`)
+    await this.page.check(`input[name="childexitcheckerKcUseGubunChk"][value="${data.childExitCheckerKcType}"]`)
     if (data.childExitCheckerKcType === 'Y' && data.childExitCheckerKcCertId) {
-      await this.page.type('#childexitcheckerKcCertId', data.childExitCheckerKcCertId)
+      await this.page.fill('#childexitcheckerKcCertId', data.childExitCheckerKcCertId)
       await this.page.click('a[href="JavaScript:KcCertRegist(\'childexitchecker\');"]')
     } else if (data.childExitCheckerKcType === 'F' && data.childExitCheckerKcFile) {
       await this._uploadFile('#f_kcCertChildExitCheckerImg_file', data.childExitCheckerKcFile)
     }
 
     // 안전확인대상 생활화학제품
-    await this.page.click(`input[name="safetycheckKcUseGubunChk"][value="${data.safetyCheckKcType}"]`)
+    await this.page.check(`input[name="safetycheckKcUseGubunChk"][value="${data.safetyCheckKcType}"]`)
     if (data.safetyCheckKcType === 'Y' && data.safetyCheckKcCertId) {
-      await this.page.type('#safetycheckKcCertId', data.safetyCheckKcCertId)
+      await this.page.fill('#safetycheckKcCertId', data.safetyCheckKcCertId)
     } else if (data.safetyCheckKcType === 'F' && data.safetyCheckKcFile) {
       await this._uploadFile('#f_kcCertSafetycheckImg_file', data.safetyCheckKcFile)
     }
@@ -1121,26 +1105,16 @@ export class S2BAutomation {
     if (!this.page) throw new Error('브라우저가 초기화되지 않았습니다.')
 
     // 계약 여부 설정
-    await this.page.click(`input[name="f_pps_c_yn"][value="${data.ppsContractYn}"]`)
+    await this.page.check(`input[name="f_pps_c_yn"][value="${data.ppsContractYn}"]`)
 
     // 계약일 입력
     if (data.ppsContractYn === 'Y') {
       if (data.ppsContractStartDate) {
-        await this.page.evaluate(startDate => {
-          const input = document.querySelector('input[name="f_pps_c_s_dt"]') as HTMLInputElement
-          if (input) {
-            input.value = startDate
-          }
-        }, data.ppsContractStartDate)
+        await this.page.fill('input[name="f_pps_c_s_dt"]', data.ppsContractStartDate)
       }
 
       if (data.ppsContractEndDate) {
-        await this.page.evaluate(endDate => {
-          const input = document.querySelector('input[name="f_pps_c_e_dt"]') as HTMLInputElement
-          if (input) {
-            input.value = endDate
-          }
-        }, data.ppsContractEndDate)
+        await this.page.fill('input[name="f_pps_c_e_dt"]', data.ppsContractEndDate)
       }
     }
   }
@@ -1289,24 +1263,24 @@ export class S2BAutomation {
       this._log(`이미지 변환 처리 완료: ${imageType}`, 'info')
 
       // 파일 업로드
-      const inputElement = (await this.page.$(inputSelector)) as puppeteer.ElementHandle<HTMLInputElement>
-      if (inputElement) {
-        await inputElement.uploadFile(filePath)
+      const inputElement = this.page.locator(inputSelector)
+      if ((await inputElement.count()) > 0) {
+        await inputElement.setInputFiles(filePath)
         this._log(`${imageType} 파일 업로드 완료`, 'info')
 
         if (statusSelector) {
           try {
             await this.page.waitForFunction(
-              selector => {
+              (selector: string) => {
                 const element = document.querySelector(selector)
                 return element && element.textContent?.trim() === '이미지 용량 확인 완료'
               },
-              { timeout: 20000 },
               statusSelector,
+              { timeout: 20000 },
             )
             this._log(`${imageType} 용량 확인 완료`, 'info')
           } catch (error) {
-            if (error && error.name === 'TimeoutError') {
+            if (error.name === 'TimeoutError') {
               throw new Error('이미지 용량 확인이 20초 내에 완료되지 않았습니다. (타임아웃)')
             }
             throw error
@@ -1373,9 +1347,7 @@ export class S2BAutomation {
     const imageInputs = ['f_img1', 'f_img2', 'f_img3', 'f_img4', 'f_goods_explain_img']
 
     for (const inputName of imageInputs) {
-      const value = await this.page
-        .$eval(`input[name="${inputName}"]`, (el: HTMLInputElement) => el.value)
-        .catch(() => '')
+      const value = await this.page.inputValue(`input[name="${inputName}"]`).catch(() => '')
 
       if (value) {
         console.log(`${inputName} uploaded successfully`)
@@ -1388,52 +1360,25 @@ export class S2BAutomation {
 
     // 전화번호 입력
     if (data.asTelephone1) {
-      // 값 지우기
-      await this.page.evaluate(() => {
-        const input = document.querySelector('input[name="f_as_telephone1"]') as HTMLInputElement
-        if (input) input.value = '' // 기존 값 지우기
-      })
-      // 새 값 입력
-      await this.page.type('input[name="f_as_telephone1"]', data.asTelephone1)
+      await this.page.fill('input[name="f_as_telephone1"]', data.asTelephone1)
     }
 
     // 제조사 A/S 전화번호 입력
     if (data.asTelephone2) {
-      // 값 지우기
-      await this.page.evaluate(() => {
-        const input = document.querySelector('input[name="f_as_telephone2"]') as HTMLInputElement
-        if (input) input.value = '' // 기존 값 지우기
-      })
-      // 새 값 입력
-      await this.page.type('input[name="f_as_telephone2"]', data.asTelephone2)
+      await this.page.fill('input[name="f_as_telephone2"]', data.asTelephone2)
     }
 
     // 주소 입력
     if (data.addressCode) {
-      await this.page.evaluate(addressCode => {
-        const input = document.querySelector<HTMLInputElement>('input[name="f_address_code"]')
-        if (input) {
-          input.value = addressCode
-        }
-      }, data.addressCode)
+      await this.page.fill('input[name="f_address_code"]', data.addressCode)
     }
 
     if (data.address) {
-      await this.page.evaluate(address => {
-        const input = document.querySelector<HTMLInputElement>('input[name="f_address"]')
-        if (input) {
-          input.value = address
-        }
-      }, data.address)
+      await this.page.fill('input[name="f_address"]', data.address)
     }
 
     if (data.addressDetail) {
-      await this.page.evaluate(addressDetail => {
-        const input = document.querySelector<HTMLInputElement>('input[name="f_address_detail"]')
-        if (input) {
-          input.value = addressDetail
-        }
-      }, data.addressDetail)
+      await this.page.fill('input[name="f_address_detail"]', data.addressDetail)
     }
   }
 
@@ -1442,7 +1387,7 @@ export class S2BAutomation {
 
     // 배송 방법 선택
     if (data.deliveryMethod) {
-      await this.page.click(`input[name="f_delivery_method"][value="${data.deliveryMethod}"]`)
+      await this.page.check(`input[name="f_delivery_method"][value="${data.deliveryMethod}"]`)
     }
 
     // 배송 지역 검증 및 선택
@@ -1452,7 +1397,7 @@ export class S2BAutomation {
 
       if (filteredAreas.length === 0 || data.deliveryAreas.includes('전국')) {
         // 전국 배송 선택
-        await this.page.click('input[name="delivery_area"][value="1"]')
+        await this.page.check('input[name="delivery_area"][value="1"]')
       } else {
         // 유효하지 않은 지역 검증
         const invalidAreas = filteredAreas.filter(area => !VALID_DELIVERY_AREAS.includes(area))
@@ -1463,7 +1408,7 @@ export class S2BAutomation {
         }
 
         // "지역선택" 라디오 버튼 클릭
-        await this.page.click('input[name="delivery_area"][value="2"]')
+        await this.page.check('input[name="delivery_area"][value="2"]')
 
         for (const area of filteredAreas) {
           await this.page.evaluate(areaName => {
@@ -1479,7 +1424,7 @@ export class S2BAutomation {
       }
     } else {
       // 배송 지역이 지정되지 않은 경우 전국으로 설정
-      await this.page.click('input[name="delivery_area"][value="1"]')
+      await this.page.check('input[name="delivery_area"][value="1"]')
     }
   }
 
@@ -1551,7 +1496,7 @@ export class S2BAutomation {
         return false
       })
       if (hasNextPage) {
-        await this.page.waitForNavigation({ waitUntil: 'domcontentloaded' })
+        await this.page.waitForLoadState('domcontentloaded')
       }
     }
     return products
@@ -1573,8 +1518,8 @@ export class S2BAutomation {
         await this.page.goto(product.link, { waitUntil: 'domcontentloaded' })
 
         // 관리일 연장 버튼 클릭
-        const extendButton = await this.page.$('a[href^="javascript:fnLimitDateUpdate()"]')
-        if (!extendButton) {
+        const extendButton = this.page.locator('a[href^="javascript:fnLimitDateUpdate()"]')
+        if ((await extendButton.count()) === 0) {
           product.status = 'fail'
           product.errorMessage = '관리일 연장 버튼을 찾을 수 없습니다'
           this._log(`관리일 연장 버튼을 찾을 수 없습니다: ${product.name}`, 'error')
@@ -1585,7 +1530,7 @@ export class S2BAutomation {
         let errorMessage = ''
 
         // 관리일 연장 처리를 위한 임시 dialog 이벤트 핸들러
-        const handleExtensionDialog = async (dialog: puppeteer.Dialog) => {
+        const handleExtensionDialog = async dialog => {
           const message = dialog.message()
 
           switch (dialog.type()) {
@@ -1683,6 +1628,9 @@ export class S2BAutomation {
   }
 
   public async close(): Promise<void> {
+    if (this.context) {
+      await this.context.close()
+    }
     if (this.browser) {
       await this.browser.close()
     }
@@ -1776,11 +1724,11 @@ export class S2BAutomation {
       const setRowCountButton = document.querySelector('a[href^="javascript:setRowCount2()"]') as HTMLElement
       if (setRowCountButton) setRowCountButton.click()
     })
-    await this.page.waitForNavigation({ waitUntil: 'domcontentloaded' })
+    await this.page.waitForLoadState('domcontentloaded')
 
     // 검색 조건 설정
     await this.page.evaluate(
-      (start, end, status) => {
+      ({ start, end, status }: { start: string; end: string; status: string }) => {
         ;(document.querySelector('#search_date') as HTMLSelectElement).value = 'LIMIT_DATE'
         ;(document.querySelector('#search_date_start') as HTMLInputElement).value = start
         ;(document.querySelector('#search_date_end') as HTMLInputElement).value = end
@@ -1792,14 +1740,10 @@ export class S2BAutomation {
           }
         }
       },
-      startDate,
-      endDate,
-      registrationStatus,
+      { start: startDate, end: endDate, status: registrationStatus },
     )
-    await Promise.all([
-      this.page.click('[href^="javascript:search()"]'),
-      this.page.waitForNavigation({ waitUntil: 'domcontentloaded' }),
-    ])
+    await this.page.click('[href^="javascript:search()"]')
+    await this.page.waitForLoadState('domcontentloaded')
   }
 
   private async _setOtherSiteInformation(data: ProductData): Promise<void> {
@@ -1807,18 +1751,12 @@ export class S2BAutomation {
 
     // 타사이트 등록 여부
     if (data.otherSiteRegisterYn) {
-      await this.page.click(`input[name="f_site_register_yn"][value="${data.otherSiteRegisterYn}"]`)
+      await this.page.check(`input[name="f_site_register_yn"][value="${data.otherSiteRegisterYn}"]`)
     }
 
     // 타사이트 등록 가격
     if (data.otherSiteAmt) {
-      await this.page.evaluate(amt => {
-        const input = document.querySelector<HTMLInputElement>('input[name="f_site_amt"]')
-        if (input) {
-          input.value = amt
-          input.dispatchEvent(new Event('change', { bubbles: true }))
-        }
-      }, data.otherSiteAmt)
+      await this.page.fill('input[name="f_site_amt"]', data.otherSiteAmt)
     }
   }
 
@@ -1827,40 +1765,22 @@ export class S2BAutomation {
 
     // 나라장터 등록 여부
     if (data.naraRegisterYn) {
-      await this.page.click(`input[name="f_nara_register_yn"][value="${data.naraRegisterYn}"]`)
+      await this.page.check(`input[name="f_nara_register_yn"][value="${data.naraRegisterYn}"]`)
     }
 
     // 나라장터 등록 가격
     if (data.naraAmt) {
-      await this.page.evaluate(amt => {
-        const input = document.querySelector<HTMLInputElement>('input[name="f_nara_amt"]')
-        if (input) {
-          input.value = amt
-          input.dispatchEvent(new Event('change', { bubbles: true }))
-        }
-      }, data.naraAmt)
+      await this.page.fill('input[name="f_nara_amt"]', data.naraAmt)
     }
 
     // 사이트명
     if (data.siteName) {
-      await this.page.evaluate(name => {
-        const input = document.querySelector<HTMLInputElement>('input[name="f_site_name"]')
-        if (input) {
-          input.value = name
-          input.dispatchEvent(new Event('change', { bubbles: true }))
-        }
-      }, data.siteName)
+      await this.page.fill('input[name="f_site_name"]', data.siteName)
     }
 
     // 사이트주소
     if (data.siteUrl) {
-      await this.page.evaluate(url => {
-        const input = document.querySelector<HTMLInputElement>('input[name="f_site_url"]')
-        if (input) {
-          input.value = url
-          input.dispatchEvent(new Event('change', { bubbles: true }))
-        }
-      }, data.siteUrl)
+      await this.page.fill('input[name="f_site_url"]', data.siteUrl)
     }
   }
 
@@ -1868,17 +1788,11 @@ export class S2BAutomation {
     if (!this.page) return
 
     // 청렴서약서 체크 상태 확인
-    const isChecked = await this.page.$eval('#uprightContract', (el: Element) => (el as HTMLInputElement).checked)
+    const isChecked = await this.page.isChecked('#uprightContract')
 
     // 혹시 체크가 안되어 있다면 다시 체크
     if (!isChecked) {
-      await this.page.evaluate(() => {
-        const checkbox = document.querySelector('#uprightContract') as HTMLInputElement
-        if (checkbox) {
-          checkbox.checked = true
-          checkbox.dispatchEvent(new Event('change', { bubbles: true }))
-        }
-      })
+      await this.page.check('#uprightContract')
     }
 
     // 임시저장 버튼 클릭
