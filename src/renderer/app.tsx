@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react'
 import { Layout, Menu, theme } from 'antd'
-import { SettingOutlined, UploadOutlined } from '@ant-design/icons'
+import { AppstoreOutlined, SettingOutlined, UploadOutlined } from '@ant-design/icons'
 import { Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import Settings from './pages/Settings'
 import Upload from './pages/Upload'
+import Sourcing from './pages/Sourcing'
 
 const { ipcRenderer } = window.require('electron')
 
@@ -23,6 +24,11 @@ const App: React.FC = () => {
       key: '/upload',
       icon: <UploadOutlined />,
       label: '상품등록',
+    },
+    {
+      key: '/sourcing',
+      icon: <AppstoreOutlined />,
+      label: '소싱',
     },
     {
       key: '/settings',
@@ -76,6 +82,7 @@ const App: React.FC = () => {
         <Content style={{ margin: '16px' }}>
           <Routes>
             <Route path="/upload" element={<Upload />} />
+            <Route path="/sourcing" element={<Sourcing />} />
             <Route path="/settings" element={<Settings />} />
           </Routes>
         </Content>
