@@ -1766,7 +1766,8 @@ export class S2BAutomation {
       await this.page.goto(url, { waitUntil: 'domcontentloaded' })
 
       const name = vendor ? await this._textByXPath(vendor.product_name_xpath) : null
-      const productCode = vendor?.product_code_xpath ? await this._textByXPath(vendor.product_code_xpath) : null
+      const productCodeText = vendor?.product_code_xpath ? await this._textByXPath(vendor.product_code_xpath) : null
+      const productCode = productCodeText ? productCodeText.replace(/[^0-9]/g, '') : null
 
       let priceText: string | null = null
       if (vendor?.price_xpaths && vendor.price_xpaths.length) {
@@ -1780,6 +1781,22 @@ export class S2BAutomation {
       const price = this._parsePrice(priceText)
 
       const shippingFee = vendor?.shipping_fee_xpath ? await this._textByXPath(vendor.shipping_fee_xpath) : null
+      let minPurchase: number | undefined
+      if (vendor?.min_purchase_xpath) {
+        const mp = await this._textByXPath(vendor.min_purchase_xpath)
+        if (mp) {
+          const d = mp.replace(/[^0-9]/g, '')
+          if (d) minPurchase = Number(d)
+        }
+      }
+
+      let imageUsage: string | undefined
+      if (vendor?.image_usage_xpath) {
+        const usage = await this._textByXPath(vendor.image_usage_xpath)
+        if (usage) {
+          imageUsage = usage.trim()
+        }
+      }
       const origin = vendor?.origin_xpath ? await this._textByXPath(vendor.origin_xpath) : null
       let manufacturer = vendor?.manufacturer_xpath ? await this._textByXPath(vendor.manufacturer_xpath) : null
       if ((!manufacturer || !manufacturer.trim()) && vendor?.fallback_manufacturer) {
@@ -1856,6 +1873,8 @@ export class S2BAutomation {
         categories,
         price: price ?? undefined,
         shippingFee: shippingFee || undefined,
+        minPurchase,
+        imageUsage,
         origin: origin || undefined,
         manufacturer: manufacturer || undefined,
         options,

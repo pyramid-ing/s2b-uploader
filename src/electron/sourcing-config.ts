@@ -13,6 +13,8 @@ export interface VendorConfig {
   price_xpath?: string
   price_xpaths?: string[]
   shipping_fee_xpath?: string
+  min_purchase_xpath?: string
+  image_usage_xpath?: string
   hover_price?: boolean
   category_1_xpath?: string
   category_2_xpath?: string
@@ -50,12 +52,17 @@ export const VENDOR_CONFIG: Record<VendorKey, VendorConfig> = {
     product_price_list_xpath:
       '//li[starts-with(@id, "li")]//span[contains(@class, "price") or contains(@class, "won") or contains(@class, "amt")]',
     product_code_xpath: '//*[@id="lInfoHeader"]/span[1]',
-    price_xpath: '//*[@id="lInfoBody"]/div[2]/table/tbody/tr[1]/td/div[1]/div',
+    price_xpath: '//*[@id="lNotDiscountAmtBox"]//div[contains(@class, "lDiscountAmt")]//b',
     price_xpaths: [
-      '//*[@id="lInfoBody"]/div[2]/table/tbody/tr[1]/td/div[1]/div',
-      '//*[@id="lAmtSectionTbl"]/tbody/tr[2]/td[1]',
+      '//*[@id="lNotDiscountAmtBox"]//div[contains(@class, "lDiscountAmt")]//b', // 할인가 우선
+      '//*[@id="lNotDiscountAmtBox"]//div[contains(@class, "lNotDiscountAmt")]//b', // 정가 폴백
+      '//*[@id="lInfoBody"]/div[2]/table/tbody/tr[1]/td/div[1]/div', // 기존 XPath 폴백
+      '//*[@id="lAmtSectionTbl"]/tbody/tr[2]/td[1]', // 기존 XPath 폴백
     ],
     shipping_fee_xpath: '//*[@id="lInfoBody"]/div[2]/table/tbody/tr[3]/td/div[2]',
+    min_purchase_xpath: '//*[@id="lInfoBody"]//tr[contains(@class, "lInfoPurchase")]//b',
+    image_usage_xpath:
+      '//tr[contains(@class, "lInfoViewSubTr1")]//td[contains(text(), "상세설명 이미지 사용여부")]/following-sibling::td//b',
     hover_price: false,
     category_1_xpath: '//*[@id="lPathCat2"]',
     category_2_xpath: '//*[@id="lPathCat3"]/a',
