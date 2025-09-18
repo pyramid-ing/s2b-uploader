@@ -3,7 +3,7 @@ import { Button, Card, Divider, Form, Input, message, Select, Space, Table, Typo
 import type { ColumnsType } from 'antd/es/table'
 import { DeleteOutlined, PlusOutlined, SendOutlined } from '@ant-design/icons'
 
-const { shell } = window.require('electron')
+const { shell, ipcRenderer } = window.require('electron')
 
 interface SourcingItem {
   key: string
@@ -81,19 +81,30 @@ const Sourcing: React.FC = () => {
   const handleFetchCurrentPage = async () => {
     try {
       setLoading(true)
-      message.info('현재 페이지에서 제품 목록을 수집합니다 (서버 연동 준비중).')
-      // 서버 연동 전 임시 더미 데이터
-      const dummy: SourcingItem[] = [
-        {
-          key: `${Date.now()}-1`,
-          name: vendor === 'domeggook' ? '도매꾹 샘플 상품' : '도매의신 샘플 상품',
-          url: vendor === 'domeggook' ? 'https://www.domeggook.com/' : 'https://www.domeosin.com/',
-          price: 12900,
-        },
-      ]
-      setItems(prev => [...dummy, ...prev])
+      const res = await ipcRenderer.invoke('sourcing-collect-list-current')
+      if (!res?.success) throw new Error(res?.error || '수집 실패')
+      const mapped: SourcingItem[] = (res.items || []).map((it: any, idx: number) => ({
+        key: `${Date.now()}-${idx}`,
+        name: it.name,
+        url: it.url,
+        price: it.price || 0,
+      }))
+      setItems(prev => [...mapped, ...prev])
     } catch (e) {
       message.error('제품 수집 중 오류가 발생했습니다.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleOpenVendorSite = async () => {
+    try {
+      setLoading(true)
+      const res = await ipcRenderer.invoke('sourcing-open-site', { vendor })
+      if (!res?.success) throw new Error(res?.error || '사이트 열기 실패')
+      message.success('사이트를 열었습니다.')
+    } catch (e) {
+      message.error('사이트 열기에 실패했습니다.')
     } finally {
       setLoading(false)
     }
@@ -134,14 +145,31 @@ const Sourcing: React.FC = () => {
     setSelectedRowKeys(prev => prev.filter(k => k !== key))
   }
 
-  const handleRequestRegister = (keys?: React.Key[]) => {
+  const handleRequestRegister = async (keys?: React.Key[]) => {
     const targetKeys = keys ?? selectedRowKeys
     if (targetKeys.length === 0) {
       message.warning('등록 요청할 품목을 선택하세요.')
       return
     }
-    const targetItems = items.filter(i => targetKeys.includes(i.key))
-    message.success(`${targetItems.length}건 등록요청 (서버 연동 준비중)`) // backend 보류 상태
+    try {
+      setLoading(true)
+      const targetItems = items.filter(i => targetKeys.includes(i.key))
+      const urls = targetItems.map(i => i.url)
+      const res = await ipcRenderer.invoke('sourcing-collect-details', { urls })
+      if (!res?.success) throw new Error(res?.error || '상세 수집 실패')
+      // 상세 수집 결과를 테이블에 반영 (가격 등 업데이트)
+      const updated = items.map(it => {
+        const found = (res.items || []).find((d: any) => d.url === it.url)
+        if (!found) return it
+        return { ...it, name: found.name || it.name, price: typeof found.price === 'number' ? found.price : it.price }
+      })
+      setItems(updated)
+      message.success(`${urls.length}건 상세 수집 완료`)
+    } catch (e) {
+      message.error('상세 수집 중 오류가 발생했습니다.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -151,6 +179,11 @@ const Sourcing: React.FC = () => {
           <Form form={form} layout="inline">
             <Form.Item label="업체">
               <Select style={{ width: 160 }} options={VENDORS} value={vendor} onChange={setVendor} />
+            </Form.Item>
+            <Form.Item>
+              <Button type="primary" onClick={handleOpenVendorSite} loading={loading}>
+                사이트 열기
+              </Button>
             </Form.Item>
             <Form.Item>
               <Button onClick={handleFetchCurrentPage} loading={loading}>

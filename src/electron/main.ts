@@ -371,6 +371,61 @@ function setupIpcHandlers() {
     }
   })
 
+  // 소싱: 사이트 열기 (브라우저 시작 및 벤더 기본 URL 이동)
+  ipcMain.handle('sourcing-open-site', async (_, { vendor }: { vendor: string }) => {
+    try {
+      const settings = store.get('settings')
+      automation = new S2BAutomation(settings.fileDir, sendLogToRenderer, settings.headless)
+      await automation.start()
+      const baseUrl = vendor === 'domeggook' ? 'https://www.domeggook.com/' : 'https://www.domesin.com/'
+      await automation.openUrl(baseUrl)
+      return { success: true, url: automation.getCurrentUrl() }
+    } catch (error) {
+      return { success: false, error: error.message || '사이트 열기 실패' }
+    }
+  })
+
+  // 소싱: 현재 페이지에서 목록 수집 (이미 열린 브라우저 기준)
+  ipcMain.handle('sourcing-collect-list-current', async () => {
+    try {
+      if (!automation) throw new Error('브라우저가 열려있지 않습니다. 먼저 사이트를 여세요.')
+      const currentUrl = automation.getCurrentUrl()
+      if (!currentUrl) throw new Error('현재 URL을 확인할 수 없습니다.')
+      const list = await automation.collectListFromUrl(currentUrl)
+      return { success: true, items: list }
+    } catch (error) {
+      return { success: false, error: error.message || '현재 페이지 목록 수집 실패' }
+    }
+  })
+
+  // 현재 브라우저 탭에서 보이는 목록 수집 (특정 URL 전달)
+  ipcMain.handle('sourcing-collect-list', async (_, { url }: { url: string }) => {
+    try {
+      const settings = store.get('settings')
+      automation = new S2BAutomation(settings.fileDir, sendLogToRenderer, settings.headless)
+      await automation.start()
+      const list = await automation.collectListFromUrl(url)
+      await automation.close()
+      return { success: true, items: list }
+    } catch (error) {
+      return { success: false, error: error.message || '목록 수집 실패' }
+    }
+  })
+
+  // 선택된 항목에 대해 상세정보 수집
+  ipcMain.handle('sourcing-collect-details', async (_, { urls }: { urls: string[] }) => {
+    try {
+      const settings = store.get('settings')
+      automation = new S2BAutomation(settings.fileDir, sendLogToRenderer, settings.headless)
+      await automation.start()
+      const details = await automation.collectDetailForUrls(urls)
+      await automation.close()
+      return { success: true, items: details }
+    } catch (error) {
+      return { success: false, error: error.message || '상세 수집 실패' }
+    }
+  })
+
   ipcMain.handle('check-account-validity', async (_, { accountId }) => {
     return await checkAccountValidity(accountId)
   })

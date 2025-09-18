@@ -8,6 +8,7 @@ import axios from 'axios'
 import crypto from 'crypto'
 import FileType from 'file-type'
 import sharp from 'sharp'
+import { VENDOR_CONFIG, VendorKey, VendorConfig, normalizeUrl } from './sourcing-config'
 
 interface ProductData {
   // 등록구분을 위한 텍스트 값
@@ -1523,6 +1524,191 @@ export class S2BAutomation {
       }
     }
     return products
+  }
+
+  // ---------------- Sourcing helpers for external vendor sites ----------------
+  public detectVendorByUrl(targetUrl: string): VendorKey | null {
+    try {
+      const host = new URL(targetUrl).hostname
+      if (host.includes('domeggook')) return VendorKey.도매꾹
+      if (host.includes('domesin')) return VendorKey.도매신
+      return null
+    } catch {
+      return null
+    }
+  }
+
+  public getCurrentUrl(): string {
+    try {
+      return this.page?.url() ?? ''
+    } catch {
+      return ''
+    }
+  }
+
+  public async openUrl(url: string): Promise<void> {
+    if (!this.page) throw new Error('Browser page not initialized')
+    await this.page.goto(url, { waitUntil: 'domcontentloaded' })
+  }
+
+  public async collectListFromUrl(targetUrl: string): Promise<{ name: string; url: string; price?: number }[]> {
+    if (!this.page) throw new Error('Browser page not initialized')
+
+    const vendorKey = this.detectVendorByUrl(targetUrl)
+    if (!vendorKey) throw new Error('지원하지 않는 사이트 입니다.')
+    const vendor: VendorConfig = VENDOR_CONFIG[vendorKey]
+
+    await this.page.goto(targetUrl, { waitUntil: 'domcontentloaded' })
+
+    const hrefs: string[] = await this.page.evaluate((xpath: string) => {
+      const result: string[] = []
+      const iterator = document.evaluate(xpath, document, null, XPathResult.ORDERED_NODE_ITERATOR_TYPE, null)
+      let node = iterator.iterateNext() as any
+      while (node) {
+        if (node instanceof HTMLAnchorElement && node.href) {
+          result.push(node.href)
+        } else if ((node as Element).getAttribute) {
+          const href = (node as Element).getAttribute('href')
+          if (href) result.push(href)
+        }
+        node = iterator.iterateNext() as any
+      }
+      return result
+    }, vendor.product_list_xpath)
+
+    const names: string[] = await this.page.evaluate((xpath: string) => {
+      const result: string[] = []
+      const iterator = document.evaluate(xpath, document, null, XPathResult.ORDERED_NODE_ITERATOR_TYPE, null)
+      let node = iterator.iterateNext() as any
+      while (node) {
+        const text = (node as Element).textContent || ''
+        result.push(text.trim())
+        node = iterator.iterateNext() as any
+      }
+      return result
+    }, vendor.product_name_list_xpath)
+
+    // 가격 리스트 시도: 1) 명시 XPath, 2) 앵커 주변 휴리스틱
+    let prices: (number | null)[] = []
+    if (vendor.product_price_list_xpath) {
+      const priceTexts: string[] = await this.page.evaluate((xpath: string) => {
+        const result: string[] = []
+        const iterator = document.evaluate(xpath, document, null, XPathResult.ORDERED_NODE_ITERATOR_TYPE, null)
+        let node = iterator.iterateNext() as any
+        while (node) {
+          const text = (node as Element).textContent || ''
+          result.push(text.trim())
+          node = iterator.iterateNext() as any
+        }
+        return result
+      }, vendor.product_price_list_xpath)
+      prices = priceTexts.map(t => {
+        const digits = t.replace(/[^0-9]/g, '')
+        return digits ? Number(digits) : null
+      })
+    }
+
+    // 매핑: 길이가 불일치하면 가격은 휴리스틱으로 보강
+    const items = hrefs.map((rawHref, idx) => {
+      const href = normalizeUrl(rawHref, vendor)
+      let price: number | undefined = undefined
+      if (prices[idx] != null) {
+        price = prices[idx] ?? undefined
+      }
+      return { name: names[idx] || '', url: href, price }
+    })
+
+    // 가격 누락건 보정: 각 앵커의 부모 요소에서 가격 후보 텍스트 탐색
+    const needsPrice = items.some(it => typeof it.price === 'undefined')
+    if (needsPrice) {
+      const fallbackPrices: (number | null)[] = await this.page.evaluate((xpath: string) => {
+        const anchors: Element[] = []
+        const iterator = document.evaluate(xpath, document, null, XPathResult.ORDERED_NODE_ITERATOR_TYPE, null)
+        let node = iterator.iterateNext() as any
+        while (node) {
+          anchors.push(node as Element)
+          node = iterator.iterateNext() as any
+        }
+        const results: (number | null)[] = []
+        for (const a of anchors) {
+          let container: Element | null = a.closest('li') || a.parentElement
+          if (!container) {
+            results.push(null)
+            continue
+          }
+          const text = (container.textContent || '').replace(/\s+/g, ' ')
+          const match = text.match(/([0-9]{1,3}(?:,[0-9]{3})+|[0-9]{4,})\s*(?:원|W|won)?/i)
+          if (match && match[1]) {
+            const digits = match[1].replace(/[^0-9]/g, '')
+            results.push(digits ? Number(digits) : null)
+          } else {
+            results.push(null)
+          }
+        }
+        return results
+      }, vendor.product_list_xpath)
+
+      items.forEach((it, i) => {
+        if (typeof it.price === 'undefined' && fallbackPrices[i] != null) {
+          it.price = fallbackPrices[i] ?? undefined
+        }
+      })
+    }
+
+    return items
+  }
+
+  public async collectDetailForUrls(
+    urls: string[],
+  ): Promise<{ name: string; url: string; price?: number; productCode?: string }[]> {
+    if (!this.page) throw new Error('Browser page not initialized')
+    const results: { name: string; url: string; price?: number; productCode?: string }[] = []
+
+    for (const url of urls) {
+      const vendorKey = this.detectVendorByUrl(url)
+      if (!vendorKey) {
+        results.push({ name: '', url })
+        continue
+      }
+      const vendor = VENDOR_CONFIG[vendorKey]
+      await this.page.goto(url, { waitUntil: 'domcontentloaded' })
+
+      const name = await this._textByXPath(vendor.product_name_xpath)
+      const productCode = vendor.product_code_xpath ? await this._textByXPath(vendor.product_code_xpath) : undefined
+
+      let priceText: string | null = null
+      if (vendor.price_xpaths && vendor.price_xpaths.length > 0) {
+        for (const px of vendor.price_xpaths) {
+          priceText = await this._textByXPath(px)
+          if (priceText) break
+        }
+      } else if (vendor.price_xpath) {
+        priceText = await this._textByXPath(vendor.price_xpath)
+      }
+
+      const price = this._parsePrice(priceText)
+      results.push({ name: name || '', url, price: price ?? undefined, productCode: productCode || undefined })
+    }
+    return results
+  }
+
+  private async _textByXPath(xpath: string | undefined): Promise<string | null> {
+    if (!xpath) return null
+    try {
+      const locator = this.page.locator(`xpath=${xpath}`)
+      const el = locator.first()
+      const text = await el.textContent()
+      return (text || '').trim() || null
+    } catch {
+      return null
+    }
+  }
+
+  private _parsePrice(text: string | null): number | null {
+    if (!text) return null
+    const digits = text.replace(/[^0-9]/g, '')
+    if (!digits) return null
+    return Number(digits)
   }
 
   private async _processExtendProducts(
