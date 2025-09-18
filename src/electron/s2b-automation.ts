@@ -10,6 +10,7 @@ import crypto from 'crypto'
 import FileType from 'file-type'
 import sharp from 'sharp'
 import { VENDOR_CONFIG, VendorKey, VendorConfig, normalizeUrl } from './sourcing-config'
+import Tesseract from 'tesseract.js'
 
 interface ProductData {
   // 등록구분을 위한 텍스트 값
@@ -1760,6 +1761,7 @@ export class S2BAutomation {
       options?: { name: string; price?: number; qty?: number }[][]
       mainImages?: string[]
       detailImages?: string[]
+      detailOcrText?: string
       additionalInfo?: { label: string; value: string }[]
     }[]
   > {
@@ -1889,6 +1891,24 @@ export class S2BAutomation {
       // no longer downloading detail img list; using single capture
 
       // detail capture (already captured above using detail_image_xpath)
+      // OCR for detail image
+      let detailOcrText: string | undefined
+      if (detailCapturePath) {
+        try {
+          this._log('상세이미지 OCR 분석 시작', 'info')
+          const { data } = await Tesseract.recognize(detailCapturePath, 'kor+eng')
+          const text = (data?.text || '').trim()
+          if (text) {
+            detailOcrText = text
+            this._log(`상세이미지 OCR 결과: ${text.substring(0, 200)}${text.length > 200 ? '…' : ''}`, 'info')
+          } else {
+            this._log('상세이미지 OCR 결과가 비어있습니다', 'warning')
+          }
+        } catch (err) {
+          this._log(`상세이미지 OCR 실패: ${err?.message || err}`, 'warning')
+        }
+      }
+
       // additional info pairs (generic)
       let additionalInfo: { label: string; value: string }[] | undefined
       if (vendor?.additional_info_pairs && vendor.additional_info_pairs.length > 0) {
@@ -1934,6 +1954,7 @@ export class S2BAutomation {
         options,
         mainImages: savedMainImages,
         detailImages: detailCapturePath ? [detailCapturePath] : [],
+        detailOcrText,
         additionalInfo,
       })
     }
