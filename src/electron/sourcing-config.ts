@@ -15,6 +15,7 @@ export interface VendorConfig {
   shipping_fee_xpath?: string
   min_purchase_xpath?: string
   image_usage_xpath?: string
+  certification_xpath?: string
   hover_price?: boolean
   category_1_xpath?: string
   category_2_xpath?: string
@@ -63,6 +64,8 @@ export const VENDOR_CONFIG: Record<VendorKey, VendorConfig> = {
     min_purchase_xpath: '//*[@id="lInfoBody"]//tr[contains(@class, "lInfoPurchase")]//b',
     image_usage_xpath:
       '//tr[contains(@class, "lInfoViewSubTr1")]//td[contains(text(), "상세설명 이미지 사용여부")]/following-sibling::td//b',
+    certification_xpath:
+      '//div[contains(@class, "lTbl")]//label[contains(text(), "인증정보")]/following-sibling::div//ul[@id="lSafetyCert"]//li',
     hover_price: false,
     category_1_xpath: '//*[@id="lPathCat2"]',
     category_2_xpath: '//*[@id="lPathCat3"]/a',

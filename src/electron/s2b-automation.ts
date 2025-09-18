@@ -1797,6 +1797,24 @@ export class S2BAutomation {
           imageUsage = usage.trim()
         }
       }
+
+      let certifications: { type: string; number: string }[] | undefined
+      if (vendor?.certification_xpath) {
+        const certItems = await this.page.$$eval(`xpath=${vendor.certification_xpath}`, nodes => {
+          return Array.from(nodes)
+            .map(li => {
+              const titleEl = li.querySelector('.lCertTitle')
+              const numEl = li.querySelector('.lCertNum')
+              const type = titleEl ? titleEl.textContent?.trim() || '' : ''
+              const number = numEl ? numEl.textContent?.replace(/자세히보기.*/, '').trim() || '' : ''
+              return { type, number }
+            })
+            .filter(cert => cert.type && cert.number)
+        })
+        if (certItems.length > 0) {
+          certifications = certItems
+        }
+      }
       const origin = vendor?.origin_xpath ? await this._textByXPath(vendor.origin_xpath) : null
       let manufacturer = vendor?.manufacturer_xpath ? await this._textByXPath(vendor.manufacturer_xpath) : null
       if ((!manufacturer || !manufacturer.trim()) && vendor?.fallback_manufacturer) {
@@ -1875,6 +1893,7 @@ export class S2BAutomation {
         shippingFee: shippingFee || undefined,
         minPurchase,
         imageUsage,
+        certifications,
         origin: origin || undefined,
         manufacturer: manufacturer || undefined,
         options,
