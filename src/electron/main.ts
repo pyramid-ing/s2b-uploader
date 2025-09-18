@@ -496,6 +496,157 @@ function setupIpcHandlers() {
       return { success: false, error: error.message || 'Unknown error occurred.' }
     }
   })
+
+  // 소싱 데이터 엑셀 다운로드 핸들러
+  ipcMain.handle('download-sourcing-excel', async (_, { sourcingItems }) => {
+    try {
+      const settings = store.get('settings')
+      const fileDir = settings.fileDir
+
+      if (!fileDir) {
+        throw new Error('파일 폴더가 설정되지 않았습니다.')
+      }
+
+      // 다운로드 폴더 생성
+      const downloadDir = path.join(fileDir, 'downloads')
+      if (!fsSync.existsSync(downloadDir)) {
+        fsSync.mkdirSync(downloadDir, { recursive: true })
+      }
+
+      // 엑셀 파일 생성
+      const timestamp = dayjs().format('YYYYMMDD_HHmmss')
+      const fileName = `소싱데이터_${timestamp}.xlsx`
+      const filePath = path.join(downloadDir, fileName)
+
+      // 워크북 생성
+      const workbook = XLSX.utils.book_new()
+
+      // excelMapped 데이터를 그대로 사용
+      const excelData = sourcingItems.map((item: any) => {
+        if (item.excelMapped) {
+          // 이미 excelMapped가 있는 경우 그대로 사용
+          return item.excelMapped
+        }
+      })
+
+      // 워크시트 생성
+      const worksheet = XLSX.utils.json_to_sheet(excelData)
+
+      // 컬럼 너비 설정 (mapToExcelFormat 필드에 맞게 조정)
+      const columnWidths = [
+        { wch: 15 }, // 카테고리1
+        { wch: 15 }, // 카테고리2
+        { wch: 15 }, // 카테고리3
+        { wch: 10 }, // 등록구분
+        { wch: 30 }, // 물품명
+        { wch: 20 }, // 규격
+        { wch: 20 }, // 모델명
+        { wch: 12 }, // 제시금액
+        { wch: 15 }, // 제조사
+        { wch: 15 }, // 소재재질
+        { wch: 10 }, // 재고수량
+        { wch: 10 }, // 판매단위
+        { wch: 10 }, // 보증기간
+        { wch: 15 }, // 납품가능기간
+        { wch: 15 }, // 견적서유효기간
+        { wch: 12 }, // 배송비종류
+        { wch: 10 }, // 배송비
+        { wch: 12 }, // 반품배송비
+        { wch: 15 }, // 묶음배송여부
+        { wch: 15 }, // 제주배송여부
+        { wch: 15 }, // 제주추가배송비
+        { wch: 50 }, // 상세설명HTML
+        { wch: 30 }, // 기본이미지1
+        { wch: 30 }, // 기본이미지2
+        { wch: 30 }, // 추가이미지1
+        { wch: 30 }, // 추가이미지2
+        { wch: 30 }, // 상세이미지
+        { wch: 15 }, // 원산지구분
+        { wch: 20 }, // 국내원산지
+        { wch: 20 }, // 해외원산지
+        { wch: 20 }, // G2B물품목록번호
+        { wch: 10 }, // 배송방법
+        { wch: 15 }, // 배송지역
+        { wch: 20 }, // 정격전압소비전력
+        { wch: 20 }, // 크기및무게
+        { wch: 15 }, // 동일모델출시년월
+        { wch: 15 }, // 냉난방면적
+        { wch: 20 }, // 제품구성
+        { wch: 15 }, // 안전표시
+        { wch: 10 }, // 용량
+        { wch: 20 }, // 주요사양
+        { wch: 15 }, // 소비기한선택
+        { wch: 15 }, // 소비기한입력
+        { wch: 25 }, // 어린이하차확인장치타입
+        { wch: 25 }, // 어린이하차확인장치인증번호
+        { wch: 25 }, // 어린이하차확인장치첨부파일
+        { wch: 20 }, // 안전확인대상타입
+        { wch: 20 }, // 안전확인대상신고번호
+        { wch: 20 }, // 안전확인대상첨부파일
+        { wch: 15 }, // 조달청계약여부
+        { wch: 12 }, // 계약시작일
+        { wch: 12 }, // 계약종료일
+        { wch: 15 }, // 전화번호
+        { wch: 20 }, // 제조사AS전화번호
+        { wch: 20 }, // 과세여부
+        { wch: 15 }, // 어린이제품KC유형
+        { wch: 20 }, // 어린이제품KC인증번호
+        { wch: 20 }, // 어린이제품KC성적서
+        { wch: 15 }, // 전기용품KC유형
+        { wch: 20 }, // 전기용품KC인증번호
+        { wch: 20 }, // 전기용품KC성적서
+        { wch: 15 }, // 생활용품KC유형
+        { wch: 20 }, // 생활용품KC인증번호
+        { wch: 20 }, // 생활용품KC성적서
+        { wch: 15 }, // 방송통신KC유형
+        { wch: 20 }, // 방송통신KC인증번호
+        { wch: 20 }, // 방송통신KC성적서
+        { wch: 10 }, // 여성기업
+        { wch: 10 }, // 장애인기업
+        { wch: 10 }, // 창업기업
+        { wch: 15 }, // 장애인표준사업장
+        { wch: 15 }, // 중증장애인생산품
+        { wch: 15 }, // 사회적협동조합
+        { wch: 10 }, // 사회적기업
+        { wch: 15 }, // 우수재활용제품
+        { wch: 15 }, // 환경표지제품
+        { wch: 12 }, // 저탄소인증
+        { wch: 12 }, // SW품질인증
+        { wch: 12 }, // 신제품인증
+        { wch: 12 }, // 신기술인증
+        { wch: 15 }, // 녹색기술인증
+        { wch: 10 }, // 성능인증
+        { wch: 15 }, // 우수조달제품
+        { wch: 10 }, // 마을기업
+        { wch: 10 }, // 자활기업
+        { wch: 12 }, // 협동조합
+        { wch: 50 }, // 소싱URL
+        { wch: 20 }, // 품목코드
+        { wch: 60 }, // 추가정보
+        { wch: 20 }, // 수집일시
+      ]
+      worksheet['!cols'] = columnWidths
+
+      // 워크북에 워크시트 추가
+      XLSX.utils.book_append_sheet(workbook, worksheet, '소싱데이터')
+
+      // 파일 저장
+      XLSX.writeFile(workbook, filePath)
+
+      sendLogToRenderer(`소싱 데이터 엑셀 파일 생성 완료: ${fileName}`, 'info')
+
+      return {
+        success: true,
+        filePath,
+        fileName,
+        recordCount: sourcingItems.length,
+      }
+    } catch (error) {
+      console.error('Sourcing Excel download failed:', error)
+      sendLogToRenderer(`소싱 데이터 엑셀 다운로드 실패: ${error.message}`, 'error')
+      return { success: false, error: error.message || '소싱 데이터 엑셀 다운로드 중 오류가 발생했습니다.' }
+    }
+  })
 }
 
 async function clearTempFiles(fileDir: string): Promise<void> {

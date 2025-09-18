@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react'
 import { Button, Card, Divider, Form, Input, message, Select, Space, Table, Typography, Tooltip } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
-import { DeleteOutlined, PlusOutlined, SendOutlined } from '@ant-design/icons'
+import { DeleteOutlined, PlusOutlined, SendOutlined, DownloadOutlined } from '@ant-design/icons'
 
 const { shell, ipcRenderer } = window.require('electron')
 
@@ -197,6 +197,29 @@ const Sourcing: React.FC = () => {
     }
   }
 
+  const handleDownloadExcel = async () => {
+    try {
+      if (selectedRowKeys.length === 0) {
+        message.warning('다운로드할 소싱 데이터를 선택해주세요.')
+        return
+      }
+
+      // 선택된 항목만 필터링
+      const selectedItems = items.filter(item => selectedRowKeys.includes(item.key))
+
+      const result = await ipcRenderer.invoke('download-sourcing-excel', { sourcingItems: selectedItems })
+
+      if (result.success) {
+        message.success(`선택된 소싱 데이터 엑셀 파일이 성공적으로 저장되었습니다: ${result.fileName}`)
+      } else {
+        message.error(`엑셀 다운로드 실패: ${result.error}`)
+      }
+    } catch (error) {
+      console.error('Sourcing Excel download failed:', error)
+      message.error('엑셀 다운로드 중 오류가 발생했습니다.')
+    }
+  }
+
   return (
     <Space direction="vertical" size="large" style={{ width: '100%' }}>
       <Card title="검색">
@@ -250,15 +273,29 @@ const Sourcing: React.FC = () => {
         </Space>
       </Card>
 
-      {hasSelection && (
-        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div>
+          {hasSelection && (
+            <Space>
+              <Button type="primary" icon={<SendOutlined />} onClick={() => handleRequestRegister()}>
+                등록요청({selectedRowKeys.length}개)
+              </Button>
+            </Space>
+          )}
+        </div>
+        <div>
           <Space>
-            <Button type="primary" icon={<SendOutlined />} onClick={() => handleRequestRegister()}>
-              등록요청({selectedRowKeys.length}개)
+            <Button
+              type="default"
+              icon={<DownloadOutlined />}
+              onClick={handleDownloadExcel}
+              disabled={selectedRowKeys.length === 0}
+            >
+              엑셀 다운로드 ({selectedRowKeys.length}개)
             </Button>
           </Space>
         </div>
-      )}
+      </div>
 
       <Card>
         <Table<SourcingItem>
