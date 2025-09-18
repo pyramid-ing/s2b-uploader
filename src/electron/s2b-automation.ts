@@ -476,14 +476,20 @@ export class S2BAutomation {
 
           // iframe 로드 대기
           await newPage.waitForSelector('#MpreviewerImg', { timeout: 20000 })
-          const iframeElement = newPage.locator('#MpreviewerImg')
 
-          const iframe = iframeElement.frameLocator('iframe')
+          // iframe 내부 상태 확인
+          const resizeStatus = await newPage.evaluate(() => {
+            const iframe = document.querySelector('#MpreviewerImg iframe') as HTMLIFrameElement
+            if (!iframe) return null
 
-          await iframe.locator('#reSizeStatus').waitFor({ timeout: 20000 })
-          const resizeStatus = await iframe.locator('#reSizeStatus').textContent()
+            const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document
+            if (!iframeDoc) return null
 
-          if (resizeStatus?.trim() === 'pass') {
+            const statusElement = iframeDoc.querySelector('#reSizeStatus')
+            return statusElement?.textContent?.trim() || null
+          })
+
+          if (resizeStatus === 'pass') {
             console.log('Upload passed. Closing popup.')
             await newPage.close() // 조건 충족 시 팝업 닫기
           } else {
