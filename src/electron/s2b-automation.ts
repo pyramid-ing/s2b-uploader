@@ -10,7 +10,6 @@ import crypto from 'crypto'
 import FileType from 'file-type'
 import sharp from 'sharp'
 import { VENDOR_CONFIG, VendorKey, VendorConfig, normalizeUrl } from './sourcing-config'
-import Tesseract from 'tesseract.js'
 
 interface ProductData {
   // 등록구분을 위한 텍스트 값
@@ -1746,6 +1745,184 @@ export class S2BAutomation {
     }
   }
 
+  // ---------------- AI 데이터 정제 ----------------
+  private async refineDataWithAI(data: any): Promise<any> {
+    try {
+      const response = await axios.post(
+        'https://n8n.pyramid-ing.com/webhook/s2b-sourcing',
+        {
+          url: data.url,
+          vendor: data.vendor,
+          name: data.name,
+          shippingFee: data.shippingFee,
+          certifications: data.certifications,
+          origin: data.origin,
+          manufacturer: data.manufacturer,
+          additionalInfo: data.additionalInfo,
+        },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        },
+      )
+
+      return response.data.output || {}
+    } catch (error) {
+      this._log(`AI 데이터 정제 실패: ${error.message}`, 'error')
+      return {}
+    }
+  }
+
+  // ---------------- 카테고리 매핑 ----------------
+  private async mapCategories(
+    vendor: string,
+    categories: string[],
+  ): Promise<{
+    targetCategory1?: string
+    targetCategory2?: string
+    targetCategory3?: string
+    g2bCode?: string
+  }> {
+    try {
+      // 엑셀 파일 경로
+      const excelPath = path.join(process.cwd(), 'files', 'S2B_Sourcing_category_mapper.xlsx')
+
+      if (!fsSync.existsSync(excelPath)) {
+        this._log('카테고리 매핑 엑셀 파일을 찾을 수 없습니다.', 'warning')
+        return {}
+      }
+
+      const workbook = XLSX.readFile(excelPath)
+      const sheetName = vendor // 벤더명으로 시트 찾기
+
+      if (!workbook.Sheets[sheetName]) {
+        this._log(`${vendor} 시트를 찾을 수 없습니다.`, 'warning')
+        return {}
+      }
+
+      const worksheet = workbook.Sheets[sheetName]
+      const data = XLSX.utils.sheet_to_json(worksheet, { header: 1 })
+
+      // 헤더 행 찾기
+      const headerRow = data.find(
+        (row: any[]) => row.includes('크롤링_1차') && row.includes('크롤링_2차') && row.includes('크롤링_3차'),
+      )
+
+      if (!headerRow) {
+        this._log('카테고리 매핑 헤더를 찾을 수 없습니다.', 'warning')
+        return {}
+      }
+
+      const headerIndex = data.indexOf(headerRow)
+      const crawling1Index = (headerRow as any[]).indexOf('크롤링_1차')
+      const crawling2Index = (headerRow as any[]).indexOf('크롤링_2차')
+      const crawling3Index = (headerRow as any[]).indexOf('크롤링_3차')
+      const crawling4Index = (headerRow as any[]).indexOf('크롤링_4차')
+      const category1Index = (headerRow as any[]).indexOf('1차카테고리')
+      const category2Index = (headerRow as any[]).indexOf('2차카테고리')
+      const category3Index = (headerRow as any[]).indexOf('3차카테고리')
+      const g2bIndex = (headerRow as any[]).indexOf('G2B')
+
+      // 매칭되는 행 찾기
+      for (let i = headerIndex + 1; i < data.length; i++) {
+        const row = data[i] as any[]
+        if (
+          row[crawling1Index] === categories[0] &&
+          row[crawling2Index] === categories[1] &&
+          row[crawling3Index] === categories[2] &&
+          (categories.length < 4 || row[crawling4Index] === categories[3])
+        ) {
+          return {
+            targetCategory1: row[category1Index],
+            targetCategory2: row[category2Index],
+            targetCategory3: row[category3Index],
+            g2bCode: row[g2bIndex],
+          }
+        }
+      }
+
+      this._log(`카테고리 매핑을 찾을 수 없습니다: ${categories.join(' > ')}`, 'warning')
+      return {}
+    } catch (error) {
+      this._log(`카테고리 매핑 실패: ${error.message}`, 'error')
+      return {}
+    }
+  }
+
+  // ---------------- 최종 엑셀 매핑 ----------------
+  private mapToExcelFormat(rawData: any, aiRefined: any, categoryMapped: any): any {
+    return {
+      카테고리1: categoryMapped.targetCategory1 || '',
+      카테고리2: categoryMapped.targetCategory2 || '',
+      카테고리3: categoryMapped.targetCategory3 || '',
+      등록구분: '물품',
+      물품명: aiRefined.물품명 || rawData.name || '',
+      규격: aiRefined.규격 || '',
+      모델명: aiRefined.모델명 || '',
+      제시금액: rawData.price || 0,
+      제조사: rawData.manufacturer || aiRefined.제조사 || '',
+      소재재질: aiRefined.소재재질 || '',
+      재고수량: 9999,
+      판매단위: '개',
+      보증기간: '1년',
+      납품가능기간: '7일',
+      견적서유효기간: '',
+      배송비종류: '유료',
+      배송비: 3000,
+      반품배송비: 3500,
+      묶음배송여부: 'Y',
+      제주배송여부: 'Y',
+      제주추가배송비: 5000,
+      상세설명HTML: rawData.detailOcrText ? `<p>${rawData.detailOcrText}</p>` : '',
+      기본이미지1: rawData.mainImages?.[0] || '',
+      기본이미지2: rawData.mainImages?.[1] || '',
+      추가이미지1: rawData.mainImages?.[2] || '',
+      추가이미지2: rawData.mainImages?.[3] || '',
+      상세이미지: rawData.detailImages?.[0] || '',
+      원산지구분: aiRefined.원산지구분 || '',
+      국내원산지: aiRefined.국내원산지 || '',
+      해외원산지: aiRefined.해외원산지 || '',
+      G2B물품목록번호: categoryMapped.g2bCode || '',
+      배송방법: '택배',
+      배송지역: '',
+      정격전압소비전력: '',
+      크기및무게: '',
+      동일모델출시년월: '',
+      냉난방면적: '',
+      제품구성: '',
+      안전표시: '',
+      용량: '',
+      주요사양: '',
+      소비기한선택: '',
+      소비기한입력: '',
+      어린이하차확인장치타입: '',
+      어린이하차확인장치인증번호: '',
+      어린이하차확인장치첨부파일: '',
+      안전확인대상타입: '',
+      안전확인대상신고번호: '',
+      안전확인대상첨부파일: '',
+      조달청계약여부: '',
+      계약시작일: '',
+      계약종료일: '',
+      전화번호: '',
+      제조사AS전화번호: '',
+      과세여부: '과세(세금계산서)',
+      어린이제품KC유형: '',
+      어린이제품KC인증번호: aiRefined.어린이제품KC인증번호 || '',
+      어린이제품KC성적서: '',
+      전기용품KC유형: '',
+      전기용품KC인증번호: aiRefined.전기용품KC인증번호 || '',
+      전기용품KC성적서: '',
+      생활용품KC유형: '',
+      생활용품KC인증번호: aiRefined.생활용품KC인증번호 || '',
+      생활용품KC성적서: '',
+      방송통신KC유형: '',
+      방송통신KC인증번호: aiRefined.방송통신KC인증번호 || '',
+      방송통신KC성적서: '',
+    }
+  }
+
   // ---------------- Normalized detail collection ----------------
   public async collectNormalizedDetailForUrls(urls: string[]): Promise<
     {
@@ -1763,12 +1940,15 @@ export class S2BAutomation {
       detailImages?: string[]
       detailOcrText?: string
       additionalInfo?: { label: string; value: string }[]
+      excelMapped?: any // 최종 엑셀 매핑 결과
     }[]
   > {
     if (!this.page) throw new Error('Browser page not initialized')
     const outputs: any[] = []
 
     for (const url of urls) {
+      this._log(`상품 데이터 수집 시작: ${url}`, 'info')
+
       const vendorKey = this.detectVendorByUrl(url)
       const vendor = vendorKey ? VENDOR_CONFIG[vendorKey] : undefined
 
@@ -1892,22 +2072,22 @@ export class S2BAutomation {
 
       // detail capture (already captured above using detail_image_xpath)
       // OCR for detail image
-      let detailOcrText: string | undefined
-      if (detailCapturePath) {
-        try {
-          this._log('상세이미지 OCR 분석 시작', 'info')
-          const { data } = await Tesseract.recognize(detailCapturePath, 'kor+eng')
-          const text = (data?.text || '').trim()
-          if (text) {
-            detailOcrText = text
-            this._log(`상세이미지 OCR 결과: ${text.substring(0, 200)}${text.length > 200 ? '…' : ''}`, 'info')
-          } else {
-            this._log('상세이미지 OCR 결과가 비어있습니다', 'warning')
-          }
-        } catch (err) {
-          this._log(`상세이미지 OCR 실패: ${err?.message || err}`, 'warning')
-        }
-      }
+      // let detailOcrText: string | undefined
+      // if (detailCapturePath) {
+      //   try {
+      //     this._log('상세이미지 OCR 분석 시작', 'info')
+      //     const { data } = await Tesseract.recognize(detailCapturePath, 'kor+eng')
+      //     const text = (data?.text || '').trim()
+      //     if (text) {
+      //       detailOcrText = text
+      //       this._log(`상세이미지 OCR 결과: ${text.substring(0, 200)}${text.length > 200 ? '…' : ''}`, 'info')
+      //     } else {
+      //       this._log('상세이미지 OCR 결과가 비어있습니다', 'warning')
+      //     }
+      //   } catch (err) {
+      //     this._log(`상세이미지 OCR 실패: ${err?.message || err}`, 'warning')
+      //   }
+      // }
 
       // additional info pairs (generic)
       let additionalInfo: { label: string; value: string }[] | undefined
@@ -1938,7 +2118,8 @@ export class S2BAutomation {
         if (collected.length > 0) additionalInfo = collected
       }
 
-      outputs.push({
+      // 1. 크롤링된 원본 데이터
+      const rawData = {
         url,
         vendor: vendorKey,
         name: name || undefined,
@@ -1954,8 +2135,27 @@ export class S2BAutomation {
         options,
         mainImages: savedMainImages,
         detailImages: detailCapturePath ? [detailCapturePath] : [],
-        detailOcrText,
+        // detailOcrText,
         additionalInfo,
+      }
+
+      this._log(`AI 데이터 정제 시작: ${name}`, 'info')
+
+      // 2. AI 데이터 정제
+      const aiRefined = await this.refineDataWithAI(rawData)
+
+      // 3. 카테고리 매핑
+      const categoryMapped =
+        categories && categories.length >= 3 ? await this.mapCategories(vendorKey || '', categories) : {}
+
+      // 4. 최종 엑셀 매핑
+      const excelMapped = this.mapToExcelFormat(rawData, aiRefined, categoryMapped)
+
+      this._log(`데이터 정제 완료: ${name}`, 'info')
+
+      outputs.push({
+        ...rawData,
+        excelMapped,
       })
     }
     return outputs
