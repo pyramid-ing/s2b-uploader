@@ -1436,14 +1436,31 @@ export class S2BAutomation {
     if (!this.page) throw new Error('브라우저가 초기화되지 않았습니다.')
     try {
       await this._gotoAndSearchListPageByRange(startDate, endDate, registrationStatus)
-      const products = await this.collectAllProductLinks()
-      await this.processExtendProducts(products)
+      const products = await this._collectAllProductLinks()
+      await this._processExtendProducts(products)
     } finally {
       await this.browser.close()
     }
   }
 
-  public async collectAllProductLinks(): Promise<{ name: string; link: string }[]> {
+  public async close(): Promise<void> {
+    if (this.context) {
+      await this.context.close()
+    }
+    if (this.browser) {
+      await this.browser.close()
+    }
+  }
+
+  // ==================== PRIVATE METHODS ====================
+
+  private _log(message: string, level: 'info' | 'warning' | 'error' = 'info'): void {
+    if (this.logCallback) {
+      this.logCallback(message, level)
+    }
+  }
+
+  private async _collectAllProductLinks(): Promise<{ name: string; link: string }[]> {
     const products: { name: string; link: string }[] = []
     let hasNextPage = true
     while (hasNextPage) {
@@ -1502,7 +1519,7 @@ export class S2BAutomation {
     return products
   }
 
-  public async processExtendProducts(
+  private async _processExtendProducts(
     products: {
       name: string
       link: string
@@ -1516,6 +1533,7 @@ export class S2BAutomation {
     for (const product of products) {
       try {
         await this.page.goto(product.link, { waitUntil: 'domcontentloaded' })
+        await this.page.waitForLoadState('domcontentloaded')
 
         // 관리일 연장 버튼 클릭
         const extendButton = this.page.locator('a[href^="javascript:fnLimitDateUpdate()"]')
@@ -1627,23 +1645,6 @@ export class S2BAutomation {
     return products // 처리 결과가 포함된 상품 목록 반환
   }
 
-  public async close(): Promise<void> {
-    if (this.context) {
-      await this.context.close()
-    }
-    if (this.browser) {
-      await this.browser.close()
-    }
-  }
-
-  // ==================== PRIVATE METHODS ====================
-
-  private _log(message: string, level: 'info' | 'warning' | 'error' = 'info'): void {
-    if (this.logCallback) {
-      this.logCallback(message, level)
-    }
-  }
-
   private async _readExcelStream(stream: fs.ReadStream): Promise<any[]> {
     return new Promise((resolve, reject) => {
       const chunks: Buffer[] = []
@@ -1719,6 +1720,7 @@ export class S2BAutomation {
     })
 
     // 페이지당 항목 수를 100개로 설정하고 적용
+    await this.page.waitForLoadState('domcontentloaded')
     await this.page.evaluate(() => {
       ;(document.querySelector('#rowCount') as HTMLSelectElement).value = '100'
       const setRowCountButton = document.querySelector('a[href^="javascript:setRowCount2()"]') as HTMLElement
@@ -1727,21 +1729,23 @@ export class S2BAutomation {
     await this.page.waitForLoadState('domcontentloaded')
 
     // 검색 조건 설정
-    await this.page.evaluate(
-      ({ start, end, status }: { start: string; end: string; status: string }) => {
-        ;(document.querySelector('#search_date') as HTMLSelectElement).value = 'LIMIT_DATE'
-        ;(document.querySelector('#search_date_start') as HTMLInputElement).value = start
-        ;(document.querySelector('#search_date_end') as HTMLInputElement).value = end
-        if (status) {
-          const radio = document.querySelector(`input[name="tgruStatus"][value="${status}"]`) as HTMLInputElement
-          if (radio) {
-            radio.checked = true
-            radio.dispatchEvent(new Event('change', { bubbles: true }))
-          }
-        }
-      },
-      { start: startDate, end: endDate, status: registrationStatus },
-    )
+    await this.page.waitForLoadState('domcontentloaded')
+
+    // 검색 날짜 타입 설정
+    await this.page.selectOption('#search_date', 'LIMIT_DATE')
+
+    // 시작일 설정
+    await this.page.fill('#search_date_start', startDate)
+
+    // 종료일 설정
+    await this.page.fill('#search_date_end', endDate)
+
+    // 등록상태 설정
+    if (registrationStatus) {
+      await this.page.check(`input[name="tgruStatus"][value="${registrationStatus}"]`)
+    }
+
+    // 검색 실행
     await this.page.click('[href^="javascript:search()"]')
     await this.page.waitForLoadState('domcontentloaded')
   }
