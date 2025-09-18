@@ -232,6 +232,7 @@ const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
 export class S2BAutomation {
   private browser: Browser | null = null
+  private settings: any = null
   private context: BrowserContext | null = null
   private page: Page | null = null
   private baseFilePath: string // 이미지 기본 경로
@@ -245,10 +246,12 @@ export class S2BAutomation {
     baseImagePath: string,
     logCallback: (message: string, level?: 'info' | 'warning' | 'error') => void,
     headless: boolean = false,
+    settings?: any,
   ) {
     this.baseFilePath = baseImagePath
     this.logCallback = logCallback
     this.headless = headless
+    this.settings = settings
 
     // OS별 Chrome 기본 설치 경로 설정
     if (process.platform === 'darwin') {
@@ -1851,7 +1854,12 @@ export class S2BAutomation {
   }
 
   // ---------------- 최종 엑셀 매핑 ----------------
-  private mapToExcelFormat(rawData: any, aiRefined: any, categoryMapped: any): any {
+  private mapToExcelFormat(rawData: any, aiRefined: any, categoryMapped: any, settings?: any): any {
+    // 마진율 적용하여 제시금액 계산 (100원 단위 올림)
+    const originalPrice = rawData.price || 0
+    const marginRate = settings?.marginRate || 20
+    const marginPrice = Math.ceil((originalPrice * (1 + marginRate / 100)) / 100) * 100
+
     return {
       카테고리1: categoryMapped.targetCategory1 || '',
       카테고리2: categoryMapped.targetCategory2 || '',
@@ -1860,7 +1868,8 @@ export class S2BAutomation {
       물품명: aiRefined.물품명 || rawData.name || '',
       규격: aiRefined.규격 || '',
       모델명: aiRefined.모델명 || '',
-      제시금액: rawData.price || 0,
+      제시금액: marginPrice,
+      원가: originalPrice, // 크롤링된 가격을 참고용으로 표시
       제조사: rawData.manufacturer || aiRefined.제조사 || '상세설명참고',
       소재재질: aiRefined.소재재질 || '상세설명참고',
       재고수량: 9999,
@@ -1874,7 +1883,7 @@ export class S2BAutomation {
       묶음배송여부: 'Y',
       제주배송여부: 'Y',
       제주추가배송비: 5000,
-      상세설명HTML: rawData.detailOcrText ? `<p>${rawData.detailOcrText}</p>` : '',
+      상세설명HTML: settings?.detailHtmlTemplate || '<p>상세설명을 입력하세요.</p>',
       기본이미지1: rawData.mainImages?.[0] || '',
       기본이미지2: rawData.mainImages?.[1] || '',
       추가이미지1: rawData.mainImages?.[2] || '',
@@ -2148,8 +2157,8 @@ export class S2BAutomation {
       const categoryMapped =
         categories && categories.length >= 3 ? await this.mapCategories(vendorKey || '', categories) : {}
 
-      // 4. 최종 엑셀 매핑
-      const excelMapped = this.mapToExcelFormat(rawData, aiRefined, categoryMapped)
+      // 4. 최종 엑셀 매핑 (설정 전달)
+      const excelMapped = this.mapToExcelFormat(rawData, aiRefined, categoryMapped, this.settings)
 
       this._log(`데이터 정제 완료: ${name}`, 'info')
 

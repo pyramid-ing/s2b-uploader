@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react'
+import React, { useMemo, useState, useEffect } from 'react'
 import { Button, Card, Divider, Form, Input, message, Select, Space, Table, Typography, Tooltip } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { DeleteOutlined, PlusOutlined, SendOutlined, DownloadOutlined } from '@ant-design/icons'
@@ -26,11 +26,45 @@ const Sourcing: React.FC = () => {
   const [vendor, setVendor] = useState<string>(VENDORS[0].value)
   const [urlInput, setUrlInput] = useState<string>('')
   const [marginRate, setMarginRate] = useState<number>(20)
+  const [detailHtmlTemplate, setDetailHtmlTemplate] = useState<string>('<p>상세설명을 입력하세요.</p>')
   const [items, setItems] = useState<SourcingItem[]>([])
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
   const [loading, setLoading] = useState(false)
 
   const hasSelection = selectedRowKeys.length > 0
+
+  // 설정 불러오기
+  useEffect(() => {
+    loadSettings()
+  }, [])
+
+  const loadSettings = async () => {
+    try {
+      const settings = await ipcRenderer.invoke('get-settings')
+      if (settings) {
+        setMarginRate(settings.marginRate || 20)
+        setDetailHtmlTemplate(settings.detailHtmlTemplate || '<p>상세설명을 입력하세요.</p>')
+      }
+    } catch (error) {
+      console.error('설정 불러오기 실패:', error)
+    }
+  }
+
+  const saveSettings = async () => {
+    try {
+      const settings = await ipcRenderer.invoke('get-settings')
+      const updatedSettings = {
+        ...settings,
+        marginRate,
+        detailHtmlTemplate,
+      }
+      await ipcRenderer.invoke('save-settings', updatedSettings)
+      message.success('설정이 저장되었습니다.')
+    } catch (error) {
+      console.error('설정 저장 실패:', error)
+      message.error('설정 저장에 실패했습니다.')
+    }
+  }
 
   const columns: ColumnsType<SourcingItem> = useMemo(
     () => [
@@ -258,7 +292,7 @@ const Sourcing: React.FC = () => {
       </Card>
 
       <Card title="세팅">
-        <Space>
+        <Space direction="vertical" size="middle" style={{ width: '100%' }}>
           <Form layout="inline">
             <Form.Item label="마진율(%)">
               <Input
@@ -270,6 +304,22 @@ const Sourcing: React.FC = () => {
               />
             </Form.Item>
           </Form>
+          <Form.Item label="상세설명 HTML">
+            <Input.TextArea
+              value={detailHtmlTemplate}
+              onChange={e => setDetailHtmlTemplate(e.target.value)}
+              placeholder="상세설명 HTML을 입력하세요..."
+              rows={4}
+              style={{ width: '100%' }}
+            />
+          </Form.Item>
+          <Divider />
+
+          <Form.Item>
+            <Button type="primary" onClick={saveSettings}>
+              설정 저장
+            </Button>
+          </Form.Item>
         </Space>
       </Card>
 

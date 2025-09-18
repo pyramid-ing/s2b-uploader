@@ -139,6 +139,8 @@ interface StoreSchema {
     registrationDelay: string
     imageOptimize: boolean
     headless: boolean
+    marginRate: number
+    detailHtmlTemplate: string
   }
 }
 
@@ -153,6 +155,8 @@ const store = new Store<StoreSchema>({
       registrationDelay: '',
       imageOptimize: false,
       headless: false,
+      marginRate: 20,
+      detailHtmlTemplate: '<p>상세설명을 입력하세요.</p>',
     },
   },
   // 중요한 데이터는 암호화
@@ -290,7 +294,8 @@ function setupIpcHandlers() {
       }
 
       sendLogToRenderer(`엑셀 데이터 로드 시작: ${resolvedExcelPath}`, 'info')
-      const automation = new S2BAutomation(resolvedFileDir, sendLogToRenderer)
+      const settings = store.get('settings')
+      const automation = new S2BAutomation(resolvedFileDir, sendLogToRenderer, settings.headless, settings)
       const data = await automation.readExcelFile(resolvedExcelPath)
       return data
     } catch (error) {
@@ -307,7 +312,7 @@ function setupIpcHandlers() {
       sendLogToRenderer('자동화 시작', 'info')
 
       const settings = store.get('settings')
-      automation = new S2BAutomation(settings.fileDir, sendLogToRenderer, settings.headless)
+      automation = new S2BAutomation(settings.fileDir, sendLogToRenderer, settings.headless, settings)
 
       await automation.start()
       sendLogToRenderer('브라우저 시작 완료', 'info')
@@ -375,7 +380,7 @@ function setupIpcHandlers() {
   ipcMain.handle('sourcing-open-site', async (_, { vendor }: { vendor: string }) => {
     try {
       const settings = store.get('settings')
-      automation = new S2BAutomation(settings.fileDir, sendLogToRenderer, settings.headless)
+      automation = new S2BAutomation(settings.fileDir, sendLogToRenderer, settings.headless, settings)
       await automation.start()
       const baseUrl = vendor === 'domeggook' ? 'https://www.domeggook.com/' : 'https://www.domesin.com/'
       await automation.openUrl(baseUrl)
@@ -402,7 +407,7 @@ function setupIpcHandlers() {
   ipcMain.handle('sourcing-collect-list', async (_, { url }: { url: string }) => {
     try {
       const settings = store.get('settings')
-      automation = new S2BAutomation(settings.fileDir, sendLogToRenderer, settings.headless)
+      automation = new S2BAutomation(settings.fileDir, sendLogToRenderer, settings.headless, settings)
       await automation.start()
       const list = await automation.collectListFromUrl(url)
       await automation.close()
@@ -416,7 +421,7 @@ function setupIpcHandlers() {
   ipcMain.handle('sourcing-collect-details', async (_, { urls }: { urls: string[] }) => {
     try {
       const settings = store.get('settings')
-      automation = new S2BAutomation(settings.fileDir, sendLogToRenderer, settings.headless)
+      automation = new S2BAutomation(settings.fileDir, sendLogToRenderer, settings.headless, settings)
       await automation.start()
       const details = await automation.collectNormalizedDetailForUrls(urls)
       await automation.close()
@@ -480,7 +485,7 @@ function setupIpcHandlers() {
   ipcMain.handle('extend-management-date', async (_, { startDate, endDate, registrationStatus }) => {
     try {
       const settings = store.get('settings')
-      automation = new S2BAutomation(settings.fileDir, sendLogToRenderer, settings.headless)
+      automation = new S2BAutomation(settings.fileDir, sendLogToRenderer, settings.headless, settings)
 
       await automation.start()
       sendLogToRenderer('브라우저 시작 완료', 'info')
@@ -542,6 +547,7 @@ function setupIpcHandlers() {
         { wch: 20 }, // 규격
         { wch: 20 }, // 모델명
         { wch: 12 }, // 제시금액
+        { wch: 12 }, // 원가
         { wch: 15 }, // 제조사
         { wch: 15 }, // 소재재질
         { wch: 10 }, // 재고수량
