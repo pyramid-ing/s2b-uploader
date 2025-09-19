@@ -9,6 +9,7 @@ import axios from 'axios'
 import crypto from 'crypto'
 import FileType from 'file-type'
 import sharp from 'sharp'
+import { pick } from 'lodash'
 import { VENDOR_CONFIG, VendorKey, VendorConfig, normalizeUrl } from './sourcing-config'
 
 interface RawSourcingData {
@@ -1871,16 +1872,7 @@ export class S2BAutomation {
     try {
       const response = await axios.post(
         'https://n8n.pyramid-ing.com/webhook/s2b-sourcing',
-        {
-          url: data.url,
-          vendor: data.vendor,
-          name: data.name,
-          shippingFee: data.shippingFee,
-          certifications: data.certifications,
-          origin: data.origin,
-          manufacturer: data.manufacturer,
-          additionalInfo: data.additionalInfo,
-        },
+        pick(data, ['name', 'shippingFee', 'origin', 'manufacturer', 'options', 'additionalInfo']),
         {
           headers: {
             'Content-Type': 'application/json',
