@@ -11,6 +11,26 @@ import FileType from 'file-type'
 import sharp from 'sharp'
 import { VENDOR_CONFIG, VendorKey, VendorConfig, normalizeUrl } from './sourcing-config'
 
+interface RawSourcingData {
+  url: string
+  vendor: VendorKey | null
+  name?: string
+  productCode?: string
+  categories: string[]
+  price?: number
+  shippingFee?: string
+  minPurchase?: number
+  imageUsage?: string
+  certifications?: { type: string; number: string }[]
+  origin?: string
+  manufacturer?: string
+  options?: { name: string; price?: number; qty?: number }[][]
+  mainImages: string[]
+  detailImages: string[]
+  additionalInfo?: { label: string; value: string }[]
+  // detailOcrText?: string
+}
+
 interface ProductData {
   // 등록구분을 위한 텍스트 값
   saleTypeText: SaleType
@@ -1847,7 +1867,7 @@ export class S2BAutomation {
   }
 
   // ---------------- AI 데이터 정제 ----------------
-  private async refineDataWithAI(data: any): Promise<any> {
+  private async refineDataWithAI(data: RawSourcingData): Promise<any> {
     try {
       const response = await axios.post(
         'https://n8n.pyramid-ing.com/webhook/s2b-sourcing',
@@ -2032,29 +2052,17 @@ export class S2BAutomation {
 
   // ---------------- Normalized detail collection ----------------
   public async collectNormalizedDetailForUrls(urls: string[]): Promise<
-    {
-      url: string
-      vendor: VendorKey | null
-      name?: string
-      productCode?: string
-      categories?: string[]
-      price?: number
-      shippingFee?: string
-      origin?: string
-      manufacturer?: string
-      options?: { name: string; price?: number; qty?: number }[][]
-      mainImages?: string[]
-      detailImages?: string[]
-      detailOcrText?: string
-      additionalInfo?: { label: string; value: string }[]
+    (RawSourcingData & {
       excelMapped?: any // 최종 엑셀 매핑 결과
-    }[]
+    })[]
   > {
     // 소싱용 브라우저로 전환
     await this.launchSourcing()
 
     if (!this.page) throw new Error('Browser page not initialized')
-    const outputs: any[] = []
+    const outputs: (RawSourcingData & {
+      excelMapped?: any
+    })[] = []
 
     for (const url of urls) {
       this._log(`상품 데이터 수집 시작: ${url}`, 'info')
@@ -2229,7 +2237,7 @@ export class S2BAutomation {
       }
 
       // 1. 크롤링된 원본 데이터
-      const rawData = {
+      const rawData: RawSourcingData = {
         url,
         vendor: vendorKey,
         name: name || undefined,
