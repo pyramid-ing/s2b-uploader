@@ -2169,12 +2169,20 @@ export class S2BAutomation {
       카테고리3: categoryMapped.targetCategory3 || '',
       등록구분: '물품',
       물품명: aiRefined.물품명 || rawData.name || '',
-      규격: aiRefined.additionalInfo?.map((info: any) => info.value).join(', ') || '',
+      규격: (() => {
+        const baseSpec = aiRefined.additionalInfo?.map((info: any) => info.value).join(', ') || ''
+        const minPurchase = rawData.minPurchase || 1
+        if (minPurchase > 1) {
+          return baseSpec ? `${baseSpec}, 최소구매수량: ${minPurchase}개` : `최소구매수량: ${minPurchase}개`
+        }
+        return baseSpec
+      })(),
       모델명: aiRefined.모델명 || '상세설명참고',
       원가: originalPrice, // 참고용
       이미지사용허가: aiRefined.이미지사용여부 || '', // 참고용
       제조사: rawData.manufacturer || '상세설명참고',
       '소재/재질': aiRefined.소재재질 || '상세설명참고',
+      최소구매수량: rawData.minPurchase || 1, // 참고용
       판매단위: '개',
       보증기간: '1년',
       납품가능기간: '7일',
