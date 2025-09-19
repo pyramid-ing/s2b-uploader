@@ -34,7 +34,6 @@ interface SourcingCrawlData {
 
 interface AIRefinedResult {
   물품명: string
-  규격: string
   모델명: string
   '소재/재질': string
   원산지구분: '국내' | '국외'
@@ -538,7 +537,7 @@ export class S2BAutomation {
 
   public async collectNormalizedDetailForUrls(urls: string[]): Promise<
     (SourcingCrawlData & {
-      excelMapped?: any // 최종 엑셀 매핑 결과
+      excelMapped?: any[] // 최종 엑셀 매핑 결과 (옵션별로 배열)
     })[]
   > {
     // 소싱용 브라우저로 전환
@@ -546,7 +545,7 @@ export class S2BAutomation {
 
     if (!this.page) throw new Error('Browser page not initialized')
     const outputs: (SourcingCrawlData & {
-      excelMapped?: any
+      excelMapped?: any[]
     })[] = []
 
     for (const url of urls) {
@@ -2158,27 +2157,24 @@ export class S2BAutomation {
   }
 
   // ---------------- 최종 엑셀 매핑 ----------------
-  private mapToExcelFormat(rawData: any, aiRefined: any, categoryMapped: any, settings?: any): any {
-    // 마진율 적용하여 제시금액 계산 (100원 단위 올림)
+  private mapToExcelFormat(rawData: any, aiRefined: any, categoryMapped: any, settings?: any): any[] {
     const originalPrice = rawData.price || 0
     const marginRate = settings?.marginRate || 20
-    const marginPrice = Math.ceil((originalPrice * (1 + marginRate / 100)) / 100) * 100
 
-    return {
+    // 기본 상품 정보
+    const baseProduct = {
       'G2B 물품목록번호': categoryMapped.g2bCode || '',
       카테고리1: categoryMapped.targetCategory1 || '',
       카테고리2: categoryMapped.targetCategory2 || '',
       카테고리3: categoryMapped.targetCategory3 || '',
       등록구분: '물품',
       물품명: aiRefined.물품명 || rawData.name || '',
-      규격: aiRefined.규격 || '',
+      규격: aiRefined.additionalInfo?.map((info: any) => info.value).join(', ') || '',
       모델명: aiRefined.모델명 || '상세설명참고',
-      제시금액: marginPrice,
       원가: originalPrice, // 참고용
       이미지사용허가: aiRefined.이미지사용여부 || '', // 참고용
-      제조사: rawData.manufacturer || aiRefined.제조사 || '상세설명참고',
+      제조사: rawData.manufacturer || '상세설명참고',
       '소재/재질': aiRefined.소재재질 || '상세설명참고',
-      재고수량: 9999,
       판매단위: '개',
       보증기간: '1년',
       납품가능기간: '7일',
@@ -2235,6 +2231,25 @@ export class S2BAutomation {
       방송통신KC인증번호: aiRefined.방송통신KC인증번호 || '',
       방송통신KC성적서: '',
     }
+
+    // 옵션이 있는 경우 옵션별로 상품 생성
+    if (aiRefined.options && aiRefined.options.length > 0) {
+      return aiRefined.options.map((option: any) => ({
+        ...baseProduct,
+        물품명: `${baseProduct.물품명} - ${option.name}`,
+        제시금액: Math.ceil(((originalPrice + (option.price || 0)) * (1 + marginRate / 100)) / 100) * 100,
+        재고수량: Math.min(option.qty || 9999, 9999),
+      }))
+    }
+
+    // 옵션이 없는 경우 기본 상품 1개 반환
+    return [
+      {
+        ...baseProduct,
+        제시금액: Math.ceil((originalPrice * (1 + marginRate / 100)) / 100) * 100,
+        재고수량: 9999,
+      },
+    ]
   }
 
   // ---------------- Normalized detail collection ----------------

@@ -526,13 +526,20 @@ function setupIpcHandlers() {
       // 워크북 생성
       const workbook = XLSX.utils.book_new()
 
-      // excelMapped 데이터를 그대로 사용
-      const excelData = sourcingItems.map((item: any) => {
-        if (item.excelMapped) {
-          // 이미 excelMapped가 있는 경우 그대로 사용
-          return item.excelMapped
+      // excelMapped 데이터를 평면화하여 사용
+      const excelData: any[] = []
+      sourcingItems.forEach((item: any) => {
+        if (item.excelMapped && Array.isArray(item.excelMapped)) {
+          // excelMapped 배열의 각 항목을 개별 행으로 추가
+          item.excelMapped.forEach((mappedItem: any) => {
+            excelData.push(mappedItem)
+          })
         }
       })
+
+      if (excelData.length === 0) {
+        throw new Error('다운로드할 데이터가 없습니다.')
+      }
 
       // 워크시트 생성
       const worksheet = XLSX.utils.json_to_sheet(excelData)
@@ -549,7 +556,7 @@ function setupIpcHandlers() {
         success: true,
         filePath,
         fileName,
-        recordCount: sourcingItems.length,
+        recordCount: excelData.length, // 실제 엑셀에 저장된 행 수
       }
     } catch (error) {
       console.error('Sourcing Excel download failed:', error)
