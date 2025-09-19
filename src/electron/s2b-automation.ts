@@ -32,6 +32,21 @@ interface RawSourcingData {
   // detailOcrText?: string
 }
 
+interface AIRefinedResult {
+  물품명: string
+  규격: string
+  모델명: string
+  소재재질: string
+  원산지구분: '국내' | '국외'
+  국내원산지: string
+  해외원산지: string
+  어린이제품KC인증번호: string
+  전기용품KC인증번호: string
+  생활용품KC인증번호: string
+  방송통신KC인증번호: string
+  이미지사용여부: '허용' | '불가' | '모름'
+}
+
 interface ProductData {
   // 등록구분을 위한 텍스트 값
   saleTypeText: SaleType
@@ -1868,11 +1883,11 @@ export class S2BAutomation {
   }
 
   // ---------------- AI 데이터 정제 ----------------
-  private async refineDataWithAI(data: RawSourcingData): Promise<any> {
+  private async refineDataWithAI(data: RawSourcingData): Promise<AIRefinedResult> {
     try {
       const response = await axios.post(
         'https://n8n.pyramid-ing.com/webhook/s2b-sourcing',
-        pick(data, ['name', 'shippingFee', 'origin', 'manufacturer', 'options', 'additionalInfo']),
+        pick(data, ['name', 'shippingFee', 'imageUsage', 'origin', 'manufacturer', 'options', 'additionalInfo']),
         {
           headers: {
             'Content-Type': 'application/json',
@@ -1880,10 +1895,10 @@ export class S2BAutomation {
         },
       )
 
-      return response.data.output || {}
+      return response.data.output || ({} as AIRefinedResult)
     } catch (error) {
       this._log(`AI 데이터 정제 실패: ${error.message}`, 'error')
-      return {}
+      return {} as AIRefinedResult
     }
   }
 
@@ -1979,7 +1994,8 @@ export class S2BAutomation {
       규격: aiRefined.규격 || '',
       모델명: aiRefined.모델명 || '',
       제시금액: marginPrice,
-      원가: originalPrice, // 크롤링된 가격을 참고용으로 표시
+      원가: originalPrice, // 참고용
+      이미지사용허가: aiRefined.이미지사용여부 || '', // 참고용
       제조사: rawData.manufacturer || aiRefined.제조사 || '상세설명참고',
       '소재/재질': aiRefined.소재재질 || '상세설명참고',
       재고수량: 9999,
