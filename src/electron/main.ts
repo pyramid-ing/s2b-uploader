@@ -314,8 +314,8 @@ function setupIpcHandlers() {
       const settings = store.get('settings')
       automation = new S2BAutomation(settings.fileDir, sendLogToRenderer, settings.headless, settings)
 
-      await automation.start()
-      sendLogToRenderer('브라우저 시작 완료', 'info')
+      await automation.launchRegistration()
+      sendLogToRenderer('상품등록 브라우저 시작 완료', 'info')
 
       await automation.login(settings.loginId, settings.loginPw)
       sendLogToRenderer(`로그인 성공 (ID: ${settings.loginId})`, 'info')
@@ -381,7 +381,7 @@ function setupIpcHandlers() {
     try {
       const settings = store.get('settings')
       automation = new S2BAutomation(settings.fileDir, sendLogToRenderer, settings.headless, settings)
-      await automation.start()
+      await automation.launchSourcing()
       const baseUrl = vendor === 'domeggook' ? 'https://www.domeggook.com/' : 'https://www.domesin.com/'
       await automation.openUrl(baseUrl)
       return { success: true, url: automation.getCurrentUrl() }
@@ -408,7 +408,7 @@ function setupIpcHandlers() {
     try {
       const settings = store.get('settings')
       automation = new S2BAutomation(settings.fileDir, sendLogToRenderer, settings.headless, settings)
-      await automation.start()
+      await automation.launchSourcing()
       const list = await automation.collectListFromUrl(url)
       await automation.close()
       return { success: true, items: list }
@@ -422,7 +422,7 @@ function setupIpcHandlers() {
     try {
       const settings = store.get('settings')
       automation = new S2BAutomation(settings.fileDir, sendLogToRenderer, settings.headless, settings)
-      await automation.start()
+      await automation.launchSourcing()
       const details = await automation.collectNormalizedDetailForUrls(urls)
       await automation.close()
       return { success: true, items: details }
@@ -487,8 +487,8 @@ function setupIpcHandlers() {
       const settings = store.get('settings')
       automation = new S2BAutomation(settings.fileDir, sendLogToRenderer, settings.headless, settings)
 
-      await automation.start()
-      sendLogToRenderer('브라우저 시작 완료', 'info')
+      await automation.launchManagement()
+      sendLogToRenderer('관리일 연장 브라우저 시작 완료', 'info')
 
       await automation.login(settings.loginId, settings.loginPw)
       sendLogToRenderer(`로그인 성공 (ID: ${settings.loginId})`, 'info')

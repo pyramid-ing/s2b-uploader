@@ -230,7 +230,24 @@ const VALID_DELIVERY_AREAS = [
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
+interface BrowserInstance {
+  browser: Browser | null
+  context: BrowserContext | null
+  page: Page | null
+}
+
 export class S2BAutomation {
+  // 기능별로 별개의 브라우저 관리
+  private static browsers: {
+    sourcing: BrowserInstance
+    registration: BrowserInstance
+    management: BrowserInstance
+  } = {
+    sourcing: { browser: null, context: null, page: null },
+    registration: { browser: null, context: null, page: null },
+    management: { browser: null, context: null, page: null },
+  }
+
   private browser: Browser | null = null
   private settings: any = null
   private context: BrowserContext | null = null
@@ -451,20 +468,48 @@ export class S2BAutomation {
     })
   }
 
-  public async start(): Promise<void> {
-    this.browser = await chromium.launch({
-      headless: this.headless,
-      executablePath: this.chromePath, // Chrome 실행 파일 경로 지정
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
-    })
+  // 소싱용 브라우저 시작
+  public async launchSourcing(): Promise<void> {
+    await this._launchBrowser('sourcing')
+  }
 
-    this.context = await this.browser.newContext({
-      viewport: null,
-    })
+  // 상품등록용 브라우저 시작
+  public async launchRegistration(): Promise<void> {
+    await this._launchBrowser('registration')
+  }
 
-    this.page = await this.context.newPage()
+  // 관리일 연장용 브라우저 시작
+  public async launchManagement(): Promise<void> {
+    await this._launchBrowser('management')
+  }
 
-    // 팝업 감지 및 처리
+  // 브라우저 시작 공통 메서드
+  private async _launchBrowser(type: keyof typeof S2BAutomation.browsers): Promise<void> {
+    const browserInstance = S2BAutomation.browsers[type]
+
+    if (!browserInstance.browser) {
+      browserInstance.browser = await chromium.launch({
+        headless: this.headless,
+        executablePath: this.chromePath,
+        args: ['--no-sandbox', '--disable-setuid-sandbox'],
+      })
+
+      browserInstance.context = await browserInstance.browser.newContext({
+        viewport: null,
+      })
+
+      browserInstance.page = await browserInstance.context.newPage()
+    }
+
+    this.browser = browserInstance.browser
+    this.context = browserInstance.context
+    this.page = browserInstance.page
+  }
+
+  // 팝업 감지 및 처리 설정 (상품등록용)
+  private setupRegistrationPopupHandlers(): void {
+    if (!this.context) return
+
     this.context.on('page', async newPage => {
       const url = newPage.url()
       console.log(`Detected popup with URL: ${url}`)
@@ -538,6 +583,10 @@ export class S2BAutomation {
   }
 
   public async registerProduct(data: ProductData): Promise<void> {
+    // 상품등록용 브라우저로 전환
+    await this.launchRegistration()
+    this.setupRegistrationPopupHandlers()
+
     if (!this.page) throw new Error('브라우저가 초기화되지 않았습니다.')
 
     this.dialogErrorMessage = null // 초기화
@@ -1444,23 +1493,66 @@ export class S2BAutomation {
     endDate: string,
     registrationStatus: string = '',
   ): Promise<void> {
+    // 관리일 연장용 브라우저로 전환
+    await this.launchManagement()
+
     if (!this.page) throw new Error('브라우저가 초기화되지 않았습니다.')
     try {
       await this._gotoAndSearchListPageByRange(startDate, endDate, registrationStatus)
       const products = await this._collectAllProductLinks()
       await this._processExtendProducts(products)
     } finally {
-      await this.browser.close()
+      // 관리용 브라우저는 닫지 않음 (다른 인스턴스에서 사용할 수 있음)
     }
   }
 
   public async close(): Promise<void> {
-    if (this.context) {
-      await this.context.close()
+    // 인스턴스 변수만 초기화 (공유 브라우저/페이지는 유지)
+    this.page = null
+    this.context = null
+    this.browser = null
+  }
+
+  // 소싱 브라우저 종료
+  public static async closeSourcingBrowser(): Promise<void> {
+    await S2BAutomation._closeBrowser('sourcing')
+  }
+
+  // 상품등록 브라우저 종료
+  public static async closeRegistrationBrowser(): Promise<void> {
+    await S2BAutomation._closeBrowser('registration')
+  }
+
+  // 관리일 연장 브라우저 종료
+  public static async closeManagementBrowser(): Promise<void> {
+    await S2BAutomation._closeBrowser('management')
+  }
+
+  // 브라우저 종료 공통 메서드
+  private static async _closeBrowser(type: keyof typeof S2BAutomation.browsers): Promise<void> {
+    const browserInstance = S2BAutomation.browsers[type]
+
+    if (browserInstance.page) {
+      await browserInstance.page.close()
+      browserInstance.page = null
     }
-    if (this.browser) {
-      await this.browser.close()
+    if (browserInstance.context) {
+      await browserInstance.context.close()
+      browserInstance.context = null
     }
+    if (browserInstance.browser) {
+      await browserInstance.browser.close()
+      browserInstance.browser = null
+    }
+  }
+
+  // 모든 브라우저 종료
+  public static async closeAllBrowsers(): Promise<void> {
+    await Promise.all([
+      S2BAutomation._closeBrowser('sourcing'),
+      S2BAutomation._closeBrowser('registration'),
+      S2BAutomation._closeBrowser('management'),
+    ])
   }
 
   // ==================== PRIVATE METHODS ====================
@@ -1556,6 +1648,9 @@ export class S2BAutomation {
   }
 
   public async collectListFromUrl(targetUrl: string): Promise<{ name: string; url: string; price?: number }[]> {
+    // 소싱용 브라우저로 전환
+    await this.launchSourcing()
+
     if (!this.page) throw new Error('Browser page not initialized')
 
     const vendorKey = this.detectVendorByUrl(targetUrl)
@@ -1665,6 +1760,9 @@ export class S2BAutomation {
   public async collectDetailForUrls(
     urls: string[],
   ): Promise<{ name: string; url: string; price?: number; productCode?: string }[]> {
+    // 소싱용 브라우저로 전환
+    await this.launchSourcing()
+
     if (!this.page) throw new Error('Browser page not initialized')
     const results: { name: string; url: string; price?: number; productCode?: string }[] = []
 
@@ -1952,6 +2050,9 @@ export class S2BAutomation {
       excelMapped?: any // 최종 엑셀 매핑 결과
     }[]
   > {
+    // 소싱용 브라우저로 전환
+    await this.launchSourcing()
+
     if (!this.page) throw new Error('Browser page not initialized')
     const outputs: any[] = []
 
