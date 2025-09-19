@@ -44,7 +44,6 @@ interface AIRefinedResult {
   생활용품KC인증번호: string
   방송통신KC인증번호: string
   이미지사용여부: '허용' | '불가' | '모름'
-  속성: string[]
   options: { name: string; price: number; qty: number }[]
   additionalInfo: { label: string; value: string }[]
 }
