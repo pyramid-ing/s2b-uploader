@@ -47,6 +47,20 @@ interface AIRefinedResult {
   이미지사용여부: '허용' | '불가' | '모름'
 }
 
+interface ExtractedBasicInfo {
+  name: string | null
+  productCode: string | null
+  price: number | null
+  shippingFee: string | null
+  minPurchase?: number
+  imageUsage?: string
+  certifications?: { type: string; number: string }[]
+  origin: string | null
+  manufacturer: string | null
+  categories: string[]
+  options?: { name: string; price?: number; qty?: number }[][]
+}
+
 interface ProductData {
   // 등록구분을 위한 텍스트 값
   saleTypeText: SaleType
@@ -535,183 +549,45 @@ export class S2BAutomation {
     for (const url of urls) {
       this._log(`상품 데이터 수집 시작: ${url}`, 'info')
 
-      const vendorKey = this._detectVendorByUrl(url)
-      const vendor = vendorKey ? VENDOR_CONFIG[vendorKey] : undefined
+      const { vendorKey, vendor } = this._getVendor(url)
 
-      await this.page.goto(url, { waitUntil: 'domcontentloaded' })
+      await this._navigateToUrl(url)
 
-      const name = vendor ? await this._textByXPath(vendor.product_name_xpath) : null
-      const productCodeText = vendor?.product_code_xpath ? await this._textByXPath(vendor.product_code_xpath) : null
-      const productCode = productCodeText ? productCodeText.replace(/[^0-9]/g, '') : null
-
-      let priceText: string | null = null
-      if (vendor?.price_xpaths && vendor.price_xpaths.length) {
-        for (const px of vendor.price_xpaths) {
-          priceText = await this._textByXPath(px)
-          if (priceText) break
-        }
-      } else if (vendor?.price_xpath) {
-        priceText = await this._textByXPath(vendor.price_xpath)
-      }
-      const price = this._parsePrice(priceText)
-
-      const shippingFee = vendor?.shipping_fee_xpath ? await this._textByXPath(vendor.shipping_fee_xpath) : null
-      let minPurchase: number | undefined
-      if (vendor?.min_purchase_xpath) {
-        const mp = await this._textByXPath(vendor.min_purchase_xpath)
-        if (mp) {
-          const d = mp.replace(/[^0-9]/g, '')
-          if (d) minPurchase = Number(d)
-        }
-      }
-
-      let imageUsage: string | undefined
-      if (vendor?.image_usage_xpath) {
-        const usage = await this._textByXPath(vendor.image_usage_xpath)
-        if (usage) {
-          imageUsage = usage.trim()
-        }
-      }
-
-      let certifications: { type: string; number: string }[] | undefined
-      if (vendor?.certification_xpath) {
-        const certItems = await this.page.$$eval(`xpath=${vendor.certification_xpath}`, nodes => {
-          return Array.from(nodes)
-            .map(li => {
-              const titleEl = li.querySelector('.lCertTitle')
-              const numEl = li.querySelector('.lCertNum')
-              const type = titleEl ? titleEl.textContent?.trim() || '' : ''
-              const number = numEl ? numEl.textContent?.replace(/자세히보기.*/, '').trim() || '' : ''
-              return { type, number }
-            })
-            .filter(cert => cert.type && cert.number)
-        })
-        if (certItems.length > 0) {
-          certifications = certItems
-        }
-      }
-      const origin = vendor?.origin_xpath ? await this._textByXPath(vendor.origin_xpath) : null
-      let manufacturer = vendor?.manufacturer_xpath ? await this._textByXPath(vendor.manufacturer_xpath) : null
-      if ((!manufacturer || !manufacturer.trim()) && vendor?.fallback_manufacturer) {
-        manufacturer = vendor.fallback_manufacturer
-      }
-
-      const categories: string[] = []
-      for (const cx of [
-        vendor?.category_1_xpath,
-        vendor?.category_2_xpath,
-        vendor?.category_3_xpath,
-        vendor?.category_4_xpath,
-      ]) {
-        if (!cx) continue
-        const val = await this._textByXPath(cx)
-        if (val) categories.push(val)
-      }
-
-      // options
-      let options: { name: string; price?: number; qty?: number }[][] | undefined
-      if (vendor?.option_xpath && vendor.option_xpath.length > 0) {
-        options = await this._collectOptionsByXpaths(vendor.option_xpath)
-      } else {
-        const xpaths: string[] = []
-        if (vendor?.option1_item_xpaths) xpaths.push(vendor.option1_item_xpaths)
-        if (vendor?.option2_item_xpaths) xpaths.push(vendor.option2_item_xpaths)
-        if (xpaths.length > 0) {
-          options = await this._collectOptionsByXpaths(xpaths)
-        }
-      }
-
-      // images - main
-      const mainImageUrls: string[] = vendor?.main_image_xpath
-        ? await this.page.$$eval(`xpath=${vendor.main_image_xpath}`, nodes =>
-            Array.from(nodes)
-              .map(n => (n as HTMLImageElement).src || (n as HTMLSourceElement).getAttribute('srcset') || '')
-              .filter(Boolean),
-          )
-        : []
-
-      // detail capture as single image from container xpath
-      let detailCapturePath: string | null = null
-      if (vendor?.detail_image_xpath) {
-        const tempDir = path.join(this.baseFilePath, 'temp')
-        if (!fsSync.existsSync(tempDir)) fsSync.mkdirSync(tempDir, { recursive: true })
-        detailCapturePath = await this._screenshotElement(
-          path.join(tempDir, `detail_capture_${Date.now()}.jpg`),
-          vendor.detail_image_xpath,
-        )
-      }
-
-      // download and convert jpg into temp dir
-      const savedMainImages: string[] = []
-      const tempDir = path.join(this.baseFilePath, 'temp')
-      if (!fsSync.existsSync(tempDir)) fsSync.mkdirSync(tempDir, { recursive: true })
-      // save main images first
-      for (let i = 0; i < mainImageUrls.length; i++) {
-        const buf = await this._downloadToBuffer(mainImageUrls[i])
-        if (!buf) continue
-        const outPath = path.join(tempDir, `main_${Date.now()}_${i}.jpg`)
-        await this._saveJpg(buf, outPath)
-        savedMainImages.push(outPath)
-      }
-
-      // additional info pairs (generic)
-      let additionalInfo: { label: string; value: string }[] | undefined
-      if (vendor?.additional_info_pairs && vendor.additional_info_pairs.length > 0) {
-        const collected: { label: string; value: string }[] = []
-        for (const pair of vendor.additional_info_pairs) {
-          try {
-            const labels: string[] = pair.label_xpath
-              ? await this.page.$$eval(`xpath=${pair.label_xpath}`, nodes =>
-                  Array.from(nodes)
-                    .map(n => (n.textContent || '').trim())
-                    .filter(Boolean),
-                )
-              : []
-            const values: string[] = pair.value_xpath
-              ? await this.page.$$eval(`xpath=${pair.value_xpath}`, nodes =>
-                  Array.from(nodes)
-                    .map(n => (n.textContent || '').trim())
-                    .filter(Boolean),
-                )
-              : []
-            const len = Math.min(labels.length, values.length)
-            for (let i = 0; i < len; i++) {
-              collected.push({ label: labels[i], value: values[i] })
-            }
-          } catch {}
-        }
-        if (collected.length > 0) additionalInfo = collected
-      }
+      const basicInfo = await this._extractBasicInfo(vendorKey, vendor)
+      const { savedMainImages, detailCapturePath } = await this._collectImages(vendor)
+      const additionalInfo = await this._collectAdditionalInfo(vendor)
 
       // 1. 크롤링된 원본 데이터
       const rawData: RawSourcingData = {
         url,
         vendor: vendorKey,
-        name: name || undefined,
-        productCode: productCode || undefined,
-        categories,
-        price: price ?? undefined,
-        shippingFee: shippingFee || undefined,
-        minPurchase,
-        imageUsage,
-        certifications,
-        origin: origin || undefined,
-        manufacturer: manufacturer || undefined,
-        options,
+        name: basicInfo.name || undefined,
+        productCode: basicInfo.productCode || undefined,
+        categories: basicInfo.categories,
+        price: basicInfo.price ?? undefined,
+        shippingFee: basicInfo.shippingFee || undefined,
+        minPurchase: basicInfo.minPurchase,
+        imageUsage: basicInfo.imageUsage,
+        certifications: basicInfo.certifications,
+        origin: basicInfo.origin || undefined,
+        manufacturer: basicInfo.manufacturer || undefined,
+        options: basicInfo.options,
         mainImages: savedMainImages,
         detailImages: detailCapturePath ? [detailCapturePath] : [],
         // detailOcrText,
         additionalInfo,
       }
 
-      this._log(`AI 데이터 정제 시작: ${name}`, 'info')
+      this._log(`AI 데이터 정제 시작: ${basicInfo.name}`, 'info')
 
       // 2. AI 데이터 정제
       const aiRefined = await this._refineDataWithAI(rawData)
 
       // 3. 카테고리 매핑
       const categoryMapped =
-        categories && categories.length >= 3 ? await this._mapCategories(vendorKey || '', categories) : {}
+        basicInfo.categories && basicInfo.categories.length >= 3
+          ? await this._mapCategories(vendorKey || '', basicInfo.categories)
+          : {}
 
       // 4. 최종 엑셀 매핑 (설정 전달)
       const excelMapped = this.mapToExcelFormat(rawData, aiRefined, categoryMapped, this.settings)
@@ -1973,6 +1849,179 @@ export class S2BAutomation {
     } catch {
       return null
     }
+  }
+
+  private _getVendor(url: string): { vendorKey: VendorKey | null; vendor?: VendorConfig } {
+    const vendorKey = this._detectVendorByUrl(url)
+    const vendor = vendorKey ? VENDOR_CONFIG[vendorKey] : undefined
+    return { vendorKey, vendor }
+  }
+
+  private async _navigateToUrl(url: string): Promise<void> {
+    if (!this.page) throw new Error('Browser page not initialized')
+    await this.page.goto(url, { waitUntil: 'domcontentloaded' })
+  }
+
+  private async _extractBasicInfo(vendorKey: VendorKey | null, vendor?: VendorConfig): Promise<ExtractedBasicInfo> {
+    if (!this.page) throw new Error('Browser page not initialized')
+
+    const name = vendor ? await this._textByXPath(vendor.product_name_xpath) : null
+
+    const productCodeText = vendor?.product_code_xpath ? await this._textByXPath(vendor.product_code_xpath) : null
+    const productCode = productCodeText ? productCodeText.replace(/[^0-9]/g, '') : null
+
+    let priceText: string | null = null
+    if (vendor?.price_xpaths && vendor.price_xpaths.length) {
+      for (const px of vendor.price_xpaths) {
+        priceText = await this._textByXPath(px)
+        if (priceText) break
+      }
+    } else if (vendor?.price_xpath) {
+      priceText = await this._textByXPath(vendor.price_xpath)
+    }
+    const price = this._parsePrice(priceText)
+
+    const shippingFee = vendor?.shipping_fee_xpath ? await this._textByXPath(vendor.shipping_fee_xpath) : null
+
+    let minPurchase: number | undefined
+    if (vendor?.min_purchase_xpath) {
+      const mp = await this._textByXPath(vendor.min_purchase_xpath)
+      if (mp) {
+        const d = mp.replace(/[^0-9]/g, '')
+        if (d) minPurchase = Number(d)
+      }
+    }
+
+    let imageUsage: string | undefined
+    if (vendor?.image_usage_xpath) {
+      const usage = await this._textByXPath(vendor.image_usage_xpath)
+      if (usage) imageUsage = usage.trim()
+    }
+
+    let certifications: { type: string; number: string }[] | undefined
+    if (vendor?.certification_xpath) {
+      const certItems = await this.page.$$eval(`xpath=${vendor.certification_xpath}`, nodes => {
+        return Array.from(nodes)
+          .map(li => {
+            const titleEl = li.querySelector('.lCertTitle')
+            const numEl = li.querySelector('.lCertNum')
+            const type = titleEl ? titleEl.textContent?.trim() || '' : ''
+            const number = numEl ? numEl.textContent?.replace(/자세히보기.*/, '').trim() || '' : ''
+            return { type, number }
+          })
+          .filter(cert => cert.type && cert.number)
+      })
+      if (certItems.length > 0) certifications = certItems as { type: string; number: string }[]
+    }
+
+    const origin = vendor?.origin_xpath ? await this._textByXPath(vendor.origin_xpath) : null
+    let manufacturer = vendor?.manufacturer_xpath ? await this._textByXPath(vendor.manufacturer_xpath) : null
+    if ((!manufacturer || !manufacturer.trim()) && vendor?.fallback_manufacturer) {
+      manufacturer = vendor.fallback_manufacturer
+    }
+
+    const categories: string[] = []
+    for (const cx of [
+      vendor?.category_1_xpath,
+      vendor?.category_2_xpath,
+      vendor?.category_3_xpath,
+      vendor?.category_4_xpath,
+    ]) {
+      if (!cx) continue
+      const val = await this._textByXPath(cx)
+      if (val) categories.push(val)
+    }
+
+    let options: { name: string; price?: number; qty?: number }[][] | undefined
+    if (vendor?.option_xpath && vendor.option_xpath.length > 0) {
+      options = await this._collectOptionsByXpaths(vendor.option_xpath)
+    } else {
+      const xpaths: string[] = []
+      if (vendor?.option1_item_xpaths) xpaths.push(vendor.option1_item_xpaths)
+      if (vendor?.option2_item_xpaths) xpaths.push(vendor.option2_item_xpaths)
+      if (xpaths.length > 0) options = await this._collectOptionsByXpaths(xpaths)
+    }
+
+    return {
+      name,
+      productCode,
+      price,
+      shippingFee,
+      minPurchase,
+      imageUsage,
+      certifications,
+      origin,
+      manufacturer,
+      categories,
+      options,
+    }
+  }
+
+  private async _collectImages(
+    vendor?: VendorConfig,
+  ): Promise<{ savedMainImages: string[]; detailCapturePath: string | null }> {
+    if (!this.page) throw new Error('Browser page not initialized')
+
+    const mainImageUrls: string[] = vendor?.main_image_xpath
+      ? await this.page.$$eval(`xpath=${vendor.main_image_xpath}`, nodes =>
+          Array.from(nodes)
+            .map(n => (n as HTMLImageElement).src || (n as HTMLSourceElement).getAttribute('srcset') || '')
+            .filter(Boolean),
+        )
+      : []
+
+    let detailCapturePath: string | null = null
+    if (vendor?.detail_image_xpath) {
+      const tempDir = path.join(this.baseFilePath, 'temp')
+      if (!fsSync.existsSync(tempDir)) fsSync.mkdirSync(tempDir, { recursive: true })
+      detailCapturePath = await this._screenshotElement(
+        path.join(tempDir, `detail_capture_${Date.now()}.jpg`),
+        vendor.detail_image_xpath,
+      )
+    }
+
+    const savedMainImages: string[] = []
+    const tempDir = path.join(this.baseFilePath, 'temp')
+    if (!fsSync.existsSync(tempDir)) fsSync.mkdirSync(tempDir, { recursive: true })
+    for (let i = 0; i < mainImageUrls.length; i++) {
+      const buf = await this._downloadToBuffer(mainImageUrls[i])
+      if (!buf) continue
+      const outPath = path.join(tempDir, `main_${Date.now()}_${i}.jpg`)
+      await this._saveJpg(buf, outPath)
+      savedMainImages.push(outPath)
+    }
+
+    return { savedMainImages, detailCapturePath }
+  }
+
+  private async _collectAdditionalInfo(vendor?: VendorConfig): Promise<{ label: string; value: string }[] | undefined> {
+    if (!this.page) throw new Error('Browser page not initialized')
+    if (!vendor?.additional_info_pairs || vendor.additional_info_pairs.length === 0) return undefined
+
+    const collected: { label: string; value: string }[] = []
+    for (const pair of vendor.additional_info_pairs) {
+      try {
+        const labels: string[] = pair.label_xpath
+          ? await this.page.$$eval(`xpath=${pair.label_xpath}`, nodes =>
+              Array.from(nodes)
+                .map(n => (n.textContent || '').trim())
+                .filter(Boolean),
+            )
+          : []
+        const values: string[] = pair.value_xpath
+          ? await this.page.$$eval(`xpath=${pair.value_xpath}`, nodes =>
+              Array.from(nodes)
+                .map(n => (n.textContent || '').trim())
+                .filter(Boolean),
+            )
+          : []
+        const len = Math.min(labels.length, values.length)
+        for (let i = 0; i < len; i++) {
+          collected.push({ label: labels[i], value: values[i] })
+        }
+      } catch {}
+    }
+    return collected.length > 0 ? collected : undefined
   }
 
   private _parsePrice(text: string | null): number | null {
