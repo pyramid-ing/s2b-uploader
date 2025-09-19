@@ -148,7 +148,23 @@ const Sourcing: React.FC = () => {
         url: it.url,
         price: it.price || 0,
       }))
-      setItems(prev => [...mapped, ...prev])
+
+      // URL 기준으로 중복 제거하여 추가
+      setItems(prev => {
+        const existingUrls = new Set(prev.map(item => item.url))
+        const newItems = mapped.filter(item => !existingUrls.has(item.url))
+
+        if (newItems.length === 0) {
+          message.info('새로운 제품이 없습니다. (모든 제품이 이미 목록에 있습니다)')
+          return prev
+        } else if (newItems.length < mapped.length) {
+          message.info(`${newItems.length}개 새 제품 추가 (${mapped.length - newItems.length}개 중복 제품 제외)`)
+        } else {
+          message.success(`${newItems.length}개 제품을 가져왔습니다.`)
+        }
+
+        return [...newItems, ...prev]
+      })
     } catch (e) {
       message.error('제품 수집 중 오류가 발생했습니다.')
     } finally {
@@ -176,6 +192,14 @@ const Sourcing: React.FC = () => {
     }
     try {
       setLoading(true)
+
+      // 중복 URL 체크
+      const isDuplicate = items.some(item => item.url === urlInput)
+      if (isDuplicate) {
+        message.warning('이미 목록에 있는 URL입니다. 중복된 제품은 추가되지 않습니다.')
+        return
+      }
+
       const res = await ipcRenderer.invoke('sourcing-collect-details', { urls: [urlInput] })
       if (!res?.success) throw new Error(res?.error || '상세 수집 실패')
 
@@ -187,6 +211,8 @@ const Sourcing: React.FC = () => {
         }
         setItems(prev => [item, ...prev])
         message.success('URL 기준으로 1개 항목을 가져왔습니다.')
+      } else {
+        message.error('해당 URL에서 제품 정보를 찾을 수 없습니다.')
       }
     } catch (e) {
       message.error('제품 수집 중 오류가 발생했습니다.')
