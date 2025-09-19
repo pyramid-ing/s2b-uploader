@@ -2162,13 +2162,14 @@ export class S2BAutomation {
     const marginPrice = Math.ceil((originalPrice * (1 + marginRate / 100)) / 100) * 100
 
     return {
+      'G2B 물품목록번호': categoryMapped.g2bCode || '',
       카테고리1: categoryMapped.targetCategory1 || '',
       카테고리2: categoryMapped.targetCategory2 || '',
       카테고리3: categoryMapped.targetCategory3 || '',
       등록구분: '물품',
       물품명: aiRefined.물품명 || rawData.name || '',
       규격: aiRefined.규격 || '',
-      모델명: aiRefined.모델명 || '',
+      모델명: aiRefined.모델명 || '상세설명참고',
       제시금액: marginPrice,
       원가: originalPrice, // 참고용
       이미지사용허가: aiRefined.이미지사용여부 || '', // 참고용
@@ -2194,7 +2195,6 @@ export class S2BAutomation {
       원산지구분: aiRefined.원산지구분 || '',
       국내원산지: aiRefined.국내원산지 || '',
       해외원산지: aiRefined.해외원산지 || '',
-      'G2B 물품목록번호': categoryMapped.g2bCode || '',
       배송방법: '택배',
       배송지역: '',
       '정격전압/소비전력': '',
