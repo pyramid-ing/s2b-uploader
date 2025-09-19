@@ -592,7 +592,7 @@ export class S2BAutomation {
       // 4. 최종 엑셀 매핑 (설정 전달)
       const excelMapped = this.mapToExcelFormat(rawData, aiRefined, categoryMapped, this.settings)
 
-      this._log(`데이터 정제 완료: ${name}`, 'info')
+      this._log(`데이터 정제 완료: ${basicInfo.name}`, 'info')
 
       outputs.push({
         ...rawData,
