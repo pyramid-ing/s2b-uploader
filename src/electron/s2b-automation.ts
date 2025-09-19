@@ -10,7 +10,7 @@ import crypto from 'crypto'
 import FileType from 'file-type'
 import sharp from 'sharp'
 import { pick } from 'lodash'
-import { VENDOR_CONFIG, VendorKey, VendorConfig, normalizeUrl } from './sourcing-config'
+import { normalizeUrl, VENDOR_CONFIG, VendorConfig, VendorKey } from './sourcing-config'
 
 interface RawSourcingData {
   url: string
@@ -519,109 +519,386 @@ export class S2BAutomation {
     await this._launchBrowser('management')
   }
 
-  // 브라우저 시작 공통 메서드
-  private async _launchBrowser(type: keyof typeof S2BAutomation.browsers): Promise<void> {
-    const browserInstance = S2BAutomation.browsers[type]
+  public async collectNormalizedDetailForUrls(urls: string[]): Promise<
+    (RawSourcingData & {
+      excelMapped?: any // 최종 엑셀 매핑 결과
+    })[]
+  > {
+    // 소싱용 브라우저로 전환
+    await this.launchSourcing()
 
-    if (!browserInstance.browser) {
-      browserInstance.browser = await chromium.launch({
-        headless: this.headless,
-        executablePath: this.chromePath,
-        args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    if (!this.page) throw new Error('Browser page not initialized')
+    const outputs: (RawSourcingData & {
+      excelMapped?: any
+    })[] = []
+
+    for (const url of urls) {
+      this._log(`상품 데이터 수집 시작: ${url}`, 'info')
+
+      const vendorKey = this._detectVendorByUrl(url)
+      const vendor = vendorKey ? VENDOR_CONFIG[vendorKey] : undefined
+
+      await this.page.goto(url, { waitUntil: 'domcontentloaded' })
+
+      const name = vendor ? await this._textByXPath(vendor.product_name_xpath) : null
+      const productCodeText = vendor?.product_code_xpath ? await this._textByXPath(vendor.product_code_xpath) : null
+      const productCode = productCodeText ? productCodeText.replace(/[^0-9]/g, '') : null
+
+      let priceText: string | null = null
+      if (vendor?.price_xpaths && vendor.price_xpaths.length) {
+        for (const px of vendor.price_xpaths) {
+          priceText = await this._textByXPath(px)
+          if (priceText) break
+        }
+      } else if (vendor?.price_xpath) {
+        priceText = await this._textByXPath(vendor.price_xpath)
+      }
+      const price = this._parsePrice(priceText)
+
+      const shippingFee = vendor?.shipping_fee_xpath ? await this._textByXPath(vendor.shipping_fee_xpath) : null
+      let minPurchase: number | undefined
+      if (vendor?.min_purchase_xpath) {
+        const mp = await this._textByXPath(vendor.min_purchase_xpath)
+        if (mp) {
+          const d = mp.replace(/[^0-9]/g, '')
+          if (d) minPurchase = Number(d)
+        }
+      }
+
+      let imageUsage: string | undefined
+      if (vendor?.image_usage_xpath) {
+        const usage = await this._textByXPath(vendor.image_usage_xpath)
+        if (usage) {
+          imageUsage = usage.trim()
+        }
+      }
+
+      let certifications: { type: string; number: string }[] | undefined
+      if (vendor?.certification_xpath) {
+        const certItems = await this.page.$$eval(`xpath=${vendor.certification_xpath}`, nodes => {
+          return Array.from(nodes)
+            .map(li => {
+              const titleEl = li.querySelector('.lCertTitle')
+              const numEl = li.querySelector('.lCertNum')
+              const type = titleEl ? titleEl.textContent?.trim() || '' : ''
+              const number = numEl ? numEl.textContent?.replace(/자세히보기.*/, '').trim() || '' : ''
+              return { type, number }
+            })
+            .filter(cert => cert.type && cert.number)
+        })
+        if (certItems.length > 0) {
+          certifications = certItems
+        }
+      }
+      const origin = vendor?.origin_xpath ? await this._textByXPath(vendor.origin_xpath) : null
+      let manufacturer = vendor?.manufacturer_xpath ? await this._textByXPath(vendor.manufacturer_xpath) : null
+      if ((!manufacturer || !manufacturer.trim()) && vendor?.fallback_manufacturer) {
+        manufacturer = vendor.fallback_manufacturer
+      }
+
+      const categories: string[] = []
+      for (const cx of [
+        vendor?.category_1_xpath,
+        vendor?.category_2_xpath,
+        vendor?.category_3_xpath,
+        vendor?.category_4_xpath,
+      ]) {
+        if (!cx) continue
+        const val = await this._textByXPath(cx)
+        if (val) categories.push(val)
+      }
+
+      // options
+      let options: { name: string; price?: number; qty?: number }[][] | undefined
+      if (vendor?.option_xpath && vendor.option_xpath.length > 0) {
+        options = await this._collectOptionsByXpaths(vendor.option_xpath)
+      } else {
+        const xpaths: string[] = []
+        if (vendor?.option1_item_xpaths) xpaths.push(vendor.option1_item_xpaths)
+        if (vendor?.option2_item_xpaths) xpaths.push(vendor.option2_item_xpaths)
+        if (xpaths.length > 0) {
+          options = await this._collectOptionsByXpaths(xpaths)
+        }
+      }
+
+      // images - main
+      const mainImageUrls: string[] = vendor?.main_image_xpath
+        ? await this.page.$$eval(`xpath=${vendor.main_image_xpath}`, nodes =>
+            Array.from(nodes)
+              .map(n => (n as HTMLImageElement).src || (n as HTMLSourceElement).getAttribute('srcset') || '')
+              .filter(Boolean),
+          )
+        : []
+
+      // detail capture as single image from container xpath
+      let detailCapturePath: string | null = null
+      if (vendor?.detail_image_xpath) {
+        const tempDir = path.join(this.baseFilePath, 'temp')
+        if (!fsSync.existsSync(tempDir)) fsSync.mkdirSync(tempDir, { recursive: true })
+        detailCapturePath = await this._screenshotElement(
+          path.join(tempDir, `detail_capture_${Date.now()}.jpg`),
+          vendor.detail_image_xpath,
+        )
+      }
+
+      // download and convert jpg into temp dir
+      const savedDetailImages: string[] = []
+      const savedMainImages: string[] = []
+      const tempDir = path.join(this.baseFilePath, 'temp')
+      if (!fsSync.existsSync(tempDir)) fsSync.mkdirSync(tempDir, { recursive: true })
+      // save main images first
+      for (let i = 0; i < mainImageUrls.length; i++) {
+        const buf = await this._downloadToBuffer(mainImageUrls[i])
+        if (!buf) continue
+        const outPath = path.join(tempDir, `main_${Date.now()}_${i}.jpg`)
+        await this._saveJpg(buf, outPath)
+        savedMainImages.push(outPath)
+      }
+      // no longer downloading detail img list; using single capture
+
+      // detail capture (already captured above using detail_image_xpath)
+      // OCR for detail image
+      // let detailOcrText: string | undefined
+      // if (detailCapturePath) {
+      //   try {
+      //     this._log('상세이미지 OCR 분석 시작', 'info')
+      //     const { data } = await Tesseract.recognize(detailCapturePath, 'kor+eng')
+      //     const text = (data?.text || '').trim()
+      //     if (text) {
+      //       detailOcrText = text
+      //       this._log(`상세이미지 OCR 결과: ${text.substring(0, 200)}${text.length > 200 ? '…' : ''}`, 'info')
+      //     } else {
+      //       this._log('상세이미지 OCR 결과가 비어있습니다', 'warning')
+      //     }
+      //   } catch (err) {
+      //     this._log(`상세이미지 OCR 실패: ${err?.message || err}`, 'warning')
+      //   }
+      // }
+
+      // additional info pairs (generic)
+      let additionalInfo: { label: string; value: string }[] | undefined
+      if (vendor?.additional_info_pairs && vendor.additional_info_pairs.length > 0) {
+        const collected: { label: string; value: string }[] = []
+        for (const pair of vendor.additional_info_pairs) {
+          try {
+            const labels: string[] = pair.label_xpath
+              ? await this.page.$$eval(`xpath=${pair.label_xpath}`, nodes =>
+                  Array.from(nodes)
+                    .map(n => (n.textContent || '').trim())
+                    .filter(Boolean),
+                )
+              : []
+            const values: string[] = pair.value_xpath
+              ? await this.page.$$eval(`xpath=${pair.value_xpath}`, nodes =>
+                  Array.from(nodes)
+                    .map(n => (n.textContent || '').trim())
+                    .filter(Boolean),
+                )
+              : []
+            const len = Math.min(labels.length, values.length)
+            for (let i = 0; i < len; i++) {
+              collected.push({ label: labels[i], value: values[i] })
+            }
+          } catch {}
+        }
+        if (collected.length > 0) additionalInfo = collected
+      }
+
+      // 1. 크롤링된 원본 데이터
+      const rawData: RawSourcingData = {
+        url,
+        vendor: vendorKey,
+        name: name || undefined,
+        productCode: productCode || undefined,
+        categories,
+        price: price ?? undefined,
+        shippingFee: shippingFee || undefined,
+        minPurchase,
+        imageUsage,
+        certifications,
+        origin: origin || undefined,
+        manufacturer: manufacturer || undefined,
+        options,
+        mainImages: savedMainImages,
+        detailImages: detailCapturePath ? [detailCapturePath] : [],
+        // detailOcrText,
+        additionalInfo,
+      }
+
+      this._log(`AI 데이터 정제 시작: ${name}`, 'info')
+
+      // 2. AI 데이터 정제
+      const aiRefined = await this._refineDataWithAI(rawData)
+
+      // 3. 카테고리 매핑
+      const categoryMapped =
+        categories && categories.length >= 3 ? await this._mapCategories(vendorKey || '', categories) : {}
+
+      // 4. 최종 엑셀 매핑 (설정 전달)
+      const excelMapped = this.mapToExcelFormat(rawData, aiRefined, categoryMapped, this.settings)
+
+      this._log(`데이터 정제 완료: ${name}`, 'info')
+
+      outputs.push({
+        ...rawData,
+        excelMapped,
       })
-
-      browserInstance.context = await browserInstance.browser.newContext({
-        viewport: null,
-      })
-
-      browserInstance.page = await browserInstance.context.newPage()
     }
-
-    this.browser = browserInstance.browser
-    this.context = browserInstance.context
-    this.page = browserInstance.page
+    return outputs
   }
 
-  // 팝업 감지 및 처리 설정 (상품등록용)
-  private setupRegistrationPopupHandlers(): void {
-    if (!this.context) return
+  public async extendManagementDateForRange(
+    startDate: string,
+    endDate: string,
+    registrationStatus: string = '',
+  ): Promise<void> {
+    // 관리일 연장용 브라우저로 전환
+    await this.launchManagement()
 
-    this.context.on('page', async newPage => {
-      const url = newPage.url()
-      console.log(`Detected popup with URL: ${url}`)
+    if (!this.page) throw new Error('브라우저가 초기화되지 않았습니다.')
+    try {
+      await this._gotoAndSearchListPageByRange(startDate, endDate, registrationStatus)
+      const products = await this._collectAllProductLinks()
+      await this._processExtendProducts(products)
+    } finally {
+      // 관리용 브라우저는 닫지 않음 (다른 인스턴스에서 사용할 수 있음)
+    }
+  }
 
-      // 팝업 URL별 처리
-      if (url.includes('certificateInfo_pop.jsp')) {
-        // certificateInfo_pop.jsp 팝업은 바로 닫기
-        console.log('Closing popup for certificateInfo_pop.jsp.')
-        await newPage.close()
-      } else if (url.includes('mygPreviewerThumb.jsp')) {
-        // mygPreviewerThumb.jsp 팝업에서 iframe 내 상태 검사
-        try {
-          await delay(3000)
+  public async close(): Promise<void> {
+    // 인스턴스 변수만 초기화 (공유 브라우저/페이지는 유지)
+    this.page = null
+    this.context = null
+    this.browser = null
+  }
 
-          // iframe 로드 대기
-          await newPage.waitForSelector('#MpreviewerImg', { timeout: 20000 })
+  public getCurrentUrl(): string {
+    try {
+      return this.page?.url() ?? ''
+    } catch {
+      return ''
+    }
+  }
 
-          // iframe 내부 상태 확인
-          const resizeStatus = await newPage.evaluate(() => {
-            const iframe = document.querySelector('#MpreviewerImg iframe') as HTMLIFrameElement
-            if (!iframe) return null
+  public async openUrl(url: string): Promise<void> {
+    if (!this.page) throw new Error('Browser page not initialized')
+    await this.page.goto(url, { waitUntil: 'domcontentloaded' })
+  }
 
-            const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document
-            if (!iframeDoc) return null
+  public async collectListFromUrl(targetUrl: string): Promise<{ name: string; url: string; price?: number }[]> {
+    // 소싱용 브라우저로 전환
+    await this.launchSourcing()
 
-            const statusElement = iframeDoc.querySelector('#reSizeStatus')
-            return statusElement?.textContent?.trim() || null
-          })
+    if (!this.page) throw new Error('Browser page not initialized')
 
-          if (resizeStatus === 'pass') {
-            console.log('Upload passed. Closing popup.')
-            await newPage.close() // 조건 충족 시 팝업 닫기
-          } else {
-            console.log(`Upload status: ${resizeStatus}. Popup remains open.`)
-          }
-        } catch (error) {
-          console.error('Error while interacting with mygPreviewerThumb.jsp:', error)
-          await newPage.close() // 에러 발생 시 팝업 닫기
+    const vendorKey = this._detectVendorByUrl(targetUrl)
+    if (!vendorKey) throw new Error('지원하지 않는 사이트 입니다.')
+    const vendor: VendorConfig = VENDOR_CONFIG[vendorKey]
+
+    await this.page.goto(targetUrl, { waitUntil: 'domcontentloaded' })
+
+    const hrefs: string[] = await this.page.evaluate((xpath: string) => {
+      const result: string[] = []
+      const iterator = document.evaluate(xpath, document, null, XPathResult.ORDERED_NODE_ITERATOR_TYPE, null)
+      let node = iterator.iterateNext() as any
+      while (node) {
+        if (node instanceof HTMLAnchorElement && node.href) {
+          result.push(node.href)
+        } else if ((node as Element).getAttribute) {
+          const href = (node as Element).getAttribute('href')
+          if (href) result.push(href)
         }
-      } else if (url.includes('rema100_statusWaitPopup.jsp')) {
-        // rema100_statusWaitPopup.jsp 팝업 처리
-        try {
-          console.log('Interacting with rema100_statusWaitPopup.jsp popup.')
-
-          // 팝업 로드 대기 및 버튼 클릭
-          await newPage.waitForSelector('[onclick^="fnConfirm("]', { timeout: 5000 })
-
-          await newPage.evaluate(() => {
-            const confirmButton = document.querySelector('[onclick^="fnConfirm(\'1\')"]')
-            if (confirmButton instanceof HTMLElement) {
-              confirmButton.click() // 버튼 클릭
-              console.log('Confirm button clicked.')
-            } else {
-              throw new Error('Confirm button not found.')
-            }
-          })
-        } catch (error) {
-          console.error('Error interacting with rema100_statusWaitPopup.jsp:', error)
-          await newPage.close() // 에러 발생 시 팝업 닫기
-        }
-      } else {
-        console.log('Popup URL does not match any criteria. Leaving it open.')
+        node = iterator.iterateNext() as any
       }
+      return result
+    }, vendor.product_list_xpath)
+
+    const names: string[] = await this.page.evaluate((xpath: string) => {
+      const result: string[] = []
+      const iterator = document.evaluate(xpath, document, null, XPathResult.ORDERED_NODE_ITERATOR_TYPE, null)
+      let node = iterator.iterateNext() as any
+      while (node) {
+        const text = (node as Element).textContent || ''
+        result.push(text.trim())
+        node = iterator.iterateNext() as any
+      }
+      return result
+    }, vendor.product_name_list_xpath)
+
+    // 가격 리스트 시도: 1) 명시 XPath, 2) 앵커 주변 휴리스틱
+    let prices: (number | null)[] = []
+    if (vendor.product_price_list_xpath) {
+      const priceTexts: string[] = await this.page.evaluate((xpath: string) => {
+        const result: string[] = []
+        const iterator = document.evaluate(xpath, document, null, XPathResult.ORDERED_NODE_ITERATOR_TYPE, null)
+        let node = iterator.iterateNext() as any
+        while (node) {
+          const text = (node as Element).textContent || ''
+          result.push(text.trim())
+          node = iterator.iterateNext() as any
+        }
+        return result
+      }, vendor.product_price_list_xpath)
+      prices = priceTexts.map(t => {
+        const digits = t.replace(/[^0-9]/g, '')
+        return digits ? Number(digits) : null
+      })
+    }
+
+    // 매핑: 길이가 불일치하면 가격은 휴리스틱으로 보강
+    const items = hrefs.map((rawHref, idx) => {
+      const href = normalizeUrl(rawHref, vendor)
+      let price: number | undefined = undefined
+      if (prices[idx] != null) {
+        price = prices[idx] ?? undefined
+      }
+      return { name: names[idx] || '', url: href, price }
     })
 
-    // 페이지 로드 타임아웃 설정 (선택사항)
-    if (this.page) {
-      this.page.setDefaultNavigationTimeout(30000)
-      this.page.setDefaultTimeout(30000)
+    // 가격 누락건 보정: 각 앵커의 부모 요소에서 가격 후보 텍스트 탐색
+    const needsPrice = items.some(it => typeof it.price === 'undefined')
+    if (needsPrice) {
+      const fallbackPrices: (number | null)[] = await this.page.evaluate((xpath: string) => {
+        const anchors: Element[] = []
+        const iterator = document.evaluate(xpath, document, null, XPathResult.ORDERED_NODE_ITERATOR_TYPE, null)
+        let node = iterator.iterateNext() as any
+        while (node) {
+          anchors.push(node as Element)
+          node = iterator.iterateNext() as any
+        }
+        const results: (number | null)[] = []
+        for (const a of anchors) {
+          let container: Element | null = a.closest('li') || a.parentElement
+          if (!container) {
+            results.push(null)
+            continue
+          }
+          const text = (container.textContent || '').replace(/\s+/g, ' ')
+          const match = text.match(/([0-9]{1,3}(?:,[0-9]{3})+|[0-9]{4,})\s*(?:원|W|won)?/i)
+          if (match && match[1]) {
+            const digits = match[1].replace(/[^0-9]/g, '')
+            results.push(digits ? Number(digits) : null)
+          } else {
+            results.push(null)
+          }
+        }
+        return results
+      }, vendor.product_list_xpath)
+
+      items.forEach((it, i) => {
+        if (typeof it.price === 'undefined' && fallbackPrices[i] != null) {
+          it.price = fallbackPrices[i] ?? undefined
+        }
+      })
     }
+
+    return items
   }
 
   public async registerProduct(data: ProductData): Promise<void> {
     // 상품등록용 브라우저로 전환
     await this.launchRegistration()
-    this.setupRegistrationPopupHandlers()
+    this._setupRegistrationPopupHandlers()
 
     if (!this.page) throw new Error('브라우저가 초기화되지 않았습니다.')
 
@@ -787,6 +1064,105 @@ export class S2BAutomation {
       if (this.page) {
         this.page.off('dialog', handleRegistrationDialog)
       }
+    }
+  }
+
+  // 브라우저 시작 공통 메서드
+  private async _launchBrowser(type: keyof typeof S2BAutomation.browsers): Promise<void> {
+    const browserInstance = S2BAutomation.browsers[type]
+
+    if (!browserInstance.browser) {
+      browserInstance.browser = await chromium.launch({
+        headless: this.headless,
+        executablePath: this.chromePath,
+        args: ['--no-sandbox', '--disable-setuid-sandbox'],
+      })
+
+      browserInstance.context = await browserInstance.browser.newContext({
+        viewport: null,
+      })
+
+      browserInstance.page = await browserInstance.context.newPage()
+    }
+
+    this.browser = browserInstance.browser
+    this.context = browserInstance.context
+    this.page = browserInstance.page
+  }
+
+  // 팝업 감지 및 처리 설정 (상품등록용)
+  private _setupRegistrationPopupHandlers(): void {
+    if (!this.context) return
+
+    this.context.on('page', async newPage => {
+      const url = newPage.url()
+      console.log(`Detected popup with URL: ${url}`)
+
+      // 팝업 URL별 처리
+      if (url.includes('certificateInfo_pop.jsp')) {
+        // certificateInfo_pop.jsp 팝업은 바로 닫기
+        console.log('Closing popup for certificateInfo_pop.jsp.')
+        await newPage.close()
+      } else if (url.includes('mygPreviewerThumb.jsp')) {
+        // mygPreviewerThumb.jsp 팝업에서 iframe 내 상태 검사
+        try {
+          await delay(3000)
+
+          // iframe 로드 대기
+          await newPage.waitForSelector('#MpreviewerImg', { timeout: 20000 })
+
+          // iframe 내부 상태 확인
+          const resizeStatus = await newPage.evaluate(() => {
+            const iframe = document.querySelector('#MpreviewerImg iframe') as HTMLIFrameElement
+            if (!iframe) return null
+
+            const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document
+            if (!iframeDoc) return null
+
+            const statusElement = iframeDoc.querySelector('#reSizeStatus')
+            return statusElement?.textContent?.trim() || null
+          })
+
+          if (resizeStatus === 'pass') {
+            console.log('Upload passed. Closing popup.')
+            await newPage.close() // 조건 충족 시 팝업 닫기
+          } else {
+            console.log(`Upload status: ${resizeStatus}. Popup remains open.`)
+          }
+        } catch (error) {
+          console.error('Error while interacting with mygPreviewerThumb.jsp:', error)
+          await newPage.close() // 에러 발생 시 팝업 닫기
+        }
+      } else if (url.includes('rema100_statusWaitPopup.jsp')) {
+        // rema100_statusWaitPopup.jsp 팝업 처리
+        try {
+          console.log('Interacting with rema100_statusWaitPopup.jsp popup.')
+
+          // 팝업 로드 대기 및 버튼 클릭
+          await newPage.waitForSelector('[onclick^="fnConfirm("]', { timeout: 5000 })
+
+          await newPage.evaluate(() => {
+            const confirmButton = document.querySelector('[onclick^="fnConfirm(\'1\')"]')
+            if (confirmButton instanceof HTMLElement) {
+              confirmButton.click() // 버튼 클릭
+              console.log('Confirm button clicked.')
+            } else {
+              throw new Error('Confirm button not found.')
+            }
+          })
+        } catch (error) {
+          console.error('Error interacting with rema100_statusWaitPopup.jsp:', error)
+          await newPage.close() // 에러 발생 시 팝업 닫기
+        }
+      } else {
+        console.log('Popup URL does not match any criteria. Leaving it open.')
+      }
+    })
+
+    // 페이지 로드 타임아웃 설정 (선택사항)
+    if (this.page) {
+      this.page.setDefaultNavigationTimeout(30000)
+      this.page.setDefaultTimeout(30000)
     }
   }
 
@@ -1524,73 +1900,6 @@ export class S2BAutomation {
     }
   }
 
-  public async extendManagementDateForRange(
-    startDate: string,
-    endDate: string,
-    registrationStatus: string = '',
-  ): Promise<void> {
-    // 관리일 연장용 브라우저로 전환
-    await this.launchManagement()
-
-    if (!this.page) throw new Error('브라우저가 초기화되지 않았습니다.')
-    try {
-      await this._gotoAndSearchListPageByRange(startDate, endDate, registrationStatus)
-      const products = await this._collectAllProductLinks()
-      await this._processExtendProducts(products)
-    } finally {
-      // 관리용 브라우저는 닫지 않음 (다른 인스턴스에서 사용할 수 있음)
-    }
-  }
-
-  public async close(): Promise<void> {
-    // 인스턴스 변수만 초기화 (공유 브라우저/페이지는 유지)
-    this.page = null
-    this.context = null
-    this.browser = null
-  }
-
-  // 소싱 브라우저 종료
-  public static async closeSourcingBrowser(): Promise<void> {
-    await S2BAutomation._closeBrowser('sourcing')
-  }
-
-  // 상품등록 브라우저 종료
-  public static async closeRegistrationBrowser(): Promise<void> {
-    await S2BAutomation._closeBrowser('registration')
-  }
-
-  // 관리일 연장 브라우저 종료
-  public static async closeManagementBrowser(): Promise<void> {
-    await S2BAutomation._closeBrowser('management')
-  }
-
-  // 브라우저 종료 공통 메서드
-  private static async _closeBrowser(type: keyof typeof S2BAutomation.browsers): Promise<void> {
-    const browserInstance = S2BAutomation.browsers[type]
-
-    if (browserInstance.page) {
-      await browserInstance.page.close()
-      browserInstance.page = null
-    }
-    if (browserInstance.context) {
-      await browserInstance.context.close()
-      browserInstance.context = null
-    }
-    if (browserInstance.browser) {
-      await browserInstance.browser.close()
-      browserInstance.browser = null
-    }
-  }
-
-  // 모든 브라우저 종료
-  public static async closeAllBrowsers(): Promise<void> {
-    await Promise.all([
-      S2BAutomation._closeBrowser('sourcing'),
-      S2BAutomation._closeBrowser('registration'),
-      S2BAutomation._closeBrowser('management'),
-    ])
-  }
-
   // ==================== PRIVATE METHODS ====================
 
   private _log(message: string, level: 'info' | 'warning' | 'error' = 'info'): void {
@@ -1658,8 +1967,7 @@ export class S2BAutomation {
     return products
   }
 
-  // ---------------- Sourcing helpers for external vendor sites ----------------
-  public detectVendorByUrl(targetUrl: string): VendorKey | null {
+  private _detectVendorByUrl(targetUrl: string): VendorKey | null {
     try {
       const host = new URL(targetUrl).hostname
       if (host.includes('domeggook')) return VendorKey.도매꾹
@@ -1668,166 +1976,6 @@ export class S2BAutomation {
     } catch {
       return null
     }
-  }
-
-  public getCurrentUrl(): string {
-    try {
-      return this.page?.url() ?? ''
-    } catch {
-      return ''
-    }
-  }
-
-  public async openUrl(url: string): Promise<void> {
-    if (!this.page) throw new Error('Browser page not initialized')
-    await this.page.goto(url, { waitUntil: 'domcontentloaded' })
-  }
-
-  public async collectListFromUrl(targetUrl: string): Promise<{ name: string; url: string; price?: number }[]> {
-    // 소싱용 브라우저로 전환
-    await this.launchSourcing()
-
-    if (!this.page) throw new Error('Browser page not initialized')
-
-    const vendorKey = this.detectVendorByUrl(targetUrl)
-    if (!vendorKey) throw new Error('지원하지 않는 사이트 입니다.')
-    const vendor: VendorConfig = VENDOR_CONFIG[vendorKey]
-
-    await this.page.goto(targetUrl, { waitUntil: 'domcontentloaded' })
-
-    const hrefs: string[] = await this.page.evaluate((xpath: string) => {
-      const result: string[] = []
-      const iterator = document.evaluate(xpath, document, null, XPathResult.ORDERED_NODE_ITERATOR_TYPE, null)
-      let node = iterator.iterateNext() as any
-      while (node) {
-        if (node instanceof HTMLAnchorElement && node.href) {
-          result.push(node.href)
-        } else if ((node as Element).getAttribute) {
-          const href = (node as Element).getAttribute('href')
-          if (href) result.push(href)
-        }
-        node = iterator.iterateNext() as any
-      }
-      return result
-    }, vendor.product_list_xpath)
-
-    const names: string[] = await this.page.evaluate((xpath: string) => {
-      const result: string[] = []
-      const iterator = document.evaluate(xpath, document, null, XPathResult.ORDERED_NODE_ITERATOR_TYPE, null)
-      let node = iterator.iterateNext() as any
-      while (node) {
-        const text = (node as Element).textContent || ''
-        result.push(text.trim())
-        node = iterator.iterateNext() as any
-      }
-      return result
-    }, vendor.product_name_list_xpath)
-
-    // 가격 리스트 시도: 1) 명시 XPath, 2) 앵커 주변 휴리스틱
-    let prices: (number | null)[] = []
-    if (vendor.product_price_list_xpath) {
-      const priceTexts: string[] = await this.page.evaluate((xpath: string) => {
-        const result: string[] = []
-        const iterator = document.evaluate(xpath, document, null, XPathResult.ORDERED_NODE_ITERATOR_TYPE, null)
-        let node = iterator.iterateNext() as any
-        while (node) {
-          const text = (node as Element).textContent || ''
-          result.push(text.trim())
-          node = iterator.iterateNext() as any
-        }
-        return result
-      }, vendor.product_price_list_xpath)
-      prices = priceTexts.map(t => {
-        const digits = t.replace(/[^0-9]/g, '')
-        return digits ? Number(digits) : null
-      })
-    }
-
-    // 매핑: 길이가 불일치하면 가격은 휴리스틱으로 보강
-    const items = hrefs.map((rawHref, idx) => {
-      const href = normalizeUrl(rawHref, vendor)
-      let price: number | undefined = undefined
-      if (prices[idx] != null) {
-        price = prices[idx] ?? undefined
-      }
-      return { name: names[idx] || '', url: href, price }
-    })
-
-    // 가격 누락건 보정: 각 앵커의 부모 요소에서 가격 후보 텍스트 탐색
-    const needsPrice = items.some(it => typeof it.price === 'undefined')
-    if (needsPrice) {
-      const fallbackPrices: (number | null)[] = await this.page.evaluate((xpath: string) => {
-        const anchors: Element[] = []
-        const iterator = document.evaluate(xpath, document, null, XPathResult.ORDERED_NODE_ITERATOR_TYPE, null)
-        let node = iterator.iterateNext() as any
-        while (node) {
-          anchors.push(node as Element)
-          node = iterator.iterateNext() as any
-        }
-        const results: (number | null)[] = []
-        for (const a of anchors) {
-          let container: Element | null = a.closest('li') || a.parentElement
-          if (!container) {
-            results.push(null)
-            continue
-          }
-          const text = (container.textContent || '').replace(/\s+/g, ' ')
-          const match = text.match(/([0-9]{1,3}(?:,[0-9]{3})+|[0-9]{4,})\s*(?:원|W|won)?/i)
-          if (match && match[1]) {
-            const digits = match[1].replace(/[^0-9]/g, '')
-            results.push(digits ? Number(digits) : null)
-          } else {
-            results.push(null)
-          }
-        }
-        return results
-      }, vendor.product_list_xpath)
-
-      items.forEach((it, i) => {
-        if (typeof it.price === 'undefined' && fallbackPrices[i] != null) {
-          it.price = fallbackPrices[i] ?? undefined
-        }
-      })
-    }
-
-    return items
-  }
-
-  public async collectDetailForUrls(
-    urls: string[],
-  ): Promise<{ name: string; url: string; price?: number; productCode?: string }[]> {
-    // 소싱용 브라우저로 전환
-    await this.launchSourcing()
-
-    if (!this.page) throw new Error('Browser page not initialized')
-    const results: { name: string; url: string; price?: number; productCode?: string }[] = []
-
-    for (const url of urls) {
-      const vendorKey = this.detectVendorByUrl(url)
-      if (!vendorKey) {
-        results.push({ name: '', url })
-        continue
-      }
-      const vendor = VENDOR_CONFIG[vendorKey]
-      await this.page.goto(url, { waitUntil: 'domcontentloaded' })
-
-      const name = await this._textByXPath(vendor.product_name_xpath)
-      const productCode = vendor.product_code_xpath ? await this._textByXPath(vendor.product_code_xpath) : undefined
-
-      let priceText: string | null = null
-      if (vendor.price_xpaths && vendor.price_xpaths.length > 0) {
-        for (const px of vendor.price_xpaths) {
-          priceText = await this._textByXPath(px)
-          if (priceText) break
-        }
-      } else if (vendor.price_xpath) {
-        priceText = await this._textByXPath(vendor.price_xpath)
-      }
-
-      const price = this._parsePrice(priceText)
-      results.push({ name: name || '', url, price: price ?? undefined, productCode: productCode || undefined })
-    }
-    return results
   }
 
   private async _textByXPath(xpath: string | undefined): Promise<string | null> {
@@ -1883,7 +2031,7 @@ export class S2BAutomation {
   }
 
   // ---------------- AI 데이터 정제 ----------------
-  private async refineDataWithAI(data: RawSourcingData): Promise<AIRefinedResult> {
+  private async _refineDataWithAI(data: RawSourcingData): Promise<AIRefinedResult> {
     try {
       const response = await axios.post(
         'https://n8n.pyramid-ing.com/webhook/s2b-sourcing',
@@ -1903,7 +2051,7 @@ export class S2BAutomation {
   }
 
   // ---------------- 카테고리 매핑 ----------------
-  private async mapCategories(
+  private async _mapCategories(
     vendor: string,
     categories: string[],
   ): Promise<{
@@ -2059,233 +2207,6 @@ export class S2BAutomation {
   }
 
   // ---------------- Normalized detail collection ----------------
-  public async collectNormalizedDetailForUrls(urls: string[]): Promise<
-    (RawSourcingData & {
-      excelMapped?: any // 최종 엑셀 매핑 결과
-    })[]
-  > {
-    // 소싱용 브라우저로 전환
-    await this.launchSourcing()
-
-    if (!this.page) throw new Error('Browser page not initialized')
-    const outputs: (RawSourcingData & {
-      excelMapped?: any
-    })[] = []
-
-    for (const url of urls) {
-      this._log(`상품 데이터 수집 시작: ${url}`, 'info')
-
-      const vendorKey = this.detectVendorByUrl(url)
-      const vendor = vendorKey ? VENDOR_CONFIG[vendorKey] : undefined
-
-      await this.page.goto(url, { waitUntil: 'domcontentloaded' })
-
-      const name = vendor ? await this._textByXPath(vendor.product_name_xpath) : null
-      const productCodeText = vendor?.product_code_xpath ? await this._textByXPath(vendor.product_code_xpath) : null
-      const productCode = productCodeText ? productCodeText.replace(/[^0-9]/g, '') : null
-
-      let priceText: string | null = null
-      if (vendor?.price_xpaths && vendor.price_xpaths.length) {
-        for (const px of vendor.price_xpaths) {
-          priceText = await this._textByXPath(px)
-          if (priceText) break
-        }
-      } else if (vendor?.price_xpath) {
-        priceText = await this._textByXPath(vendor.price_xpath)
-      }
-      const price = this._parsePrice(priceText)
-
-      const shippingFee = vendor?.shipping_fee_xpath ? await this._textByXPath(vendor.shipping_fee_xpath) : null
-      let minPurchase: number | undefined
-      if (vendor?.min_purchase_xpath) {
-        const mp = await this._textByXPath(vendor.min_purchase_xpath)
-        if (mp) {
-          const d = mp.replace(/[^0-9]/g, '')
-          if (d) minPurchase = Number(d)
-        }
-      }
-
-      let imageUsage: string | undefined
-      if (vendor?.image_usage_xpath) {
-        const usage = await this._textByXPath(vendor.image_usage_xpath)
-        if (usage) {
-          imageUsage = usage.trim()
-        }
-      }
-
-      let certifications: { type: string; number: string }[] | undefined
-      if (vendor?.certification_xpath) {
-        const certItems = await this.page.$$eval(`xpath=${vendor.certification_xpath}`, nodes => {
-          return Array.from(nodes)
-            .map(li => {
-              const titleEl = li.querySelector('.lCertTitle')
-              const numEl = li.querySelector('.lCertNum')
-              const type = titleEl ? titleEl.textContent?.trim() || '' : ''
-              const number = numEl ? numEl.textContent?.replace(/자세히보기.*/, '').trim() || '' : ''
-              return { type, number }
-            })
-            .filter(cert => cert.type && cert.number)
-        })
-        if (certItems.length > 0) {
-          certifications = certItems
-        }
-      }
-      const origin = vendor?.origin_xpath ? await this._textByXPath(vendor.origin_xpath) : null
-      let manufacturer = vendor?.manufacturer_xpath ? await this._textByXPath(vendor.manufacturer_xpath) : null
-      if ((!manufacturer || !manufacturer.trim()) && vendor?.fallback_manufacturer) {
-        manufacturer = vendor.fallback_manufacturer
-      }
-
-      const categories: string[] = []
-      for (const cx of [
-        vendor?.category_1_xpath,
-        vendor?.category_2_xpath,
-        vendor?.category_3_xpath,
-        vendor?.category_4_xpath,
-      ]) {
-        if (!cx) continue
-        const val = await this._textByXPath(cx)
-        if (val) categories.push(val)
-      }
-
-      // options
-      let options: { name: string; price?: number; qty?: number }[][] | undefined
-      if (vendor?.option_xpath && vendor.option_xpath.length > 0) {
-        options = await this._collectOptionsByXpaths(vendor.option_xpath)
-      } else {
-        const xpaths: string[] = []
-        if (vendor?.option1_item_xpaths) xpaths.push(vendor.option1_item_xpaths)
-        if (vendor?.option2_item_xpaths) xpaths.push(vendor.option2_item_xpaths)
-        if (xpaths.length > 0) {
-          options = await this._collectOptionsByXpaths(xpaths)
-        }
-      }
-
-      // images - main
-      const mainImageUrls: string[] = vendor?.main_image_xpath
-        ? await this.page.$$eval(`xpath=${vendor.main_image_xpath}`, nodes =>
-            Array.from(nodes)
-              .map(n => (n as HTMLImageElement).src || (n as HTMLSourceElement).getAttribute('srcset') || '')
-              .filter(Boolean),
-          )
-        : []
-
-      // detail capture as single image from container xpath
-      let detailCapturePath: string | null = null
-      if (vendor?.detail_image_xpath) {
-        const tempDir = path.join(this.baseFilePath, 'temp')
-        if (!fsSync.existsSync(tempDir)) fsSync.mkdirSync(tempDir, { recursive: true })
-        detailCapturePath = await this._screenshotElement(
-          path.join(tempDir, `detail_capture_${Date.now()}.jpg`),
-          vendor.detail_image_xpath,
-        )
-      }
-
-      // download and convert jpg into temp dir
-      const savedDetailImages: string[] = []
-      const savedMainImages: string[] = []
-      const tempDir = path.join(this.baseFilePath, 'temp')
-      if (!fsSync.existsSync(tempDir)) fsSync.mkdirSync(tempDir, { recursive: true })
-      // save main images first
-      for (let i = 0; i < mainImageUrls.length; i++) {
-        const buf = await this._downloadToBuffer(mainImageUrls[i])
-        if (!buf) continue
-        const outPath = path.join(tempDir, `main_${Date.now()}_${i}.jpg`)
-        await this._saveJpg(buf, outPath)
-        savedMainImages.push(outPath)
-      }
-      // no longer downloading detail img list; using single capture
-
-      // detail capture (already captured above using detail_image_xpath)
-      // OCR for detail image
-      // let detailOcrText: string | undefined
-      // if (detailCapturePath) {
-      //   try {
-      //     this._log('상세이미지 OCR 분석 시작', 'info')
-      //     const { data } = await Tesseract.recognize(detailCapturePath, 'kor+eng')
-      //     const text = (data?.text || '').trim()
-      //     if (text) {
-      //       detailOcrText = text
-      //       this._log(`상세이미지 OCR 결과: ${text.substring(0, 200)}${text.length > 200 ? '…' : ''}`, 'info')
-      //     } else {
-      //       this._log('상세이미지 OCR 결과가 비어있습니다', 'warning')
-      //     }
-      //   } catch (err) {
-      //     this._log(`상세이미지 OCR 실패: ${err?.message || err}`, 'warning')
-      //   }
-      // }
-
-      // additional info pairs (generic)
-      let additionalInfo: { label: string; value: string }[] | undefined
-      if (vendor?.additional_info_pairs && vendor.additional_info_pairs.length > 0) {
-        const collected: { label: string; value: string }[] = []
-        for (const pair of vendor.additional_info_pairs) {
-          try {
-            const labels: string[] = pair.label_xpath
-              ? await this.page.$$eval(`xpath=${pair.label_xpath}`, nodes =>
-                  Array.from(nodes)
-                    .map(n => (n.textContent || '').trim())
-                    .filter(Boolean),
-                )
-              : []
-            const values: string[] = pair.value_xpath
-              ? await this.page.$$eval(`xpath=${pair.value_xpath}`, nodes =>
-                  Array.from(nodes)
-                    .map(n => (n.textContent || '').trim())
-                    .filter(Boolean),
-                )
-              : []
-            const len = Math.min(labels.length, values.length)
-            for (let i = 0; i < len; i++) {
-              collected.push({ label: labels[i], value: values[i] })
-            }
-          } catch {}
-        }
-        if (collected.length > 0) additionalInfo = collected
-      }
-
-      // 1. 크롤링된 원본 데이터
-      const rawData: RawSourcingData = {
-        url,
-        vendor: vendorKey,
-        name: name || undefined,
-        productCode: productCode || undefined,
-        categories,
-        price: price ?? undefined,
-        shippingFee: shippingFee || undefined,
-        minPurchase,
-        imageUsage,
-        certifications,
-        origin: origin || undefined,
-        manufacturer: manufacturer || undefined,
-        options,
-        mainImages: savedMainImages,
-        detailImages: detailCapturePath ? [detailCapturePath] : [],
-        // detailOcrText,
-        additionalInfo,
-      }
-
-      this._log(`AI 데이터 정제 시작: ${name}`, 'info')
-
-      // 2. AI 데이터 정제
-      const aiRefined = await this.refineDataWithAI(rawData)
-
-      // 3. 카테고리 매핑
-      const categoryMapped =
-        categories && categories.length >= 3 ? await this.mapCategories(vendorKey || '', categories) : {}
-
-      // 4. 최종 엑셀 매핑 (설정 전달)
-      const excelMapped = this.mapToExcelFormat(rawData, aiRefined, categoryMapped, this.settings)
-
-      this._log(`데이터 정제 완료: ${name}`, 'info')
-
-      outputs.push({
-        ...rawData,
-        excelMapped,
-      })
-    }
-    return outputs
-  }
 
   private async _collectOptionsByXpaths(xpaths: string[]): Promise<{ name: string; price?: number; qty?: number }[][]> {
     if (!this.page) return []
