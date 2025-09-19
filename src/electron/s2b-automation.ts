@@ -12,7 +12,7 @@ import sharp from 'sharp'
 import { pick } from 'lodash'
 import { normalizeUrl, VENDOR_CONFIG, VendorConfig, VendorKey } from './sourcing-config'
 
-interface RawSourcingData {
+interface SourcingCrawlData {
   url: string
   vendor: VendorKey | null
   name?: string
@@ -36,7 +36,7 @@ interface AIRefinedResult {
   물품명: string
   규격: string
   모델명: string
-  소재재질: string
+  '소재/재질': string
   원산지구분: '국내' | '국외'
   국내원산지: string
   해외원산지: string
@@ -45,6 +45,9 @@ interface AIRefinedResult {
   생활용품KC인증번호: string
   방송통신KC인증번호: string
   이미지사용여부: '허용' | '불가' | '모름'
+  속성: string[]
+  options: { name: string; price: number; qty: number }[]
+  additionalInfo: { label: string; value: string }[]
 }
 
 interface ExtractedBasicInfo {
@@ -534,7 +537,7 @@ export class S2BAutomation {
   }
 
   public async collectNormalizedDetailForUrls(urls: string[]): Promise<
-    (RawSourcingData & {
+    (SourcingCrawlData & {
       excelMapped?: any // 최종 엑셀 매핑 결과
     })[]
   > {
@@ -542,7 +545,7 @@ export class S2BAutomation {
     await this.launchSourcing()
 
     if (!this.page) throw new Error('Browser page not initialized')
-    const outputs: (RawSourcingData & {
+    const outputs: (SourcingCrawlData & {
       excelMapped?: any
     })[] = []
 
@@ -558,7 +561,7 @@ export class S2BAutomation {
       const additionalInfo = await this._collectAdditionalInfo(vendor)
 
       // 1. 크롤링된 원본 데이터
-      const rawData: RawSourcingData = {
+      const crawlData: SourcingCrawlData = {
         url,
         vendor: vendorKey,
         name: basicInfo.name || undefined,
@@ -581,7 +584,7 @@ export class S2BAutomation {
       this._log(`AI 데이터 정제 시작: ${basicInfo.name}`, 'info')
 
       // 2. AI 데이터 정제
-      const aiRefined = await this._refineDataWithAI(rawData)
+      const aiRefined = await this._refineCrawlWithAI(crawlData)
 
       // 3. 카테고리 매핑
       const categoryMapped =
@@ -590,12 +593,12 @@ export class S2BAutomation {
           : {}
 
       // 4. 최종 엑셀 매핑 (설정 전달)
-      const excelMapped = this.mapToExcelFormat(rawData, aiRefined, categoryMapped, this.settings)
+      const excelMapped = this.mapToExcelFormat(crawlData, aiRefined, categoryMapped, this.settings)
 
       this._log(`데이터 정제 완료: ${basicInfo.name}`, 'info')
 
       outputs.push({
-        ...rawData,
+        ...crawlData,
         excelMapped,
       })
     }
@@ -2059,7 +2062,7 @@ export class S2BAutomation {
   }
 
   // ---------------- AI 데이터 정제 ----------------
-  private async _refineDataWithAI(data: RawSourcingData): Promise<AIRefinedResult> {
+  private async _refineCrawlWithAI(data: SourcingCrawlData): Promise<AIRefinedResult> {
     try {
       const response = await axios.post(
         'https://n8n.pyramid-ing.com/webhook/s2b-sourcing',
