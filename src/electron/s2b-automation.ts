@@ -642,7 +642,6 @@ export class S2BAutomation {
       }
 
       // download and convert jpg into temp dir
-      const savedDetailImages: string[] = []
       const savedMainImages: string[] = []
       const tempDir = path.join(this.baseFilePath, 'temp')
       if (!fsSync.existsSync(tempDir)) fsSync.mkdirSync(tempDir, { recursive: true })
@@ -654,26 +653,6 @@ export class S2BAutomation {
         await this._saveJpg(buf, outPath)
         savedMainImages.push(outPath)
       }
-      // no longer downloading detail img list; using single capture
-
-      // detail capture (already captured above using detail_image_xpath)
-      // OCR for detail image
-      // let detailOcrText: string | undefined
-      // if (detailCapturePath) {
-      //   try {
-      //     this._log('상세이미지 OCR 분석 시작', 'info')
-      //     const { data } = await Tesseract.recognize(detailCapturePath, 'kor+eng')
-      //     const text = (data?.text || '').trim()
-      //     if (text) {
-      //       detailOcrText = text
-      //       this._log(`상세이미지 OCR 결과: ${text.substring(0, 200)}${text.length > 200 ? '…' : ''}`, 'info')
-      //     } else {
-      //       this._log('상세이미지 OCR 결과가 비어있습니다', 'warning')
-      //     }
-      //   } catch (err) {
-      //     this._log(`상세이미지 OCR 실패: ${err?.message || err}`, 'warning')
-      //   }
-      // }
 
       // additional info pairs (generic)
       let additionalInfo: { label: string; value: string }[] | undefined
