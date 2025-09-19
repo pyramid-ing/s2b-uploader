@@ -592,7 +592,7 @@ export class S2BAutomation {
           : {}
 
       // 4. 최종 엑셀 매핑 (설정 전달)
-      const excelMapped = this.mapToExcelFormat(crawlData, aiRefined, categoryMapped, this.settings)
+      const excelMapped = this._mapToExcelFormat(crawlData, aiRefined, categoryMapped, this.settings)
 
       this._log(`데이터 정제 완료: ${basicInfo.name}`, 'info')
 
@@ -2157,7 +2157,7 @@ export class S2BAutomation {
   }
 
   // ---------------- 최종 엑셀 매핑 ----------------
-  private mapToExcelFormat(rawData: any, aiRefined: any, categoryMapped: any, settings?: any): any[] {
+  private _mapToExcelFormat(rawData: any, aiRefined: any, categoryMapped: any, settings?: any): any[] {
     const originalPrice = rawData.price || 0
     const marginRate = settings?.marginRate || 20
 
