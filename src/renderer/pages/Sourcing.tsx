@@ -1,9 +1,10 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react'
-import { Button, Card, Divider, Form, Input, message, Select, Space, Table, Typography, Tooltip } from 'antd'
+import { Alert, Button, Card, Divider, Form, Input, message, Select, Space, Table, Typography, Tooltip } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { DeleteOutlined, PlusOutlined, SendOutlined, DownloadOutlined } from '@ant-design/icons'
 import { useLog } from '../hooks/useLog'
 import { useSourcing } from '../hooks/useSourcing'
+import { useAccount } from '../hooks/useAccount'
 import { SourcingItem } from '../stores/sourcingStore'
 
 const { shell } = window.require('electron')
@@ -23,6 +24,7 @@ const Sourcing: React.FC = () => {
 
   // Recoil 기반 상태 관리
   const { logs, progress, clearLogs } = useLog()
+  const { account, checkAccountValidity } = useAccount()
   const {
     items,
     selectedRowKeys,
@@ -63,10 +65,11 @@ const Sourcing: React.FC = () => {
     }
   }
 
-  // 설정 불러오기
+  // 설정 불러오기 및 계정 유효성 확인
   useEffect(() => {
     loadSettings()
-  }, [loadSettings])
+    checkAccountValidity()
+  }, [loadSettings, checkAccountValidity])
 
   const columns: ColumnsType<SourcingItem> = useMemo(
     () => [
@@ -186,6 +189,16 @@ const Sourcing: React.FC = () => {
 
   return (
     <Space direction="vertical" size="large" style={{ width: '100%' }}>
+      {account.isAccountValid === false && (
+        <Alert
+          message="계정 인증 실패"
+          description="현재 계정으로는 소싱 기능이 제한됩니다. 관리자에게 문의하세요."
+          type="warning"
+          showIcon
+          style={{ marginBottom: '20px' }}
+        />
+      )}
+
       <Card title="검색">
         <Space wrap>
           <Form form={form} layout="inline">

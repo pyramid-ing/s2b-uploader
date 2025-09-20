@@ -19,6 +19,7 @@ const Register: React.FC = () => {
     products,
     selectedKeys,
     settings,
+    account,
     setSelectedKeys,
     checkAccountValidity,
     loadExcelData,
@@ -55,7 +56,7 @@ const Register: React.FC = () => {
 
   return (
     <>
-      {settings.isAccountValid === false && (
+      {account.isAccountValid === false && (
         <Alert
           message="계정 인증 실패"
           description="현재 계정으로는 상품 등록이 불가능합니다. 관리자에게 문의하세요."
@@ -67,7 +68,7 @@ const Register: React.FC = () => {
 
       <Card
         title="관리일 설정"
-        style={{ marginBottom: '20px', opacity: settings.isAccountValid === false ? 0.5 : 1 }}
+        style={{ marginBottom: '20px', opacity: account.isAccountValid === false ? 0.5 : 1 }}
         bordered={false}
       >
         <Space direction="vertical" size="middle">
@@ -76,7 +77,7 @@ const Register: React.FC = () => {
             <RangePicker
               value={settings.dateRange}
               onChange={dates => updateDateRange(dates as [any, any])}
-              disabled={settings.isAccountValid === false}
+              disabled={account.isAccountValid === false}
               format="YYYY-MM-DD"
               locale={koKR}
               presets={[
@@ -95,7 +96,7 @@ const Register: React.FC = () => {
             <Radio.Group
               value={settings.registrationStatus}
               onChange={e => updateRegistrationStatus(e.target.value)}
-              disabled={settings.isAccountValid === false}
+              disabled={account.isAccountValid === false}
             >
               {Object.entries(REGISTRATION_STATUS_LABELS).map(([value, label]) => (
                 <Radio key={value} value={value}>
@@ -107,7 +108,7 @@ const Register: React.FC = () => {
           <Button
             type="primary"
             onClick={extendManagementDate}
-            disabled={settings.isAccountValid === false || settings.loading || !settings.dateRange}
+            disabled={account.isAccountValid === false || settings.loading || !settings.dateRange}
           >
             관리일 연장
           </Button>
@@ -116,7 +117,7 @@ const Register: React.FC = () => {
 
       <Card
         title="상품 등록"
-        style={{ marginBottom: '20px', opacity: settings.isAccountValid === false ? 0.5 : 1 }}
+        style={{ marginBottom: '20px', opacity: account.isAccountValid === false ? 0.5 : 1 }}
         extra={
           <Space>
             <Button type="default" icon={<FolderOpenOutlined />} onClick={openResultFolder}>
@@ -126,7 +127,7 @@ const Register: React.FC = () => {
               icon={<ReloadOutlined />}
               onClick={loadExcelData}
               loading={settings.loading}
-              disabled={settings.isAccountValid === false}
+              disabled={account.isAccountValid === false}
             >
               새로고침
             </Button>
@@ -135,7 +136,7 @@ const Register: React.FC = () => {
               icon={<UploadOutlined />}
               onClick={registerProducts}
               loading={settings.loading}
-              disabled={selectedKeys.length === 0 || settings.isAccountValid === false}
+              disabled={selectedKeys.length === 0 || account.isAccountValid === false}
             >
               선택 상품 등록
             </Button>
@@ -159,7 +160,7 @@ const Register: React.FC = () => {
             selectedRowKeys: selectedKeys,
             onChange: setSelectedKeys,
             getCheckboxProps: () => ({
-              disabled: settings.isAccountValid === false || settings.loading,
+              disabled: account.isAccountValid === false || settings.loading,
             }),
           }}
           loading={settings.loading}

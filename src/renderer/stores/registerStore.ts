@@ -12,7 +12,6 @@ export interface ProductData {
 export interface RegisterSettings {
   dateRange: [Dayjs, Dayjs]
   registrationStatus: string
-  isAccountValid: boolean | null
   loading: boolean
 }
 
@@ -49,7 +48,6 @@ export const registerSettingsState = atom<RegisterSettings>({
   default: {
     dateRange: [dayjs(), dayjs().add(3, 'month')],
     registrationStatus: REGISTRATION_STATUS.ALL,
-    isAccountValid: null,
     loading: false,
   },
 })

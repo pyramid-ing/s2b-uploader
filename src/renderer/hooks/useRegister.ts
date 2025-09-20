@@ -1,6 +1,7 @@
 import { useRecoilState, useRecoilCallback } from 'recoil'
 import { message } from 'antd'
 import { productDataState, selectedProductKeysState, registerSettingsState } from '../stores/registerStore'
+import { useAccount } from './useAccount'
 
 const { ipcRenderer } = window.require('electron')
 
@@ -8,30 +9,7 @@ export const useRegister = () => {
   const [products, setProducts] = useRecoilState(productDataState)
   const [selectedKeys, setSelectedKeys] = useRecoilState(selectedProductKeysState)
   const [settings, setSettings] = useRecoilState(registerSettingsState)
-
-  // 계정 유효성 확인
-  const checkAccountValidity = useRecoilCallback(
-    ({ set }) =>
-      async () => {
-        try {
-          const settingsData = await ipcRenderer.invoke('get-settings')
-          if (!settingsData?.loginId) {
-            message.error('로그인 정보가 설정되지 않았습니다.')
-            set(registerSettingsState, prev => ({ ...prev, isAccountValid: false }))
-            return
-          }
-          const result = await ipcRenderer.invoke('check-account-validity', {
-            accountId: settingsData.loginId,
-          })
-          set(registerSettingsState, prev => ({ ...prev, isAccountValid: result }))
-        } catch (error) {
-          console.error('계정 유효성 확인 실패:', error)
-          set(registerSettingsState, prev => ({ ...prev, isAccountValid: false }))
-          message.error('계정 유효성 확인 중 오류가 발생했습니다.')
-        }
-      },
-    [],
-  )
+  const { account, checkAccountValidity } = useAccount()
 
   // Excel 데이터 로드
   const loadExcelData = useRecoilCallback(
@@ -204,6 +182,7 @@ export const useRegister = () => {
     products,
     selectedKeys,
     settings,
+    account,
     setSelectedKeys,
     checkAccountValidity,
     loadExcelData,
