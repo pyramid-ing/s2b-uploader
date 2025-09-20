@@ -1,7 +1,7 @@
 import { useRecoilState, useRecoilCallback } from 'recoil'
 import { message } from 'antd'
 import { productDataState, selectedProductKeysState, registerSettingsState } from '../stores/registerStore'
-import { useAccount } from './useAccount'
+import { usePermission } from './usePermission'
 
 const { ipcRenderer } = window.require('electron')
 
@@ -9,7 +9,7 @@ export const useRegister = () => {
   const [products, setProducts] = useRecoilState(productDataState)
   const [selectedKeys, setSelectedKeys] = useRecoilState(selectedProductKeysState)
   const [settings, setSettings] = useRecoilState(registerSettingsState)
-  const { account, checkAccountValidity } = useAccount()
+  const { permission, checkPermission } = usePermission()
 
   // Excel 데이터 로드
   const loadExcelData = useRecoilCallback(
@@ -182,9 +182,9 @@ export const useRegister = () => {
     products,
     selectedKeys,
     settings,
-    account,
+    permission,
     setSelectedKeys,
-    checkAccountValidity,
+    checkPermission,
     loadExcelData,
     openResultFolder,
     registerProducts,
