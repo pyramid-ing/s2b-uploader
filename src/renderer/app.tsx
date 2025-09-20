@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { Layout, Menu, theme } from 'antd'
 import { AppstoreOutlined, SettingOutlined, UploadOutlined } from '@ant-design/icons'
 import { Route, Routes, useLocation, useNavigate } from 'react-router-dom'
+import { RecoilRoot } from 'recoil'
 import Settings from './pages/Settings'
 import Upload from './pages/Upload'
 import Sourcing from './pages/Sourcing'
@@ -53,41 +54,43 @@ const App: React.FC = () => {
   }, [location, navigate])
 
   return (
-    <Layout style={{ minHeight: '100vh' }}>
-      <Sider collapsible collapsed={collapsed} onCollapse={setCollapsed}>
-        <div
-          style={{
-            color: '#FFF',
-            padding: '20px',
-            textAlign: 'center',
-            backgroundColor: '#001529',
-            borderBottom: '1px solid #ccc',
-          }}
-        >
-          <div style={{ fontSize: '18px', fontWeight: 'bold' }}>S2B 업로더</div>
-          <div style={{ fontSize: '12px', marginTop: '8px', color: '#BBB' }}>
-            버전 <span style={{ fontWeight: 'bold' }}>{appVersion}</span>
+    <RecoilRoot>
+      <Layout style={{ minHeight: '100vh' }}>
+        <Sider collapsible collapsed={collapsed} onCollapse={setCollapsed}>
+          <div
+            style={{
+              color: '#FFF',
+              padding: '20px',
+              textAlign: 'center',
+              backgroundColor: '#001529',
+              borderBottom: '1px solid #ccc',
+            }}
+          >
+            <div style={{ fontSize: '18px', fontWeight: 'bold' }}>S2B 업로더</div>
+            <div style={{ fontSize: '12px', marginTop: '8px', color: '#BBB' }}>
+              버전 <span style={{ fontWeight: 'bold' }}>{appVersion}</span>
+            </div>
           </div>
-        </div>
-        <Menu
-          theme="dark"
-          mode="inline"
-          selectedKeys={[location.pathname]}
-          items={menuItems}
-          onClick={({ key }) => navigate(key)}
-        />
-      </Sider>
-      <Layout>
-        <Header style={{ padding: 0, background: colorBgContainer }} />
-        <Content style={{ margin: '16px' }}>
-          <Routes>
-            <Route path="/upload" element={<Upload />} />
-            <Route path="/sourcing" element={<Sourcing />} />
-            <Route path="/settings" element={<Settings />} />
-          </Routes>
-        </Content>
+          <Menu
+            theme="dark"
+            mode="inline"
+            selectedKeys={[location.pathname]}
+            items={menuItems}
+            onClick={({ key }) => navigate(key)}
+          />
+        </Sider>
+        <Layout>
+          <Header style={{ padding: 0, background: colorBgContainer }} />
+          <Content style={{ margin: '16px' }}>
+            <Routes>
+              <Route path="/upload" element={<Upload />} />
+              <Route path="/sourcing" element={<Sourcing />} />
+              <Route path="/settings" element={<Settings />} />
+            </Routes>
+          </Content>
+        </Layout>
       </Layout>
-    </Layout>
+    </RecoilRoot>
   )
 }
 
