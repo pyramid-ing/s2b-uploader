@@ -4,7 +4,7 @@ import { AppstoreOutlined, SettingOutlined, UploadOutlined } from '@ant-design/i
 import { Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { RecoilRoot } from 'recoil'
 import Settings from './pages/Settings'
-import Upload from './pages/Upload'
+import Register from './pages/Register'
 import Sourcing from './pages/Sourcing'
 
 const { ipcRenderer } = window.require('electron')
@@ -22,7 +22,7 @@ const App: React.FC = () => {
 
   const menuItems = [
     {
-      key: '/upload',
+      key: '/register',
       icon: <UploadOutlined />,
       label: '상품등록',
     },
@@ -49,7 +49,7 @@ const App: React.FC = () => {
 
   useEffect(() => {
     if (location.pathname === '/') {
-      navigate('/upload')
+      navigate('/register')
     }
   }, [location, navigate])
 
@@ -83,7 +83,7 @@ const App: React.FC = () => {
           <Header style={{ padding: 0, background: colorBgContainer }} />
           <Content style={{ margin: '16px' }}>
             <Routes>
-              <Route path="/upload" element={<Upload />} />
+              <Route path="/register" element={<Register />} />
               <Route path="/sourcing" element={<Sourcing />} />
               <Route path="/settings" element={<Settings />} />
             </Routes>
