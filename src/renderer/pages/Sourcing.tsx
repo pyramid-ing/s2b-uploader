@@ -276,6 +276,24 @@ const Sourcing: React.FC = () => {
     })
   }
 
+  const handleBulkDelete = () => {
+    if (selectedRowKeys.length === 0) {
+      message.warning('삭제할 품목을 선택하세요.')
+      return
+    }
+
+    Modal.confirm({
+      title: '확인',
+      content: `${selectedRowKeys.length}개 항목을 삭제하시겠습니까?`,
+      okText: '예',
+      cancelText: '아니오',
+      onOk: () => {
+        selectedRowKeys.forEach(key => deleteItem(key))
+        setSelectedRowKeys([])
+      },
+    })
+  }
+
   const handleDownloadExcel = async () => {
     await downloadExcel()
   }
@@ -374,6 +392,9 @@ const Sourcing: React.FC = () => {
                 disabled={settings.detailHtmlTemplate.length < 10}
               >
                 등록요청({selectedRowKeys.length}개)
+              </Button>
+              <Button danger icon={<DeleteOutlined />} onClick={handleBulkDelete}>
+                선택 삭제({selectedRowKeys.length}개)
               </Button>
             </Space>
           )}
