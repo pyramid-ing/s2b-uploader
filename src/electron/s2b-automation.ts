@@ -11,6 +11,7 @@ import FileType from 'file-type'
 import sharp from 'sharp'
 import { pick } from 'lodash'
 import { normalizeUrl, VENDOR_CONFIG, VendorConfig, VendorKey } from './sourcing-config'
+import DomeggookScraper from './scrapers/DomeggookScraper'
 
 interface SourcingCrawlData {
   url: string
@@ -660,6 +661,15 @@ export class S2BAutomation {
     const vendorKey = this._detectVendorByUrl(targetUrl)
     if (!vendorKey) throw new Error('지원하지 않는 사이트 입니다.')
     const vendor: VendorConfig = VENDOR_CONFIG[vendorKey]
+
+    switch (vendorKey) {
+      case VendorKey.도매꾹: {
+        const scraper = new DomeggookScraper()
+        return await scraper.collectList(this.page, targetUrl, vendor)
+      }
+      default:
+        break
+    }
 
     await this.page.goto(targetUrl, { waitUntil: 'domcontentloaded' })
 
@@ -1896,6 +1906,17 @@ export class S2BAutomation {
   private async _extractBasicInfo(vendorKey: VendorKey | null, vendor?: VendorConfig): Promise<ExtractedBasicInfo> {
     if (!this.page) throw new Error('Browser page not initialized')
 
+    if (vendorKey && vendor) {
+      switch (vendorKey) {
+        case VendorKey.도매꾹: {
+          const scraper = new DomeggookScraper()
+          return await scraper.extractBasicInfo(this.page, vendorKey, vendor)
+        }
+        default:
+          break
+      }
+    }
+
     const name = vendor ? await this._textByXPath(vendor.product_name_xpath) : null
 
     const productCodeText = vendor?.product_code_xpath ? await this._textByXPath(vendor.product_code_xpath) : null
@@ -1903,22 +1924,17 @@ export class S2BAutomation {
 
     let price: number | null = null
 
-    // 도매꾹 특화 가격 추출
-    if (vendorKey === VendorKey.도매꾹) {
-      price = await this._extractDomeggookPrice()
-    } else {
-      // 기존 로직
-      let priceText: string | null = null
-      if (vendor?.price_xpaths && vendor.price_xpaths.length) {
-        for (const px of vendor.price_xpaths) {
-          priceText = await this._textByXPath(px)
-          if (priceText) break
-        }
-      } else if (vendor?.price_xpath) {
-        priceText = await this._textByXPath(vendor.price_xpath)
+    // 기존 로직
+    let priceText: string | null = null
+    if (vendor?.price_xpaths && vendor.price_xpaths.length) {
+      for (const px of vendor.price_xpaths) {
+        priceText = await this._textByXPath(px)
+        if (priceText) break
       }
-      price = this._parsePrice(priceText)
+    } else if (vendor?.price_xpath) {
+      priceText = await this._textByXPath(vendor.price_xpath)
     }
+    price = this._parsePrice(priceText)
 
     const shippingFee = vendor?.shipping_fee_xpath ? await this._textByXPath(vendor.shipping_fee_xpath) : null
 
