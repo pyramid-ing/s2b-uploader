@@ -1901,16 +1901,24 @@ export class S2BAutomation {
     const productCodeText = vendor?.product_code_xpath ? await this._textByXPath(vendor.product_code_xpath) : null
     const productCode = productCodeText ? productCodeText.replace(/[^0-9]/g, '') : null
 
-    let priceText: string | null = null
-    if (vendor?.price_xpaths && vendor.price_xpaths.length) {
-      for (const px of vendor.price_xpaths) {
-        priceText = await this._textByXPath(px)
-        if (priceText) break
+    let price: number | null = null
+
+    // 도매꾹 특화 가격 추출
+    if (vendorKey === VendorKey.도매꾹) {
+      price = await this._extractDomeggookPrice()
+    } else {
+      // 기존 로직
+      let priceText: string | null = null
+      if (vendor?.price_xpaths && vendor.price_xpaths.length) {
+        for (const px of vendor.price_xpaths) {
+          priceText = await this._textByXPath(px)
+          if (priceText) break
+        }
+      } else if (vendor?.price_xpath) {
+        priceText = await this._textByXPath(vendor.price_xpath)
       }
-    } else if (vendor?.price_xpath) {
-      priceText = await this._textByXPath(vendor.price_xpath)
+      price = this._parsePrice(priceText)
     }
-    const price = this._parsePrice(priceText)
 
     const shippingFee = vendor?.shipping_fee_xpath ? await this._textByXPath(vendor.shipping_fee_xpath) : null
 
@@ -2060,9 +2068,104 @@ export class S2BAutomation {
     return collected.length > 0 ? collected : undefined
   }
 
+  private async _extractDomeggookPrice(): Promise<number | null> {
+    if (!this.page) return null
+
+    try {
+      // 도매꾹 가격 추출 로직
+      const priceResult = await this.page.evaluate(() => {
+        // 1. 최저가 확인된 경우 (lItemPrice)
+        const lowestPriceEl = document.querySelector('tr.lInfoAmt .lItemPrice')
+        if (lowestPriceEl) {
+          const text = lowestPriceEl.textContent?.trim() || ''
+          const match = text.match(/([0-9,]+)/)
+          if (match) {
+            const digits = match[1].replace(/[^0-9]/g, '')
+            if (digits) return { type: 'lowest', price: Number(digits) }
+          }
+        }
+
+        // 2. 즉시할인가 경우 - 할인가 첫 번째 값 (최소값)
+        const discountEl = document.querySelector('tr.lInfoAmt .lDiscountAmt b:first-child')
+        if (discountEl) {
+          const text = discountEl.textContent?.trim() || ''
+          const match = text.match(/([0-9,]+)/)
+          if (match) {
+            const digits = match[1].replace(/[^0-9]/g, '')
+            if (digits) return { type: 'discount', price: Number(digits) }
+          }
+        }
+
+        // 3. 즉시할인가 범위의 최소값
+        const discountRangeEl = document.querySelector('tr.lInfoAmt .lDiscountAmt')
+        if (discountRangeEl) {
+          const text = discountRangeEl.textContent?.trim() || ''
+          const rangeMatch = text.match(/([0-9,]+)\s*원?\s*~\s*([0-9,]+)\s*원?/)
+          if (rangeMatch) {
+            const minPrice = rangeMatch[1].replace(/[^0-9]/g, '')
+            if (minPrice) return { type: 'discount_range', price: Number(minPrice) }
+          }
+        }
+
+        // 4. 수량범위별 단가 - 가장 왼쪽 첫 번째 단가 (최소 수량 기준)
+        const quantityTable = document.querySelector('tr.lInfoAmt table#lAmtSectionTbl')
+        if (quantityTable) {
+          const firstPriceCell = quantityTable.querySelector(
+            'tbody tr:nth-child(2) td.lSelected, tbody tr:nth-child(2) td:first-child',
+          )
+          if (firstPriceCell) {
+            const text = firstPriceCell.textContent?.trim() || ''
+            const match = text.match(/([0-9,]+)/)
+            if (match) {
+              const digits = match[1].replace(/[^0-9]/g, '')
+              if (digits) return { type: 'quantity', price: Number(digits) }
+            }
+          }
+        }
+
+        // 5. 정가 폴백
+        const regularPriceEl = document.querySelector('tr.lInfoAmt .lNotDiscountAmt b')
+        if (regularPriceEl) {
+          const text = regularPriceEl.textContent?.trim() || ''
+          const match = text.match(/([0-9,]+)/)
+          if (match) {
+            const digits = match[1].replace(/[^0-9]/g, '')
+            if (digits) return { type: 'regular', price: Number(digits) }
+          }
+        }
+
+        return null
+      })
+
+      return priceResult?.price || null
+    } catch (error) {
+      console.error('도매꾹 가격 추출 오류:', error)
+      return null
+    }
+  }
+
   private _parsePrice(text: string | null): number | null {
     if (!text) return null
-    const digits = text.replace(/[^0-9]/g, '')
+
+    // 도매꾹 특화 가격 파싱 로직
+    const cleanText = text.trim()
+
+    // 1. 범위 가격 처리 (예: "1,190원~1,250원")
+    const rangeMatch = cleanText.match(/([0-9,]+)\s*원?\s*~\s*([0-9,]+)\s*원?/)
+    if (rangeMatch) {
+      const minPrice = rangeMatch[1].replace(/[^0-9]/g, '')
+      if (minPrice) return Number(minPrice)
+    }
+
+    // 2. 첫 번째 가격만 추출 (예: "1,190원~1,250원" → "1,190")
+    const firstPriceMatch = cleanText.match(/([0-9,]+)\s*원?/)
+    if (firstPriceMatch) {
+      const digits = firstPriceMatch[1].replace(/[^0-9]/g, '')
+      if (digits) return Number(digits)
+    }
+
+    // 3. 기존 로직 (숫자만 추출)
+    const digits = cleanText.replace(/[^0-9]/g, '')
     if (!digits) return null
     return Number(digits)
   }

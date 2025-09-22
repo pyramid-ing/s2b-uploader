@@ -54,12 +54,27 @@ export const VENDOR_CONFIG: Record<VendorKey, VendorConfig> = {
     product_price_list_xpath:
       '//li[starts-with(@id, "li")]//span[contains(@class, "price") or contains(@class, "won") or contains(@class, "amt")]',
     product_code_xpath: '//*[@id="lInfoHeader"]/span[1]',
-    price_xpath: '//*[@id="lNotDiscountAmtBox"]//div[contains(@class, "lDiscountAmt")]//b',
+    price_xpath: '//tr[@class="lInfoAmt"]//div[@class="lItemPrice"]',
     price_xpaths: [
-      '//*[@id="lNotDiscountAmtBox"]//div[contains(@class, "lDiscountAmt")]//b', // 할인가 우선
-      '//*[@id="lNotDiscountAmtBox"]//div[contains(@class, "lNotDiscountAmt")]//b', // 정가 폴백
-      '//*[@id="lInfoBody"]/div[2]/table/tbody/tr[1]/td/div[1]/div', // 기존 XPath 폴백
-      '//*[@id="lAmtSectionTbl"]/tbody/tr[2]/td[1]', // 기존 XPath 폴백
+      // 1. 최저가 확인된 경우 (가장 우선)
+      '//tr[@class="lInfoAmt"]//div[@class="lItemPrice"]',
+
+      // 2. 즉시할인가 경우 - 할인가 첫 번째 값 (최소값)
+      '//tr[@class="lInfoAmt"]//div[@class="lDiscountAmt"]/b[1]',
+
+      // 3. 즉시할인가 경우 - 할인가 범위의 최소값
+      '//tr[@class="lInfoAmt"]//div[@class="lDiscountAmt"]/b[contains(text(), "~")]/preceding-sibling::b[1]',
+
+      // 4. 수량범위별 단가 - 가장 왼쪽 첫 번째 단가 (최소 수량 기준)
+      '//tr[@class="lInfoAmt"]//table[@id="lAmtSectionTbl"]/tbody/tr[2]/td[@class="lSelected"]',
+      '//tr[@class="lInfoAmt"]//table[@id="lAmtSectionTbl"]/tbody/tr[2]/td[1]',
+
+      // 5. 정가 폴백
+      '//tr[@class="lInfoAmt"]//div[@class="lNotDiscountAmt"]/b',
+
+      // 6. 기존 XPath 폴백들
+      '//*[@id="lInfoBody"]/div[2]/table/tbody/tr[1]/td/div[1]/div',
+      '//*[@id="lAmtSectionTbl"]/tbody/tr[2]/td[1]',
     ],
     shipping_fee_xpath: '//*[@id="lInfoBody"]/div[2]/table/tbody/tr[3]/td/div[2]',
     min_purchase_xpath: '//*[@id="lInfoBody"]//tr[contains(@class, "lInfoPurchase")]//b',
