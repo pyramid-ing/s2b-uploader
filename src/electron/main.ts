@@ -315,7 +315,6 @@ function setupIpcHandlers() {
       automation = new S2BAutomation(settings.fileDir, sendLogToRenderer, settings.headless, settings)
 
       await automation.launchRegistration()
-      sendLogToRenderer('상품등록 브라우저 시작 완료', 'info')
 
       await automation.login(settings.loginId, settings.loginPw)
       sendLogToRenderer(`로그인 성공 (ID: ${settings.loginId})`, 'info')
@@ -380,8 +379,15 @@ function setupIpcHandlers() {
   ipcMain.handle('sourcing-open-site', async (_, { vendor }: { vendor: string }) => {
     try {
       const settings = store.get('settings')
-      automation = new S2BAutomation(settings.fileDir, sendLogToRenderer, settings.headless, settings)
-      await automation.launchSourcing()
+
+      // 기존 automation 인스턴스가 없으면 새로 생성
+      if (!automation) {
+        automation = new S2BAutomation(settings.fileDir, sendLogToRenderer, settings.headless, settings)
+      }
+
+      // 브라우저 상태 확인 및 필요시 재시작
+      await automation.ensureBrowserConnected('sourcing')
+
       const baseUrl = vendor === 'domeggook' ? 'https://www.domeggook.com/' : 'https://www.domesin.com/'
       await automation.openUrl(baseUrl)
       return { success: true, url: automation.getCurrentUrl() }
@@ -394,6 +400,10 @@ function setupIpcHandlers() {
   ipcMain.handle('sourcing-collect-list-current', async () => {
     try {
       if (!automation) throw new Error('브라우저가 열려있지 않습니다. 먼저 사이트를 여세요.')
+
+      // 브라우저 상태 확인 및 필요시 재시작
+      await automation.ensureBrowserConnected('sourcing')
+
       const currentUrl = automation.getCurrentUrl()
       if (!currentUrl) throw new Error('현재 URL을 확인할 수 없습니다.')
       const list = await automation.collectListFromUrl(currentUrl)
@@ -407,7 +417,12 @@ function setupIpcHandlers() {
   ipcMain.handle('sourcing-collect-list', async (_, { url }: { url: string }) => {
     try {
       const settings = store.get('settings')
-      automation = new S2BAutomation(settings.fileDir, sendLogToRenderer, settings.headless, settings)
+
+      // 기존 automation 인스턴스가 없으면 새로 생성
+      if (!automation) {
+        automation = new S2BAutomation(settings.fileDir, sendLogToRenderer, settings.headless, settings)
+      }
+
       await automation.launchSourcing()
       const list = await automation.collectListFromUrl(url)
       await automation.close()
@@ -421,7 +436,12 @@ function setupIpcHandlers() {
   ipcMain.handle('sourcing-collect-details', async (_, { urls }: { urls: string[] }) => {
     try {
       const settings = store.get('settings')
-      automation = new S2BAutomation(settings.fileDir, sendLogToRenderer, settings.headless, settings)
+
+      // 기존 automation 인스턴스가 없으면 새로 생성
+      if (!automation) {
+        automation = new S2BAutomation(settings.fileDir, sendLogToRenderer, settings.headless, settings)
+      }
+
       await automation.launchSourcing()
       const details = await automation.collectNormalizedDetailForUrls(urls)
       await automation.close()
@@ -490,7 +510,6 @@ function setupIpcHandlers() {
       automation = new S2BAutomation(settings.fileDir, sendLogToRenderer, settings.headless, settings)
 
       await automation.launchManagement()
-      sendLogToRenderer('관리일 연장 브라우저 시작 완료', 'info')
 
       await automation.login(settings.loginId, settings.loginPw)
       sendLogToRenderer(`로그인 성공 (ID: ${settings.loginId})`, 'info')

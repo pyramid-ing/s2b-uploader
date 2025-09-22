@@ -532,6 +532,44 @@ export class S2BAutomation {
     await this._launchBrowser('registration')
   }
 
+  // 브라우저 상태 확인 및 필요시 재시작
+  public async ensureBrowserConnected(type: keyof typeof S2BAutomation.browsers): Promise<void> {
+    const browserInstance = S2BAutomation.browsers[type]
+
+    // 브라우저가 없거나 연결이 끊어진 경우 재시작
+    if (!browserInstance.browser) {
+      this.logCallback(`${type} 브라우저가 없습니다. 새로 시작합니다.`, 'info')
+      await this._launchBrowser(type)
+    } else if (!(await this._isBrowserConnected(browserInstance.browser))) {
+      this.logCallback(`${type} 브라우저 연결이 끊어졌습니다. 새로 시작합니다.`, 'warning')
+      // 기존 브라우저 인스턴스 완전히 정리
+      try {
+        if (browserInstance.browser.isConnected()) {
+          await browserInstance.browser.close()
+        }
+      } catch (error) {
+        this.logCallback(`기존 브라우저 정리 중 오류: ${error.message}`, 'warning')
+      }
+
+      // 인스턴스 초기화
+      browserInstance.browser = null
+      browserInstance.context = null
+      browserInstance.page = null
+
+      await this._launchBrowser(type)
+    } else {
+      this.logCallback(`${type} 브라우저가 정상적으로 연결되어 있습니다.`, 'info')
+    }
+  }
+
+  // 현재 사용 중인 브라우저 타입 확인
+  private _getCurrentBrowserType(): keyof typeof S2BAutomation.browsers | null {
+    if (this.browser === S2BAutomation.browsers.sourcing.browser) return 'sourcing'
+    if (this.browser === S2BAutomation.browsers.registration.browser) return 'registration'
+    if (this.browser === S2BAutomation.browsers.management.browser) return 'management'
+    return null
+  }
+
   // 관리일 연장용 브라우저 시작
   public async launchManagement(): Promise<void> {
     await this._launchBrowser('management')
@@ -646,6 +684,12 @@ export class S2BAutomation {
   }
 
   public async openUrl(url: string): Promise<void> {
+    // 현재 사용 중인 브라우저 타입 확인 및 상태 체크
+    const currentType = this._getCurrentBrowserType()
+    if (currentType) {
+      await this.ensureBrowserConnected(currentType)
+    }
+
     if (!this.page) throw new Error('Browser page not initialized')
     await this.page.goto(url, { waitUntil: 'domcontentloaded' })
   }
@@ -653,8 +697,8 @@ export class S2BAutomation {
   public async collectListFromUrl(
     targetUrl: string,
   ): Promise<{ name: string; url: string; price?: number; listThumbnail?: string }[]> {
-    // 소싱용 브라우저로 전환
-    await this.launchSourcing()
+    // 소싱용 브라우저로 전환 및 상태 확인
+    await this.ensureBrowserConnected('sourcing')
 
     if (!this.page) throw new Error('Browser page not initialized')
 
@@ -792,8 +836,8 @@ export class S2BAutomation {
   }
 
   public async registerProduct(data: ProductData): Promise<void> {
-    // 상품등록용 브라우저로 전환
-    await this.launchRegistration()
+    // 상품등록용 브라우저로 전환 및 상태 확인
+    await this.ensureBrowserConnected('registration')
     this._setupRegistrationPopupHandlers()
 
     if (!this.page) throw new Error('브라우저가 초기화되지 않았습니다.')
@@ -967,11 +1011,34 @@ export class S2BAutomation {
   private async _launchBrowser(type: keyof typeof S2BAutomation.browsers): Promise<void> {
     const browserInstance = S2BAutomation.browsers[type]
 
-    if (!browserInstance.browser) {
+    // 기존 브라우저가 있다면 완전히 정리
+    if (browserInstance.browser) {
+      try {
+        if (browserInstance.browser.isConnected()) {
+          await browserInstance.browser.close()
+        }
+      } catch (error) {
+        this.logCallback(`기존 ${type} 브라우저 정리 중 오류: ${error.message}`, 'warning')
+      }
+
+      browserInstance.browser = null
+      browserInstance.context = null
+      browserInstance.page = null
+    }
+
+    try {
       browserInstance.browser = await chromium.launch({
         headless: this.headless,
         executablePath: this.chromePath,
         args: ['--no-sandbox', '--disable-setuid-sandbox'],
+      })
+
+      // 브라우저 disconnect 이벤트 감지
+      browserInstance.browser.on('disconnected', () => {
+        this.logCallback(`${type} 브라우저가 수동으로 닫혔습니다.`, 'warning')
+        browserInstance.browser = null
+        browserInstance.context = null
+        browserInstance.page = null
       })
 
       browserInstance.context = await browserInstance.browser.newContext({
@@ -979,11 +1046,36 @@ export class S2BAutomation {
       })
 
       browserInstance.page = await browserInstance.context.newPage()
+
+      // 페이지가 닫혔을 때도 감지
+      browserInstance.page.on('close', () => {
+        this.logCallback(`${type} 브라우저 페이지가 닫혔습니다.`, 'warning')
+        browserInstance.page = null
+      })
+    } catch (error) {
+      this.logCallback(`${type} 브라우저 시작 실패: ${error.message}`, 'error')
+      throw error
     }
 
     this.browser = browserInstance.browser
     this.context = browserInstance.context
     this.page = browserInstance.page
+  }
+
+  // 브라우저 연결 상태 확인
+  private async _isBrowserConnected(browser: Browser): Promise<boolean> {
+    try {
+      // 브라우저가 연결되어 있는지 확인
+      browser.version()
+
+      // 추가로 브라우저 프로세스가 살아있는지 확인
+      const isConnected = browser.isConnected()
+
+      return isConnected
+    } catch (error) {
+      this.logCallback(`브라우저 연결 확인 실패: ${error.message}`, 'warning')
+      return false
+    }
   }
 
   // 팝업 감지 및 처리 설정 (상품등록용)
