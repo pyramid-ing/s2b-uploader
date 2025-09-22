@@ -6,8 +6,8 @@ import { VendorConfig, VendorKey, normalizeUrl } from '../sourcing-config'
 import type { ExtractedBasicInfo, ImageCollectResult } from './BaseScraper'
 import { BaseScraper } from './BaseScraper'
 
-export class DomeggookScraper extends BaseScraper {
-  public vendorKey: VendorKey = VendorKey.도매꾹
+export class DomesinScraper extends BaseScraper {
+  public vendorKey: VendorKey = VendorKey.도매신
 
   async collectList(
     page: Page,
@@ -92,7 +92,10 @@ export class DomeggookScraper extends BaseScraper {
     const productCode = productCodeText ? productCodeText.replace(/[^0-9]/g, '') : null
 
     let price: number | null = null
-    price = await this._extractDomeggookPrice(page)
+    if (vendor.price_xpath) {
+      const priceText = await this._textByXPath(page, vendor.price_xpath)
+      price = this._parsePrice(priceText)
+    }
 
     const shippingFee = vendor.shipping_fee_xpath ? await this._textByXPath(page, vendor.shipping_fee_xpath) : null
 
@@ -171,21 +174,43 @@ export class DomeggookScraper extends BaseScraper {
   }
 
   async collectImages(page: Page, vendor: VendorConfig, productDir?: string): Promise<ImageCollectResult> {
-    const mainImageUrls: string[] = vendor.main_image_xpath
-      ? await page.$$eval(`xpath=${vendor.main_image_xpath}`, nodes =>
-          Array.from(nodes)
-            .map(n => (n as HTMLImageElement).src || (n as HTMLSourceElement).getAttribute('srcset') || '')
-            .filter(Boolean),
-        )
-      : []
+    // 메인 이미지와 썸네일 이미지들을 모두 수집
+    const mainImageUrls: string[] = []
+
+    // 메인 이미지 수집
+    if (vendor.main_image_xpath) {
+      const mainImages = await page.$$eval(`xpath=${vendor.main_image_xpath}`, nodes =>
+        Array.from(nodes)
+          .map(n => (n as HTMLImageElement).src || (n as HTMLSourceElement).getAttribute('srcset') || '')
+          .filter(Boolean),
+      )
+      mainImageUrls.push(...mainImages)
+    }
+
+    // 썸네일 이미지들도 수집 (도매의신의 경우 썸네일이 추가 이미지일 수 있음)
+    const thumbnailImages = await page.$$eval('//td[contains(@style, "cursor:pointer")]//img', nodes =>
+      Array.from(nodes)
+        .map(n => (n as HTMLImageElement).src || '')
+        .filter(Boolean),
+    )
+    mainImageUrls.push(...thumbnailImages)
+
+    // 중복 제거 및 URL 정규화
+    const uniqueUrls = [...new Set(mainImageUrls)]
+      .map(url => {
+        if (url.startsWith('//')) return `https:${url}`
+        if (url.startsWith('/')) return `https://www.domesin.com${url}`
+        return url
+      })
+      .filter(Boolean)
 
     const targetDir = productDir || path.join(process.cwd(), 'downloads', dayjs().format('YYYYMMDD'))
     if (!fsSync.existsSync(targetDir)) fsSync.mkdirSync(targetDir, { recursive: true })
 
     const savedMainImages: string[] = []
     const thumbnailNames = ['기본이미지1.jpg', '기본이미지2.jpg', '추가이미지1.jpg', '추가이미지2.jpg']
-    for (let i = 0; i < Math.min(4, mainImageUrls.length); i++) {
-      const buf = await this.downloadToBuffer(mainImageUrls[i])
+    for (let i = 0; i < Math.min(4, uniqueUrls.length); i++) {
+      const buf = await this.downloadToBuffer(uniqueUrls[i])
       if (!buf) continue
       const outPath = path.join(targetDir, thumbnailNames[i])
       await this.saveJpg(buf, outPath, 90)
@@ -255,73 +280,6 @@ export class DomeggookScraper extends BaseScraper {
     }
   }
 
-  private async _extractDomeggookPrice(page: Page): Promise<number | null> {
-    try {
-      const priceResult = await page.evaluate(() => {
-        const lowestPriceEl = document.querySelector('tr.lInfoAmt .lItemPrice')
-        if (lowestPriceEl) {
-          const text = lowestPriceEl.textContent?.trim() || ''
-          const match = text.match(/([0-9,]+)/)
-          if (match) {
-            const digits = match[1].replace(/[^0-9]/g, '')
-            if (digits) return { type: 'lowest', price: Number(digits) }
-          }
-        }
-
-        const discountEl = document.querySelector('tr.lInfoAmt .lDiscountAmt b:first-child')
-        if (discountEl) {
-          const text = discountEl.textContent?.trim() || ''
-          const match = text.match(/([0-9,]+)/)
-          if (match) {
-            const digits = match[1].replace(/[^0-9]/g, '')
-            if (digits) return { type: 'discount', price: Number(digits) }
-          }
-        }
-
-        const discountRangeEl = document.querySelector('tr.lInfoAmt .lDiscountAmt')
-        if (discountRangeEl) {
-          const text = discountRangeEl.textContent?.trim() || ''
-          const rangeMatch = text.match(/([0-9,]+)\s*원?\s*~\s*([0-9,]+)\s*원?/)
-          if (rangeMatch) {
-            const minPrice = rangeMatch[1].replace(/[^0-9]/g, '')
-            if (minPrice) return { type: 'discount_range', price: Number(minPrice) }
-          }
-        }
-
-        const quantityTable = document.querySelector('tr.lInfoAmt table#lAmtSectionTbl')
-        if (quantityTable) {
-          const firstPriceCell = quantityTable.querySelector(
-            'tbody tr:nth-child(2) td.lSelected, tbody tr:nth-child(2) td:first-child',
-          )
-          if (firstPriceCell) {
-            const text = firstPriceCell.textContent?.trim() || ''
-            const match = text.match(/([0-9,]+)/)
-            if (match) {
-              const digits = match[1].replace(/[^0-9]/g, '')
-              if (digits) return { type: 'quantity', price: Number(digits) }
-            }
-          }
-        }
-
-        const regularPriceEl = document.querySelector('tr.lInfoAmt .lNotDiscountAmt b')
-        if (regularPriceEl) {
-          const text = regularPriceEl.textContent?.trim() || ''
-          const match = text.match(/([0-9,]+)/)
-          if (match) {
-            const digits = match[1].replace(/[^0-9]/g, '')
-            if (digits) return { type: 'regular', price: Number(digits) }
-          }
-        }
-
-        return null
-      })
-
-      return (priceResult as any)?.price || null
-    } catch {
-      return null
-    }
-  }
-
   private _parsePrice(text: string | null): number | null {
     if (!text) return null
     const cleanText = text.trim()
@@ -345,8 +303,26 @@ export class DomeggookScraper extends BaseScraper {
     xpaths: string[],
   ): Promise<{ name: string; price?: number; qty?: number }[][]> {
     const levels: { name: string; price?: number; qty?: number }[][] = []
-    for (const xp of xpaths) {
+
+    for (let i = 0; i < xpaths.length; i++) {
+      const xp = xpaths[i]
       try {
+        // 중첩 옵션 처리: 첫 번째 옵션을 선택해야 두 번째 옵션이 활성화됨
+        if (i > 0) {
+          // 이전 옵션의 첫 번째 값을 선택하여 다음 옵션을 활성화
+          const previousXpath = xpaths[i - 1]
+          const firstOption = await page.$(`xpath=${previousXpath}[1]`)
+          if (firstOption) {
+            try {
+              await firstOption.click()
+              // 옵션 변경 후 페이지 로딩 대기
+              await page.waitForTimeout(500)
+            } catch (error) {
+              console.warn('이전 옵션 선택 실패:', error)
+            }
+          }
+        }
+
         const items: { name: string; price?: number; qty?: number }[] = await page.evaluate((xpath: string) => {
           const result: { name: string; price?: number; qty?: number }[] = []
           const iterator = document.evaluate(xpath, document, null, XPathResult.ORDERED_NODE_ITERATOR_TYPE, null)
@@ -396,7 +372,8 @@ export class DomeggookScraper extends BaseScraper {
           return result
         }, xp)
         levels.push(items)
-      } catch {
+      } catch (error) {
+        console.warn(`옵션 수집 실패 (레벨 ${i}):`, error)
         levels.push([])
       }
     }
@@ -407,8 +384,8 @@ export class DomeggookScraper extends BaseScraper {
     try {
       const currentUrl = page.url()
 
-      // 도매꾹 로그인 페이지 체크
-      if (currentUrl.includes('domeggook.com') && currentUrl.includes('login')) {
+      // 도매의신 로그인 페이지 체크
+      if (currentUrl.includes('domesin.com') && currentUrl.includes('member/login_form.html')) {
         return true
       }
 
@@ -429,4 +406,4 @@ export class DomeggookScraper extends BaseScraper {
   }
 }
 
-export default DomeggookScraper
+export default DomesinScraper

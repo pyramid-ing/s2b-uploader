@@ -129,49 +129,63 @@ export const VENDOR_CONFIG: Record<VendorKey, VendorConfig> = {
   },
   [VendorKey.도매신]: {
     login_url: 'https://www.domesin.com/index.html?p=member/login_form.html',
+    // 상품 목록 페이지에서 상품 링크 추출
     product_list_xpath: '//*[@id="listfrm"]/table/tbody/tr/td/div[2]/a',
-    product_name_list_xpath: '//*[@id="listfrm"]/table/tbody/tr/td/div[5]/a',
-    product_name_xpath: '/html/body/table[3]/tbody/tr/td/div[7]',
-    product_price_list_xpath: '//*[@id="listfrm"]/table/tbody/tr/td/div[4]//span',
-    product_code_xpath: '/html/body/table[3]/tbody/tr/td/table[1]/tbody/tr/td[2]/table/tbody/tr[1]/td[2]',
-    category_1_xpath: '/html/body/table[3]/tbody/tr/td/div[1]/select[1]',
-    category_2_xpath: '/html/body/table[3]/tbody/tr/td/div[1]/select[2]',
-    category_3_xpath: '/html/body/table[3]/tbody/tr/td/div[1]/select[3]',
-    category_4_xpath: '/html/body/table[3]/tbody/tr/td/div[1]/select[4]',
-    price_xpath: '/html/body/table[3]/tbody/tr/td/table[1]/tbody/tr/td[2]/table/tbody/tr[2]/td[2]/span',
-    shipping_fee_xpath:
-      '/html/body/table[3]/tbody/tr/td/table[1]/tbody/tr/td[2]/table/tbody/tr[4]/td/table/tbody/tr[1]/td[2]',
-    origin_xpath:
-      '/html/body/table[3]/tbody/tr/td/table[1]/tbody/tr/td[2]/table/tbody/tr[4]/td/table/tbody/tr[4]/td[4]',
-    manufacturer_xpath:
-      '/html/body/table[3]/tbody/tr/td/table[1]/tbody/tr/td[2]/table/tbody/tr[4]/td/table/tbody/tr[4]/td[2]',
+    // 상품 목록 페이지에서 상품명 추출
+    product_name_list_xpath: '//*[@id="listfrm"]/table/tbody/tr/td/div[5]/a[@class="itemname"]',
+    // 상품 상세 페이지에서 상품명 추출 (새로운 구조)
+    product_name_xpath: '//div[@class="item_title"]',
+    // 상품 목록 페이지에서 가격 추출
+    product_price_list_xpath: '//*[@id="listfrm"]/table/tbody/tr/td/div[4]//span[@class="amount_text"]',
+    // 상품 상세 페이지에서 상품코드 추출 (새로운 구조)
+    product_code_xpath: '//table[@class="item_view_tb"]//tr[td[contains(text(), "상품코드")]]/td[2]',
+    // 상품 목록 페이지에서 썸네일 이미지 추출
+    product_thumbnail_list_xpath: '//*[@id="listfrm"]/table/tbody/tr/td/div[2]/a/img',
+    // 카테고리 정보 추출 (새로운 구조)
+    category_1_xpath: '//select[@name="cate1"]/option[@selected]',
+    category_2_xpath: '//select[@name="cate2"]/option[@selected]',
+    category_3_xpath: '//select[@name="cate3"]/option[@selected]',
+    category_4_xpath: '//select[@name="cate4"]/option[@selected]',
+    // 상품 상세 페이지에서 가격 추출 (새로운 구조)
+    price_xpath: '//table[@class="item_view_tb"]//tr[td[contains(text(), "판매가")]]//span[@class="amount_text"]',
+    // 배송비 정보 추출 (새로운 구조)
+    shipping_fee_xpath: '//table[@class="item_view_tb"]//tr[td[contains(text(), "배송유형")]]/td[2]',
+    // 원산지 정보 추출 (새로운 구조)
+    origin_xpath: '//table[@class="item_view_tb"]//tr[td[contains(text(), "원산지")]]/td[2]',
+    // 제조사 정보 추출 (새로운 구조)
+    manufacturer_xpath: '//table[@class="item_view_tb"]//tr[td[contains(text(), "제조사")]]/td[2]',
     fallback_manufacturer: '(주)머니로드',
-    option1_box_xpath: '/html/body/table[3]/tbody/tr/td/table[1]/tbody/tr/td[2]/table/tbody/tr[11]/td[2]/select',
+    // 옵션 정보 추출 - 중첩 옵션 처리
+    option1_box_xpath:
+      '//table[@class="item_view_tb"]//tr[td[contains(text(), "옵션") or contains(text(), "색상") or contains(text(), "사이즈")]]/td[2]/select[1]',
     option1_item_xpaths:
-      '/html/body/table[3]/tbody/tr/td/table[1]/tbody/tr/td[2]/table/tbody/tr[11]/td[2]/select/option[position()>1]',
-    option2_box_xpath: '/html/body/table[3]/tbody/tr/td/table[1]/tbody/tr/td[2]/table/tbody/tr[12]/td[2]/select',
+      '//table[@class="item_view_tb"]//tr[td[contains(text(), "옵션") or contains(text(), "색상") or contains(text(), "사이즈")]]/td[2]/select[1]/option[position()>1]',
+    option2_box_xpath:
+      '//table[@class="item_view_tb"]//tr[td[contains(text(), "옵션") or contains(text(), "색상") or contains(text(), "사이즈")]]/td[2]/select[2]',
     option2_item_xpaths:
-      '/html/body/table[3]/tbody/tr/td/table[1]/tbody/tr/td[2]/table/tbody/tr[12]/td[2]/select/option[position()>1]',
+      '//table[@class="item_view_tb"]//tr[td[contains(text(), "옵션") or contains(text(), "색상") or contains(text(), "사이즈")]]/td[2]/select[2]/option[position()>1]',
     option_xpath: [
-      '/html/body/table[3]/tbody/tr/td/table[1]/tbody/tr/td[2]/table/tbody/tr[11]/td[2]/select/option[position()>1]',
-      '/html/body/table[3]/tbody/tr/td/table[1]/tbody/tr/td[2]/table/tbody/tr[12]/td[2]/select/option[position()>1]',
+      '//table[@class="item_view_tb"]//tr[td[contains(text(), "옵션") or contains(text(), "색상") or contains(text(), "사이즈")]]/td[2]/select[1]/option[position()>1]',
+      '//table[@class="item_view_tb"]//tr[td[contains(text(), "옵션") or contains(text(), "색상") or contains(text(), "사이즈")]]/td[2]/select[2]/option[position()>1]',
     ],
-    main_image_xpath: '//*[@id="mainimg"]',
-    detail_image_xpath: '/html/body/table[3]/tbody/tr/td/div[9]',
+    // 메인 이미지 추출 (새로운 구조)
+    main_image_xpath: '//img[@id="mainimg"]',
+    // 상세 이미지 영역 추출 (새로운 구조)
+    detail_image_xpath: '//div[@id="alink1"]/following-sibling::div[1]',
+    // 추가 정보 추출 (새로운 구조)
     additional_info_pairs: [
       {
-        label_xpath:
-          '/html/body/table[3]/tbody/tr/td/table[1]/tbody/tr/td[2]/table/tbody/tr[4]/td/table/tbody/tr[2]/td[1]',
-        value_xpath:
-          '/html/body/table[3]/tbody/tr/td/table[1]/tbody/tr/td[2]/table/tbody/tr[4]/td/table/tbody/tr[2]/td[2]',
+        label_xpath: '//table[@class="item_view_tb"]//tr/td[1]',
+        value_xpath: '//table[@class="item_view_tb"]//tr/td[2]',
       },
       {
-        label_xpath:
-          '/html/body/table[3]/tbody/tr/td/table[1]/tbody/tr/td[2]/table/tbody/tr[4]/td/table/tbody/tr[5]/td[1]',
-        value_xpath:
-          '/html/body/table[3]/tbody/tr/td/table[1]/tbody/tr/td[2]/table/tbody/tr[4]/td/table/tbody/tr[5]/td[2]',
+        label_xpath: '//table[@class="item_view_tb"]//tr/td[3]',
+        value_xpath: '//table[@class="item_view_tb"]//tr/td[4]',
       },
     ],
+    // URL 처리 설정
+    url_mode: 'relative',
+    custom_url_prefix: 'https://www.domesin.com',
     fallback_prefix: 'DMS',
     fallback_sheet: 'DMS',
   },

@@ -447,6 +447,7 @@ function setupIpcHandlers() {
       await automation.close()
       return { success: true, items: details }
     } catch (error) {
+      sendLogToRenderer(`에러 발생: ${error.message}`, 'error')
       return { success: false, error: error.message || '상세 수집 실패' }
     }
   })

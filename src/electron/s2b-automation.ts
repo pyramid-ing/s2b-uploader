@@ -2,7 +2,6 @@ import { chromium, Browser, BrowserContext, Page } from 'playwright'
 import * as XLSX from 'xlsx'
 import path from 'node:path'
 import * as fsSync from 'fs'
-import fsPromises from 'fs/promises'
 import * as fs from 'fs'
 import dayjs from 'dayjs'
 import axios from 'axios'
@@ -10,8 +9,10 @@ import crypto from 'crypto'
 import FileType from 'file-type'
 import sharp from 'sharp'
 import { pick } from 'lodash'
-import { normalizeUrl, VENDOR_CONFIG, VendorConfig, VendorKey } from './sourcing-config'
+import { VENDOR_CONFIG, VendorConfig, VendorKey } from './sourcing-config'
 import DomeggookScraper from './scrapers/DomeggookScraper'
+import DomesinScraper from './scrapers/DomesinScraper'
+import type { Scraper } from './scrapers/BaseScraper'
 
 interface SourcingCrawlData {
   url: string
@@ -649,14 +650,31 @@ export class S2BAutomation {
 
       await this._navigateToUrl(url)
 
-      const basicInfo = await this._extractBasicInfo(vendorKey, vendor)
+      const scraper = this._getScraper(vendorKey)
+      if (scraper && (await scraper.checkLoginRequired(this.page))) {
+        throw new Error(
+          '로그인이 필요합니다: 로그인 페이지로 이동되었습니다. 소싱 브라우저에서 로그인 후 다시 시도하세요.',
+        )
+      }
+
+      if (!scraper || !vendorKey || !vendor) {
+        throw new Error('지원하지 않는 사이트 입니다.')
+      }
+
+      // Strategy 패턴: 벤더별 스크래퍼에 위임
+      const basicInfo = await scraper.extractBasicInfo(this.page, vendorKey, vendor)
+
+      // 필수값 검증: 상품명 누락 시 크롤링 실패 처리
+      if (!basicInfo.name || !basicInfo.name.trim()) {
+        throw new Error('크롤링 실패: 상품명(name) 추출에 실패했습니다.')
+      }
 
       // 상품별 저장 폴더 생성 (downloads/YYYYMMDD/<상품명_타임스탬프>)
       const baseName = (basicInfo.name || basicInfo.productCode || 'product').toString()
       const productDir = this._createProductDir(baseName)
 
-      const { savedMainImages, detailCapturePath } = await this._collectImages(vendor, productDir)
-      const 특성 = await this._collectAdditionalInfo(vendor)
+      const { savedMainImages, detailCapturePath } = await scraper.collectImages(this.page, vendor, productDir)
+      const 특성 = await scraper.collectAdditionalInfo(this.page, vendor)
 
       // 1. 크롤링된 원본 데이터
       const crawlData: SourcingCrawlData = {
@@ -759,138 +777,9 @@ export class S2BAutomation {
     const vendorKey = this._detectVendorByUrl(targetUrl)
     if (!vendorKey) throw new Error('지원하지 않는 사이트 입니다.')
     const vendor: VendorConfig = VENDOR_CONFIG[vendorKey]
-
-    switch (vendorKey) {
-      case VendorKey.도매꾹: {
-        const scraper = new DomeggookScraper()
-        return await scraper.collectList(this.page, targetUrl, vendor)
-      }
-      default:
-        break
-    }
-
-    await this.page.goto(targetUrl, { waitUntil: 'domcontentloaded' })
-
-    const hrefs: string[] = await this.page.evaluate((xpath: string) => {
-      const result: string[] = []
-      const iterator = document.evaluate(xpath, document, null, XPathResult.ORDERED_NODE_ITERATOR_TYPE, null)
-      let node = iterator.iterateNext() as any
-      while (node) {
-        if (node instanceof HTMLAnchorElement && node.href) {
-          result.push(node.href)
-        } else if ((node as Element).getAttribute) {
-          const href = (node as Element).getAttribute('href')
-          if (href) result.push(href)
-        }
-        node = iterator.iterateNext() as any
-      }
-      return result
-    }, vendor.product_list_xpath)
-
-    const names: string[] = await this.page.evaluate((xpath: string) => {
-      const result: string[] = []
-      const iterator = document.evaluate(xpath, document, null, XPathResult.ORDERED_NODE_ITERATOR_TYPE, null)
-      let node = iterator.iterateNext() as any
-      while (node) {
-        const text = (node as Element).textContent || ''
-        result.push(text.trim())
-        node = iterator.iterateNext() as any
-      }
-      return result
-    }, vendor.product_name_list_xpath)
-
-    // 썸네일 이미지 추출
-    let thumbnails: (string | null)[] = []
-    if (vendor.product_thumbnail_list_xpath) {
-      thumbnails = await this.page.evaluate((xpath: string) => {
-        const result: (string | null)[] = []
-        const iterator = document.evaluate(xpath, document, null, XPathResult.ORDERED_NODE_ITERATOR_TYPE, null)
-        let node = iterator.iterateNext() as any
-        while (node) {
-          if (node instanceof HTMLImageElement) {
-            result.push(node.src || null)
-          } else {
-            result.push(null)
-          }
-          node = iterator.iterateNext() as any
-        }
-        return result
-      }, vendor.product_thumbnail_list_xpath)
-    }
-
-    // 가격 리스트 시도: 1) 명시 XPath, 2) 앵커 주변 휴리스틱
-    let prices: (number | null)[] = []
-    if (vendor.product_price_list_xpath) {
-      const priceTexts: string[] = await this.page.evaluate((xpath: string) => {
-        const result: string[] = []
-        const iterator = document.evaluate(xpath, document, null, XPathResult.ORDERED_NODE_ITERATOR_TYPE, null)
-        let node = iterator.iterateNext() as any
-        while (node) {
-          const text = (node as Element).textContent || ''
-          result.push(text.trim())
-          node = iterator.iterateNext() as any
-        }
-        return result
-      }, vendor.product_price_list_xpath)
-      prices = priceTexts.map(t => {
-        const digits = t.replace(/[^0-9]/g, '')
-        return digits ? Number(digits) : null
-      })
-    }
-
-    // 매핑: 길이가 불일치하면 가격은 휴리스틱으로 보강
-    const items = hrefs.map((rawHref, idx) => {
-      const href = normalizeUrl(rawHref, vendor)
-      let price: number | undefined = undefined
-      if (prices[idx] != null) {
-        price = prices[idx] ?? undefined
-      }
-      const listThumbnail = thumbnails[idx] || undefined
-      return { name: names[idx] || '', url: href, price, listThumbnail }
-    })
-
-    // 가격 누락건 보정: 각 앵커의 부모 요소에서 가격 후보 텍스트 탐색
-    const needsPrice = items.some(it => typeof it.price === 'undefined')
-    if (needsPrice) {
-      const fallbackPrices: (number | null)[] = await this.page.evaluate((xpath: string) => {
-        const anchors: Element[] = []
-        const iterator = document.evaluate(xpath, document, null, XPathResult.ORDERED_NODE_ITERATOR_TYPE, null)
-        let node = iterator.iterateNext() as any
-        while (node) {
-          anchors.push(node as Element)
-          node = iterator.iterateNext() as any
-        }
-        const results: (number | null)[] = []
-        for (const a of anchors) {
-          let container: Element | null = a.closest('li') || a.parentElement
-          if (!container) {
-            results.push(null)
-            continue
-          }
-          const text = (container.textContent || '').replace(/\s+/g, ' ')
-          const match = text.match(/([0-9]{1,3}(?:,[0-9]{3})+|[0-9]{4,})\s*(?:원|W|won)?/i)
-          if (match && match[1]) {
-            const digits = match[1].replace(/[^0-9]/g, '')
-            results.push(digits ? Number(digits) : null)
-          } else {
-            results.push(null)
-          }
-        }
-        return results
-      }, vendor.product_list_xpath)
-
-      items.forEach((it, i) => {
-        if (typeof it.price === 'undefined' && fallbackPrices[i] != null) {
-          it.price = fallbackPrices[i] ?? undefined
-        }
-      })
-    }
-
-    // vendor 정보 추가
-    return items.map(item => ({
-      ...item,
-      vendor: vendorKey,
-    }))
+    const scraper = this._getScraper(vendorKey)
+    if (!scraper) throw new Error('지원하지 않는 사이트 입니다.')
+    return await scraper.collectList(this.page, vendor)
   }
 
   public async registerProduct(data: ProductData): Promise<void> {
@@ -2048,319 +1937,22 @@ export class S2BAutomation {
     return { vendorKey, vendor }
   }
 
+  private _getScraper(vendorKey: VendorKey | null): Scraper | null {
+    if (!vendorKey) return null
+
+    switch (vendorKey) {
+      case VendorKey.도매꾹:
+        return new DomeggookScraper()
+      case VendorKey.도매신:
+        return new DomesinScraper()
+      default:
+        return null
+    }
+  }
+
   private async _navigateToUrl(url: string): Promise<void> {
     if (!this.page) throw new Error('Browser page not initialized')
     await this.page.goto(url, { waitUntil: 'domcontentloaded' })
-  }
-
-  private async _extractBasicInfo(vendorKey: VendorKey | null, vendor?: VendorConfig): Promise<ExtractedBasicInfo> {
-    if (!this.page) throw new Error('Browser page not initialized')
-
-    if (vendorKey && vendor) {
-      switch (vendorKey) {
-        case VendorKey.도매꾹: {
-          const scraper = new DomeggookScraper()
-          return await scraper.extractBasicInfo(this.page, vendorKey, vendor)
-        }
-        default:
-          break
-      }
-    }
-
-    const name = vendor ? await this._textByXPath(vendor.product_name_xpath) : null
-
-    const productCodeText = vendor?.product_code_xpath ? await this._textByXPath(vendor.product_code_xpath) : null
-    const productCode = productCodeText ? productCodeText.replace(/[^0-9]/g, '') : null
-
-    let price: number | null = null
-
-    // 기존 로직
-    let priceText: string | null = null
-    if (vendor?.price_xpaths && vendor.price_xpaths.length) {
-      for (const px of vendor.price_xpaths) {
-        priceText = await this._textByXPath(px)
-        if (priceText) break
-      }
-    } else if (vendor?.price_xpath) {
-      priceText = await this._textByXPath(vendor.price_xpath)
-    }
-    price = this._parsePrice(priceText)
-
-    const shippingFee = vendor?.shipping_fee_xpath ? await this._textByXPath(vendor.shipping_fee_xpath) : null
-
-    let minPurchase: number | undefined
-    if (vendor?.min_purchase_xpath) {
-      const mp = await this._textByXPath(vendor.min_purchase_xpath)
-      if (mp) {
-        const d = mp.replace(/[^0-9]/g, '')
-        if (d) minPurchase = Number(d)
-      }
-    }
-
-    let imageUsage: string | undefined
-    if (vendor?.image_usage_xpath) {
-      const usage = await this._textByXPath(vendor.image_usage_xpath)
-      if (usage) imageUsage = usage.trim()
-    }
-
-    let certifications: { type: string; number: string }[] | undefined
-    if (vendor?.certification_xpath) {
-      const certItems = await this.page.$$eval(`xpath=${vendor.certification_xpath}`, nodes => {
-        return Array.from(nodes)
-          .map(li => {
-            const titleEl = li.querySelector('.lCertTitle')
-            const numEl = li.querySelector('.lCertNum')
-            const type = titleEl ? titleEl.textContent?.trim() || '' : ''
-            const number = numEl ? numEl.textContent?.replace(/자세히보기.*/, '').trim() || '' : ''
-            return { type, number }
-          })
-          .filter(cert => cert.type && cert.number)
-      })
-      if (certItems.length > 0) certifications = certItems as { type: string; number: string }[]
-    }
-
-    const origin = vendor?.origin_xpath ? await this._textByXPath(vendor.origin_xpath) : null
-    let manufacturer = vendor?.manufacturer_xpath ? await this._textByXPath(vendor.manufacturer_xpath) : null
-    if ((!manufacturer || !manufacturer.trim()) && vendor?.fallback_manufacturer) {
-      manufacturer = vendor.fallback_manufacturer
-    }
-
-    const categories: string[] = []
-    for (const cx of [
-      vendor?.category_1_xpath,
-      vendor?.category_2_xpath,
-      vendor?.category_3_xpath,
-      vendor?.category_4_xpath,
-    ]) {
-      if (!cx) continue
-      const val = await this._textByXPath(cx)
-      if (val) categories.push(val)
-    }
-
-    let options: { name: string; price?: number; qty?: number }[][] | undefined
-    if (vendor?.option_xpath && vendor.option_xpath.length > 0) {
-      options = await this._collectOptionsByXpaths(vendor.option_xpath)
-    } else {
-      const xpaths: string[] = []
-      if (vendor?.option1_item_xpaths) xpaths.push(vendor.option1_item_xpaths)
-      if (vendor?.option2_item_xpaths) xpaths.push(vendor.option2_item_xpaths)
-      if (xpaths.length > 0) options = await this._collectOptionsByXpaths(xpaths)
-    }
-
-    return {
-      name,
-      productCode,
-      price,
-      shippingFee,
-      minPurchase,
-      imageUsage,
-      certifications,
-      origin,
-      manufacturer,
-      categories,
-      options,
-    }
-  }
-
-  private async _collectImages(
-    vendor?: VendorConfig,
-    productDir?: string,
-  ): Promise<{ savedMainImages: string[]; detailCapturePath: string | null }> {
-    if (!this.page) throw new Error('Browser page not initialized')
-
-    const mainImageUrls: string[] = vendor?.main_image_xpath
-      ? await this.page.$$eval(`xpath=${vendor.main_image_xpath}`, nodes =>
-          Array.from(nodes)
-            .map(n => (n as HTMLImageElement).src || (n as HTMLSourceElement).getAttribute('srcset') || '')
-            .filter(Boolean),
-        )
-      : []
-
-    let detailCapturePath: string | null = null
-    if (vendor?.detail_image_xpath) {
-      const targetDir = productDir || path.join(this.baseFilePath, 'downloads', dayjs().format('YYYYMMDD'))
-      if (!fsSync.existsSync(targetDir)) fsSync.mkdirSync(targetDir, { recursive: true })
-      detailCapturePath = await this._screenshotElement(
-        path.join(targetDir, `상세이미지.jpg`),
-        vendor.detail_image_xpath,
-      )
-    }
-
-    const savedMainImages: string[] = []
-    const targetDir = productDir || path.join(this.baseFilePath, 'downloads', dayjs().format('YYYYMMDD'))
-    if (!fsSync.existsSync(targetDir)) fsSync.mkdirSync(targetDir, { recursive: true })
-
-    // 썸네일 파일명 규칙 및 최대 4개 제한
-    const thumbnailNames = ['기본이미지1.jpg', '기본이미지2.jpg', '추가이미지1.jpg', '추가이미지2.jpg']
-    const limitedUrls = mainImageUrls.slice(0, 4)
-    for (let i = 0; i < limitedUrls.length; i++) {
-      const buf = await this._downloadToBuffer(limitedUrls[i])
-      if (!buf) continue
-      const outPath = path.join(targetDir, thumbnailNames[i])
-      await this._saveJpg(buf, outPath)
-      savedMainImages.push(outPath)
-    }
-
-    return { savedMainImages, detailCapturePath }
-  }
-
-  private async _collectAdditionalInfo(vendor?: VendorConfig): Promise<{ label: string; value: string }[] | undefined> {
-    if (!this.page) throw new Error('Browser page not initialized')
-    if (!vendor?.additional_info_pairs || vendor.additional_info_pairs.length === 0) return undefined
-
-    const collected: { label: string; value: string }[] = []
-    for (const pair of vendor.additional_info_pairs) {
-      try {
-        const labels: string[] = pair.label_xpath
-          ? await this.page.$$eval(`xpath=${pair.label_xpath}`, nodes =>
-              Array.from(nodes)
-                .map(n => (n.textContent || '').trim())
-                .filter(Boolean),
-            )
-          : []
-        const values: string[] = pair.value_xpath
-          ? await this.page.$$eval(`xpath=${pair.value_xpath}`, nodes =>
-              Array.from(nodes)
-                .map(n => (n.textContent || '').trim())
-                .filter(Boolean),
-            )
-          : []
-        const len = Math.min(labels.length, values.length)
-        for (let i = 0; i < len; i++) {
-          collected.push({ label: labels[i], value: values[i] })
-        }
-      } catch {}
-    }
-    return collected.length > 0 ? collected : undefined
-  }
-
-  private async _extractDomeggookPrice(): Promise<number | null> {
-    if (!this.page) return null
-
-    try {
-      // 도매꾹 가격 추출 로직
-      const priceResult = await this.page.evaluate(() => {
-        // 1. 최저가 확인된 경우 (lItemPrice)
-        const lowestPriceEl = document.querySelector('tr.lInfoAmt .lItemPrice')
-        if (lowestPriceEl) {
-          const text = lowestPriceEl.textContent?.trim() || ''
-          const match = text.match(/([0-9,]+)/)
-          if (match) {
-            const digits = match[1].replace(/[^0-9]/g, '')
-            if (digits) return { type: 'lowest', price: Number(digits) }
-          }
-        }
-
-        // 2. 즉시할인가 경우 - 할인가 첫 번째 값 (최소값)
-        const discountEl = document.querySelector('tr.lInfoAmt .lDiscountAmt b:first-child')
-        if (discountEl) {
-          const text = discountEl.textContent?.trim() || ''
-          const match = text.match(/([0-9,]+)/)
-          if (match) {
-            const digits = match[1].replace(/[^0-9]/g, '')
-            if (digits) return { type: 'discount', price: Number(digits) }
-          }
-        }
-
-        // 3. 즉시할인가 범위의 최소값
-        const discountRangeEl = document.querySelector('tr.lInfoAmt .lDiscountAmt')
-        if (discountRangeEl) {
-          const text = discountRangeEl.textContent?.trim() || ''
-          const rangeMatch = text.match(/([0-9,]+)\s*원?\s*~\s*([0-9,]+)\s*원?/)
-          if (rangeMatch) {
-            const minPrice = rangeMatch[1].replace(/[^0-9]/g, '')
-            if (minPrice) return { type: 'discount_range', price: Number(minPrice) }
-          }
-        }
-
-        // 4. 수량범위별 단가 - 가장 왼쪽 첫 번째 단가 (최소 수량 기준)
-        const quantityTable = document.querySelector('tr.lInfoAmt table#lAmtSectionTbl')
-        if (quantityTable) {
-          const firstPriceCell = quantityTable.querySelector(
-            'tbody tr:nth-child(2) td.lSelected, tbody tr:nth-child(2) td:first-child',
-          )
-          if (firstPriceCell) {
-            const text = firstPriceCell.textContent?.trim() || ''
-            const match = text.match(/([0-9,]+)/)
-            if (match) {
-              const digits = match[1].replace(/[^0-9]/g, '')
-              if (digits) return { type: 'quantity', price: Number(digits) }
-            }
-          }
-        }
-
-        // 5. 정가 폴백
-        const regularPriceEl = document.querySelector('tr.lInfoAmt .lNotDiscountAmt b')
-        if (regularPriceEl) {
-          const text = regularPriceEl.textContent?.trim() || ''
-          const match = text.match(/([0-9,]+)/)
-          if (match) {
-            const digits = match[1].replace(/[^0-9]/g, '')
-            if (digits) return { type: 'regular', price: Number(digits) }
-          }
-        }
-
-        return null
-      })
-
-      return priceResult?.price || null
-    } catch (error) {
-      console.error('도매꾹 가격 추출 오류:', error)
-      return null
-    }
-  }
-
-  private _parsePrice(text: string | null): number | null {
-    if (!text) return null
-
-    // 도매꾹 특화 가격 파싱 로직
-    const cleanText = text.trim()
-
-    // 1. 범위 가격 처리 (예: "1,190원~1,250원")
-    const rangeMatch = cleanText.match(/([0-9,]+)\s*원?\s*~\s*([0-9,]+)\s*원?/)
-    if (rangeMatch) {
-      const minPrice = rangeMatch[1].replace(/[^0-9]/g, '')
-      if (minPrice) return Number(minPrice)
-    }
-
-    // 2. 첫 번째 가격만 추출 (예: "1,190원~1,250원" → "1,190")
-    const firstPriceMatch = cleanText.match(/([0-9,]+)\s*원?/)
-    if (firstPriceMatch) {
-      const digits = firstPriceMatch[1].replace(/[^0-9]/g, '')
-      if (digits) return Number(digits)
-    }
-
-    // 3. 기존 로직 (숫자만 추출)
-    const digits = cleanText.replace(/[^0-9]/g, '')
-    if (!digits) return null
-    return Number(digits)
-  }
-
-  // ---------------- Image helpers ----------------
-  private async _downloadToBuffer(url: string): Promise<Buffer | null> {
-    try {
-      const res = await axios.get(url, { responseType: 'arraybuffer' })
-      return Buffer.from(res.data)
-    } catch {
-      return null
-    }
-  }
-
-  private async _saveJpg(buffer: Buffer, outPath: string): Promise<string> {
-    await fsPromises.writeFile(outPath, await sharp(buffer).jpeg({ quality: 90 }).toBuffer())
-    return outPath
-  }
-
-  private async _screenshotElement(outPath: string, xpath?: string): Promise<string | null> {
-    try {
-      if (!xpath) return null
-      const locator = this.page.locator(`xpath=${xpath}`)
-      // Playwright screenshot options do not accept 'quality' for jpeg in some versions; use default
-      await locator.first().screenshot({ path: outPath })
-      return outPath
-    } catch {
-      return null
-    }
   }
 
   // ---------------- 파일/폴더 유틸 ----------------
