@@ -686,7 +686,7 @@ export class S2BAutomation {
 
     // 썸네일 이미지 추출
     let thumbnails: (string | null)[] = []
-    if (vendor.listthumbnail_xpath) {
+    if (vendor.product_thumbnail_list_xpath) {
       thumbnails = await this.page.evaluate((xpath: string) => {
         const result: (string | null)[] = []
         const iterator = document.evaluate(xpath, document, null, XPathResult.ORDERED_NODE_ITERATOR_TYPE, null)
@@ -700,7 +700,7 @@ export class S2BAutomation {
           node = iterator.iterateNext() as any
         }
         return result
-      }, vendor.listthumbnail_xpath)
+      }, vendor.product_thumbnail_list_xpath)
     }
 
     // 가격 리스트 시도: 1) 명시 XPath, 2) 앵커 주변 휴리스틱
