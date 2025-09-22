@@ -296,7 +296,7 @@ const Sourcing: React.FC = () => {
           columns={columns}
           dataSource={items}
           rowSelection={{ selectedRowKeys, onChange: setSelectedRowKeys }}
-          pagination={{ pageSize: 10 }}
+          pagination={{ defaultPageSize: 50, showSizeChanger: true, pageSizeOptions: [10, 20, 50, 100, 200, 500] }}
         />
       </Card>
 
