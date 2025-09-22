@@ -2114,22 +2114,20 @@ export class S2BAutomation {
 
   // ---------------- AI 데이터 정제 ----------------
   private async _refineCrawlWithAI(data: SourcingCrawlData): Promise<AIRefinedResult> {
-    try {
-      const response = await axios.post(
-        'https://n8n.pyramid-ing.com/webhook/s2b-sourcing',
-        pick(data, ['name', 'shippingFee', 'imageUsage', 'origin', 'manufacturer', 'options', 'additionalInfo']),
-        {
-          headers: {
-            'Content-Type': 'application/json',
-          },
+    const response = await axios.post(
+      'https://n8n.pyramid-ing.com/webhook/s2b-sourcing',
+      pick(data, ['name', 'shippingFee', 'imageUsage', 'origin', 'manufacturer', 'options', 'additionalInfo']),
+      {
+        headers: {
+          'Content-Type': 'application/json',
         },
-      )
+      },
+    )
 
-      return response.data.output || ({} as AIRefinedResult)
-    } catch (error) {
-      this._log(`AI 데이터 정제 실패: ${error.message}`, 'error')
-      return {} as AIRefinedResult
+    if (!response?.data?.output) {
+      throw new Error('AI 결과가 비어 있습니다.')
     }
+    return response.data.output as AIRefinedResult
   }
 
   // ---------------- 카테고리 매핑 ----------------
