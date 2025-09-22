@@ -88,6 +88,13 @@ const Sourcing: React.FC = () => {
   const columns: ColumnsType<SourcingItem> = useMemo(
     () => [
       {
+        title: '구매처',
+        dataIndex: 'vendor',
+        key: 'vendor',
+        width: 100,
+        render: (vendor: string) => vendor || '-',
+      },
+      {
         title: '썸네일',
         dataIndex: 'listThumbnail',
         key: 'listThumbnail',

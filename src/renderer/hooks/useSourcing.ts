@@ -73,6 +73,7 @@ export const useSourcing = () => {
             key: `${Date.now()}-${idx}`,
             name: it.name,
             url: it.url,
+            vendor: it.vendor,
             price: it.price || 0,
             listThumbnail: it.listThumbnail,
           }))
@@ -127,6 +128,7 @@ export const useSourcing = () => {
             const item: SourcingItem = {
               ...found,
               key: `${Date.now()}`,
+              vendor: found.vendor,
               listThumbnail: found.listThumbnail,
               downloadDir: found.downloadDir,
             }

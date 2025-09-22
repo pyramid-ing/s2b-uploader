@@ -750,7 +750,7 @@ export class S2BAutomation {
 
   public async collectListFromUrl(
     targetUrl: string,
-  ): Promise<{ name: string; url: string; price?: number; listThumbnail?: string }[]> {
+  ): Promise<{ name: string; url: string; price?: number; listThumbnail?: string; vendor?: string }[]> {
     // 소싱용 브라우저로 전환 및 상태 확인
     await this.ensureBrowserConnected('sourcing')
 
@@ -886,7 +886,11 @@ export class S2BAutomation {
       })
     }
 
-    return items
+    // vendor 정보 추가
+    return items.map(item => ({
+      ...item,
+      vendor: vendorKey,
+    }))
   }
 
   public async registerProduct(data: ProductData): Promise<void> {

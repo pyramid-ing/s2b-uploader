@@ -4,6 +4,7 @@ export interface SourcingItem {
   key: string
   name: string
   url: string
+  vendor?: string
   price: number
   productCode?: string
   listThumbnail?: string

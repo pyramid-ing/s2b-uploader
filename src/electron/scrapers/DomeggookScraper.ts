@@ -12,7 +12,7 @@ export class DomeggookScraper implements Scraper {
     page: Page,
     targetUrl: string,
     vendor: VendorConfig,
-  ): Promise<{ name: string; url: string; price?: number; listThumbnail?: string }[]> {
+  ): Promise<{ name: string; url: string; price?: number; listThumbnail?: string; vendor?: string }[]> {
     await page.goto(targetUrl, { waitUntil: 'domcontentloaded' })
 
     const hrefs: string[] = await page.evaluate((xpath: string) => {
@@ -81,7 +81,7 @@ export class DomeggookScraper implements Scraper {
       const name = names[idx] || ''
       const listThumbnail = thumbnails[idx] || undefined
       const price = this._parsePrice(priceTexts[idx] || null)
-      return { name, url, price: price ?? undefined, listThumbnail }
+      return { name, url, price: price ?? undefined, listThumbnail, vendor: this.vendorKey }
     })
 
     return items
