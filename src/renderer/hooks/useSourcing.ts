@@ -39,6 +39,13 @@ export const useSourcing = () => {
       async () => {
         try {
           const currentSettings = await snapshot.getPromise(sourcingSettingsState)
+
+          // 상세설명 HTML 길이 검증
+          if (currentSettings.detailHtmlTemplate.length < 10) {
+            message.error('상세설명 HTML은 10자 이상 입력해야 합니다.')
+            return
+          }
+
           const existingSettings = await ipcRenderer.invoke('get-settings')
           const updatedSettings = {
             ...existingSettings,

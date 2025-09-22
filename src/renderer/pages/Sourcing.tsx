@@ -247,6 +247,12 @@ const Sourcing: React.FC = () => {
       return
     }
 
+    // 상세설명 HTML 길이 검증
+    if (settings.detailHtmlTemplate.length < 10) {
+      message.error('상세설명 HTML은 10자 이상 입력해야 합니다.')
+      return
+    }
+
     Modal.confirm({
       title: '확인',
       content: `${count}개를 정말로 처리하시나요?`,
@@ -327,11 +333,15 @@ const Sourcing: React.FC = () => {
               />
             </Form.Item>
           </Form>
-          <Form.Item label="상세설명 HTML">
+          <Form.Item
+            label="상세설명 HTML"
+            validateStatus={settings.detailHtmlTemplate.length < 10 ? 'error' : 'success'}
+            help={settings.detailHtmlTemplate.length < 10 ? '상세설명 HTML은 10자 이상 입력해야 합니다.' : ''}
+          >
             <Input.TextArea
               value={settings.detailHtmlTemplate}
               onChange={e => setSettings(prev => ({ ...prev, detailHtmlTemplate: e.target.value }))}
-              placeholder="상세설명 HTML을 입력하세요..."
+              placeholder="상세설명 HTML을 입력하세요... (최소 10자 이상)"
               rows={4}
               style={{ width: '100%' }}
             />
@@ -350,7 +360,12 @@ const Sourcing: React.FC = () => {
         <div>
           {hasSelection && (
             <Space>
-              <Button type="primary" icon={<SendOutlined />} onClick={() => handleRequestRegister()}>
+              <Button
+                type="primary"
+                icon={<SendOutlined />}
+                onClick={() => handleRequestRegister()}
+                disabled={settings.detailHtmlTemplate.length < 10}
+              >
                 등록요청({selectedRowKeys.length}개)
               </Button>
             </Space>
