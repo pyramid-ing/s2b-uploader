@@ -1,5 +1,19 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react'
-import { Alert, Button, Card, Divider, Form, Input, message, Select, Space, Table, Typography, Tooltip } from 'antd'
+import {
+  Alert,
+  Button,
+  Card,
+  Divider,
+  Form,
+  Input,
+  message,
+  Modal,
+  Select,
+  Space,
+  Table,
+  Typography,
+  Tooltip,
+} from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { DeleteOutlined, PlusOutlined, SendOutlined, DownloadOutlined } from '@ant-design/icons'
 import { useLog } from '../hooks/useLog'
@@ -227,12 +241,26 @@ const Sourcing: React.FC = () => {
   }
 
   const handleRequestRegister = async (keys?: React.Key[]) => {
-    try {
-      setLoading(true)
-      await requestRegister(keys)
-    } finally {
-      setLoading(false)
+    const count = keys && keys.length > 0 ? keys.length : selectedRowKeys.length
+    if (count === 0) {
+      message.warning('등록 요청할 품목을 선택하세요.')
+      return
     }
+
+    Modal.confirm({
+      title: '확인',
+      content: `${count}개를 정말로 처리하시나요?`,
+      okText: '예',
+      cancelText: '아니오',
+      onOk: async () => {
+        try {
+          setLoading(true)
+          await requestRegister(keys)
+        } finally {
+          setLoading(false)
+        }
+      },
+    })
   }
 
   const handleDownloadExcel = async () => {
