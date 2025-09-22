@@ -74,6 +74,41 @@ const Sourcing: React.FC = () => {
   const columns: ColumnsType<SourcingItem> = useMemo(
     () => [
       {
+        title: '썸네일',
+        dataIndex: 'listThumbnail',
+        key: 'listThumbnail',
+        width: 80,
+        render: (thumbnail: string) =>
+          thumbnail ? (
+            <img
+              src={thumbnail}
+              alt="상품 썸네일"
+              style={{
+                width: 60,
+                height: 60,
+                objectFit: 'cover',
+                borderRadius: 4,
+              }}
+            />
+          ) : (
+            <div
+              style={{
+                width: 60,
+                height: 60,
+                backgroundColor: '#f5f5f5',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderRadius: 4,
+                fontSize: 12,
+                color: '#999',
+              }}
+            >
+              이미지 없음
+            </div>
+          ),
+      },
+      {
         title: '상품명',
         dataIndex: 'name',
         key: 'name',

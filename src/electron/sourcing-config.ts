@@ -31,6 +31,7 @@ export interface VendorConfig {
   option2_item_xpaths?: string
   fixed_spec_xpath?: string
   main_image_xpath?: string
+  listthumbnail_xpath?: string
   click_to_load_detail_image?: boolean
   detail_image_button_xpath?: string
   detail_image_xpath?: string
@@ -81,6 +82,7 @@ export const VENDOR_CONFIG: Record<VendorKey, VendorConfig> = {
     ],
     fixed_spec_xpath: '//*[@id="lInfoBody"]/div[2]/table/tbody/tr[2]/td',
     main_image_xpath: '//*[@id="lThumbImg"]',
+    listthumbnail_xpath: '//li[starts-with(@id, "li")]//a[@class="thumb"]/img',
     click_to_load_detail_image: false,
     detail_image_button_xpath: '',
     detail_image_xpath: '//*[@id="lInfoViewItemContents"]',

@@ -67,6 +67,7 @@ export const useSourcing = () => {
             name: it.name,
             url: it.url,
             price: it.price || 0,
+            listThumbnail: it.listThumbnail,
           }))
 
           // URL 기준으로 중복 제거하여 추가
@@ -119,6 +120,7 @@ export const useSourcing = () => {
             const item: SourcingItem = {
               ...found,
               key: `${Date.now()}`,
+              listThumbnail: found.listThumbnail,
             }
             set(sourcingItemsState, prev => [item, ...prev])
             message.success('URL 기준으로 1개 항목을 가져왔습니다.')

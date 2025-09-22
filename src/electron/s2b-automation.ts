@@ -28,6 +28,7 @@ interface SourcingCrawlData {
   options?: { name: string; price?: number; qty?: number }[][]
   mainImages: string[]
   detailImages: string[]
+  listThumbnail?: string
   특성?: { label: string; value: string }[]
   // detailOcrText?: string
 }
@@ -641,7 +642,9 @@ export class S2BAutomation {
     await this.page.goto(url, { waitUntil: 'domcontentloaded' })
   }
 
-  public async collectListFromUrl(targetUrl: string): Promise<{ name: string; url: string; price?: number }[]> {
+  public async collectListFromUrl(
+    targetUrl: string,
+  ): Promise<{ name: string; url: string; price?: number; listThumbnail?: string }[]> {
     // 소싱용 브라우저로 전환
     await this.launchSourcing()
 
@@ -681,6 +684,25 @@ export class S2BAutomation {
       return result
     }, vendor.product_name_list_xpath)
 
+    // 썸네일 이미지 추출
+    let thumbnails: (string | null)[] = []
+    if (vendor.listthumbnail_xpath) {
+      thumbnails = await this.page.evaluate((xpath: string) => {
+        const result: (string | null)[] = []
+        const iterator = document.evaluate(xpath, document, null, XPathResult.ORDERED_NODE_ITERATOR_TYPE, null)
+        let node = iterator.iterateNext() as any
+        while (node) {
+          if (node instanceof HTMLImageElement) {
+            result.push(node.src || null)
+          } else {
+            result.push(null)
+          }
+          node = iterator.iterateNext() as any
+        }
+        return result
+      }, vendor.listthumbnail_xpath)
+    }
+
     // 가격 리스트 시도: 1) 명시 XPath, 2) 앵커 주변 휴리스틱
     let prices: (number | null)[] = []
     if (vendor.product_price_list_xpath) {
@@ -708,7 +730,8 @@ export class S2BAutomation {
       if (prices[idx] != null) {
         price = prices[idx] ?? undefined
       }
-      return { name: names[idx] || '', url: href, price }
+      const listThumbnail = thumbnails[idx] || undefined
+      return { name: names[idx] || '', url: href, price, listThumbnail }
     })
 
     // 가격 누락건 보정: 각 앵커의 부모 요소에서 가격 후보 텍스트 탐색

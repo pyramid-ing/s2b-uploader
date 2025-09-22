@@ -6,6 +6,7 @@ export interface SourcingItem {
   url: string
   price: number
   productCode?: string
+  listThumbnail?: string
   additionalInfo?: any
 }
 
