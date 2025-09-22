@@ -121,6 +121,7 @@ export const useSourcing = () => {
               ...found,
               key: `${Date.now()}`,
               listThumbnail: found.listThumbnail,
+              downloadDir: found.downloadDir,
             }
             set(sourcingItemsState, prev => [item, ...prev])
             message.success('URL 기준으로 1개 항목을 가져왔습니다.')
@@ -171,6 +172,7 @@ export const useSourcing = () => {
               return {
                 ...it,
                 ...found,
+                downloadDir: found.downloadDir ?? it.downloadDir,
               }
             })
           })

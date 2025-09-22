@@ -167,6 +167,23 @@ const Sourcing: React.FC = () => {
             <Button type="link" icon={<SendOutlined />} onClick={() => handleRequestRegister([record.key])}>
               등록요청
             </Button>
+            <Button
+              type="link"
+              icon={<DownloadOutlined />}
+              onClick={() => {
+                try {
+                  if (!record.downloadDir) {
+                    message.warning('저장 폴더 정보가 없습니다. 먼저 상세 수집을 실행하세요.')
+                    return
+                  }
+                  shell.openPath(record.downloadDir)
+                } catch (e) {
+                  message.error('폴더를 열 수 없습니다.')
+                }
+              }}
+            >
+              폴더 열기
+            </Button>
             <Button type="link" danger icon={<DeleteOutlined />} onClick={() => handleDelete(record.key)}>
               삭제
             </Button>

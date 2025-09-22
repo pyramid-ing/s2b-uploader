@@ -30,6 +30,7 @@ interface SourcingCrawlData {
   detailImages: string[]
   listThumbnail?: string
   특성?: { label: string; value: string }[]
+  downloadDir?: string
   // detailOcrText?: string
 }
 
@@ -581,6 +582,7 @@ export class S2BAutomation {
         options: basicInfo.options,
         mainImages: savedMainImages,
         detailImages: detailCapturePath ? [detailCapturePath] : [],
+        downloadDir: productDir,
         // detailOcrText,
         특성,
       }
