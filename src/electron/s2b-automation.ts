@@ -355,14 +355,86 @@ export class S2BAutomation {
     this.imageOptimize = optimize
   }
 
+  /**
+   * 로그인 시 발생하는 alert 메시지를 처리하는 함수
+   * @param alertMessage - alert에서 받은 메시지
+   * @throws Error - 로그인 실패 유형에 따른 적절한 오류
+   */
+  private _handleLoginAlert(alertMessage: string): void {
+    // 실패 alert 원문을 콘솔과 내부 로그에 기록
+    try {
+      // 콘솔에 원문 그대로 출력
+      // eslint-disable-next-line no-console
+      console.error(alertMessage)
+    } catch {}
+    this._log(`로그인 실패 alert: ${alertMessage}`, 'error')
+
+    // 로그인 실패 유형 1: 비밀번호가 올바르지 않습니다
+    if (alertMessage.includes('비밀번호가 올바르지 않습니다')) {
+      throw new Error('LOGIN_ERROR_PASSWORD_INCORRECT')
+    }
+
+    // 로그인 실패 유형 2: 로그인이 실패하셨습니다
+    if (alertMessage.includes('로그인이 실패하셨습니다')) {
+      throw new Error('LOGIN_ERROR_CREDENTIALS_INVALID')
+    }
+
+    // 기타 알 수 없는 오류
+    throw new Error(`LOGIN_ERROR_UNKNOWN: ${alertMessage}`)
+  }
+
+  /**
+   * alert 이벤트 리스너를 설정하고 메시지를 캡처하는 함수
+   * @returns alert 메시지를 저장할 변수와 정리 함수
+   */
+  private _setupAlertListener(): { alertMessage: string; cleanup: () => void } {
+    let alertMessage = ''
+
+    const alertHandler = (dialog: any) => {
+      alertMessage = dialog.message()
+      dialog.accept()
+    }
+
+    this.page!.on('dialog', alertHandler)
+
+    const cleanup = () => {
+      this.page!.off('dialog', alertHandler)
+    }
+
+    return { alertMessage, cleanup }
+  }
+
   public async login(id: string, password: string): Promise<void> {
     if (!this.page) throw new Error('브라우저가 초기화되지 않았습니다.')
 
     await this.page.goto('https://www.s2b.kr/S2BNCustomer/Login.do?type=sp&userDomain=')
     await this.page.fill('form[name="vendor_loginForm"] [name="uid"]', id)
     await this.page.fill('form[name="vendor_loginForm"] [name="pwd"]', password)
-    await this.page.click('form[name="vendor_loginForm"] .btn_login > a')
-    await this.page.waitForLoadState('networkidle')
+
+    // alert 이벤트 리스너 설정
+    const { alertMessage, cleanup } = this._setupAlertListener()
+
+    try {
+      await this.page.click('form[name="vendor_loginForm"] .btn_login > a')
+      await this.page.waitForLoadState('networkidle')
+
+      // alert가 발생했는지 확인
+      if (alertMessage) {
+        this._handleLoginAlert(alertMessage)
+      }
+
+      // 로그인 성공 확인 - URL이 로그인 페이지에서 변경되었는지 확인
+      const currentUrl = this.page.url()
+      if (currentUrl.includes('Login1.do') || currentUrl.includes('Login.do')) {
+        // 여전히 로그인 페이지에 있다면 로그인 실패로 간주
+        throw new Error('LOGIN_ERROR_UNKNOWN: 로그인에 실패했습니다.')
+      }
+    } catch (error) {
+      cleanup()
+      throw error
+    }
+
+    cleanup()
   }
 
   public async readExcelFile(filePath: string): Promise<any[]> {
