@@ -28,7 +28,7 @@ interface SourcingCrawlData {
   options?: { name: string; price?: number; qty?: number }[][]
   mainImages: string[]
   detailImages: string[]
-  additionalInfo?: { label: string; value: string }[]
+  특성?: { label: string; value: string }[]
   // detailOcrText?: string
 }
 
@@ -45,7 +45,7 @@ interface AIRefinedResult {
   방송통신KC인증번호: string
   이미지사용여부: '허용' | '불가' | '모름'
   options: { name: string; price: number; qty: number }[]
-  additionalInfo: { label: string; value: string }[]
+  특성: string[]
 }
 
 interface ExtractedBasicInfo {
@@ -556,7 +556,7 @@ export class S2BAutomation {
 
       const basicInfo = await this._extractBasicInfo(vendorKey, vendor)
       const { savedMainImages, detailCapturePath } = await this._collectImages(vendor)
-      const additionalInfo = await this._collectAdditionalInfo(vendor)
+      const 특성 = await this._collectAdditionalInfo(vendor)
 
       // 1. 크롤링된 원본 데이터
       const crawlData: SourcingCrawlData = {
@@ -576,7 +576,7 @@ export class S2BAutomation {
         mainImages: savedMainImages,
         detailImages: detailCapturePath ? [detailCapturePath] : [],
         // detailOcrText,
-        additionalInfo,
+        특성,
       }
 
       this._log(`AI 데이터 정제 시작: ${basicInfo.name}`, 'info')
@@ -2169,7 +2169,7 @@ export class S2BAutomation {
       등록구분: '물품',
       물품명: aiRefined.물품명 || rawData.name || '',
       규격: (() => {
-        const baseSpec = aiRefined.additionalInfo?.map((info: any) => info.value).join(', ') || ''
+        const baseSpec = aiRefined['특성']?.map((info: any) => info).join(', ') || ''
         const minPurchase = rawData.minPurchase || 1
         if (minPurchase > 1) {
           return baseSpec ? `${baseSpec}, 최소구매수량: ${minPurchase}개` : `최소구매수량: ${minPurchase}개`
@@ -2243,7 +2243,8 @@ export class S2BAutomation {
     if (aiRefined.options && aiRefined.options.length > 0) {
       return aiRefined.options.map((option: any) => ({
         ...baseProduct,
-        물품명: `${baseProduct.물품명} - ${option.name}`,
+        물품명: baseProduct.물품명,
+        규격: `${option.name}, ${baseProduct.규격}`,
         제시금액: Math.ceil(((originalPrice + (option.price || 0)) * (1 + marginRate / 100)) / 100) * 100,
         재고수량: Math.min(option.qty || 9999, 9999),
       }))
