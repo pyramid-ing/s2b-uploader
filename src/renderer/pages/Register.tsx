@@ -188,6 +188,7 @@ const Register: React.FC = () => {
             }),
           }}
           loading={settings.loading}
+          pagination={{ defaultPageSize: 50, showSizeChanger: true, pageSizeOptions: [10, 20, 50, 100, 200, 500] }}
         />
       </Card>
 
