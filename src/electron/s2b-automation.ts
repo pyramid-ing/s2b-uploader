@@ -361,24 +361,6 @@ export class S2BAutomation {
    * @throws Error - 로그인 실패 유형에 따른 적절한 오류
    */
   private _handleLoginAlert(alertMessage: string): void {
-    // 실패 alert 원문을 콘솔과 내부 로그에 기록
-    try {
-      // 콘솔에 원문 그대로 출력
-      // eslint-disable-next-line no-console
-      console.error(alertMessage)
-    } catch {}
-    this._log(`로그인 실패 alert: ${alertMessage}`, 'error')
-
-    // 로그인 실패 유형 1: 비밀번호가 올바르지 않습니다
-    if (alertMessage.includes('비밀번호가 올바르지 않습니다')) {
-      throw new Error('LOGIN_ERROR_PASSWORD_INCORRECT')
-    }
-
-    // 로그인 실패 유형 2: 로그인이 실패하셨습니다
-    if (alertMessage.includes('로그인이 실패하셨습니다')) {
-      throw new Error('LOGIN_ERROR_CREDENTIALS_INVALID')
-    }
-
     // 기타 알 수 없는 오류
     throw new Error(`LOGIN_ERROR_UNKNOWN: ${alertMessage}`)
   }
