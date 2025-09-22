@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react'
+import React, { useEffect, useRef } from 'react'
 import { Alert, Button, Card, Space, Table, DatePicker, Radio, Input } from 'antd'
 import { FolderOpenOutlined, ReloadOutlined, StopOutlined, UploadOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
@@ -32,11 +32,19 @@ const Register: React.FC = () => {
   } = useRegister()
 
   const { ipcRenderer } = (window as any).require('electron')
+  const terminalRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     checkPermission()
     loadExcelData()
   }, [checkPermission, loadExcelData])
+
+  // 로그 업데이트 시 스크롤을 맨 아래로 이동
+  useEffect(() => {
+    if (terminalRef.current) {
+      terminalRef.current.scrollTop = terminalRef.current.scrollHeight
+    }
+  }, [logs])
 
   const columns: ColumnsType<ProductData> = [
     {
@@ -202,6 +210,7 @@ const Register: React.FC = () => {
         style={{ marginTop: '20px' }}
       >
         <div
+          ref={terminalRef}
           style={{
             backgroundColor: '#000',
             color: '#fff',
