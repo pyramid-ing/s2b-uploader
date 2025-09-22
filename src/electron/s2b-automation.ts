@@ -556,7 +556,12 @@ export class S2BAutomation {
       await this._navigateToUrl(url)
 
       const basicInfo = await this._extractBasicInfo(vendorKey, vendor)
-      const { savedMainImages, detailCapturePath } = await this._collectImages(vendor)
+
+      // 상품별 저장 폴더 생성 (downloads/YYYYMMDD/<상품명_타임스탬프>)
+      const baseName = (basicInfo.name || basicInfo.productCode || 'product').toString()
+      const productDir = this._createProductDir(baseName)
+
+      const { savedMainImages, detailCapturePath } = await this._collectImages(vendor, productDir)
       const 특성 = await this._collectAdditionalInfo(vendor)
 
       // 1. 크롤링된 원본 데이터
@@ -1983,6 +1988,7 @@ export class S2BAutomation {
 
   private async _collectImages(
     vendor?: VendorConfig,
+    productDir?: string,
   ): Promise<{ savedMainImages: string[]; detailCapturePath: string | null }> {
     if (!this.page) throw new Error('Browser page not initialized')
 
@@ -1996,21 +2002,25 @@ export class S2BAutomation {
 
     let detailCapturePath: string | null = null
     if (vendor?.detail_image_xpath) {
-      const tempDir = path.join(this.baseFilePath, 'temp')
-      if (!fsSync.existsSync(tempDir)) fsSync.mkdirSync(tempDir, { recursive: true })
+      const targetDir = productDir || path.join(this.baseFilePath, 'downloads', dayjs().format('YYYYMMDD'))
+      if (!fsSync.existsSync(targetDir)) fsSync.mkdirSync(targetDir, { recursive: true })
       detailCapturePath = await this._screenshotElement(
-        path.join(tempDir, `detail_capture_${Date.now()}.jpg`),
+        path.join(targetDir, `상세이미지.jpg`),
         vendor.detail_image_xpath,
       )
     }
 
     const savedMainImages: string[] = []
-    const tempDir = path.join(this.baseFilePath, 'temp')
-    if (!fsSync.existsSync(tempDir)) fsSync.mkdirSync(tempDir, { recursive: true })
-    for (let i = 0; i < mainImageUrls.length; i++) {
-      const buf = await this._downloadToBuffer(mainImageUrls[i])
+    const targetDir = productDir || path.join(this.baseFilePath, 'downloads', dayjs().format('YYYYMMDD'))
+    if (!fsSync.existsSync(targetDir)) fsSync.mkdirSync(targetDir, { recursive: true })
+
+    // 썸네일 파일명 규칙 및 최대 4개 제한
+    const thumbnailNames = ['기본이미지1.jpg', '기본이미지2.jpg', '추가이미지1.jpg', '추가이미지2.jpg']
+    const limitedUrls = mainImageUrls.slice(0, 4)
+    for (let i = 0; i < limitedUrls.length; i++) {
+      const buf = await this._downloadToBuffer(limitedUrls[i])
       if (!buf) continue
-      const outPath = path.join(tempDir, `main_${Date.now()}_${i}.jpg`)
+      const outPath = path.join(targetDir, thumbnailNames[i])
       await this._saveJpg(buf, outPath)
       savedMainImages.push(outPath)
     }
@@ -2080,6 +2090,24 @@ export class S2BAutomation {
     } catch {
       return null
     }
+  }
+
+  // ---------------- 파일/폴더 유틸 ----------------
+  private _sanitizeFileName(name: string): string {
+    const replaced = name.replace(/[\\/:*?"<>|\n\r\t]/g, ' ').trim()
+    return replaced.slice(0, 80) || 'product'
+  }
+
+  private _ensureDir(dirPath: string): void {
+    if (!fsSync.existsSync(dirPath)) fsSync.mkdirSync(dirPath, { recursive: true })
+  }
+
+  private _createProductDir(baseName: string): string {
+    const dateDir = dayjs().format('YYYYMMDD')
+    const safeName = this._sanitizeFileName(baseName)
+    const dir = path.join(this.baseFilePath, 'downloads', dateDir, `${safeName}_${Date.now()}`)
+    this._ensureDir(dir)
+    return dir
   }
 
   // ---------------- AI 데이터 정제 ----------------
