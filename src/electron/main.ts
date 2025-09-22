@@ -449,7 +449,9 @@ function setupIpcHandlers() {
   // 설정 저장하기
   ipcMain.handle('save-settings', async (_, settings) => {
     try {
-      store.set('settings', settings)
+      const prev = store.get('settings') || {}
+      const merged = { ...prev, ...settings }
+      store.set('settings', merged)
       return true
     } catch (error) {
       console.error('Error saving settings:', error)

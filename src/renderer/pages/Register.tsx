@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react'
-import { Alert, Button, Card, Space, Table, DatePicker, Radio } from 'antd'
+import { Alert, Button, Card, Space, Table, DatePicker, Radio, Input } from 'antd'
 import { FolderOpenOutlined, ReloadOutlined, StopOutlined, UploadOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import { useLog } from '../hooks/useLog'
@@ -30,6 +30,8 @@ const Register: React.FC = () => {
     updateDateRange,
     updateRegistrationStatus,
   } = useRegister()
+
+  const { ipcRenderer } = (window as any).require('electron')
 
   useEffect(() => {
     checkPermission()
@@ -120,6 +122,28 @@ const Register: React.FC = () => {
         style={{ marginBottom: '20px', opacity: permission.hasPermission === false ? 0.5 : 1 }}
         extra={
           <Space>
+            <Input
+              readOnly
+              style={{ width: 320 }}
+              value={settings.excelPath}
+              placeholder="등록용 Excel 파일 경로"
+              addonAfter={
+                <Button
+                  type="text"
+                  icon={<FolderOpenOutlined />}
+                  onClick={async () => {
+                    const filePath = await ipcRenderer.invoke('select-excel')
+                    if (filePath) {
+                      await ipcRenderer.invoke('save-settings', { excelPath: filePath })
+                      await loadExcelData()
+                    }
+                  }}
+                  disabled={settings.loading}
+                >
+                  선택
+                </Button>
+              }
+            />
             <Button type="default" icon={<FolderOpenOutlined />} onClick={openResultFolder}>
               결과 폴더 열기
             </Button>

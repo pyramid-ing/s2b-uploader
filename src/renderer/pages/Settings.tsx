@@ -6,7 +6,6 @@ const { ipcRenderer } = window.require('electron')
 
 interface SettingsForm {
   fileDir: string
-  excelPath: string
   loginId: string
   loginPw: string
   registrationDelay: number
@@ -53,20 +52,6 @@ const Settings: React.FC = () => {
     }
   }
 
-  const handleSelectExcel = async () => {
-    try {
-      let path = await ipcRenderer.invoke('select-excel')
-      if (path) {
-        path = decodeURIComponent(encodeURIComponent(path)) // 한글 인코딩 문제 해결
-        form.setFieldValue('excelPath', path)
-        console.log('Selected Excel file:', path)
-      }
-    } catch (error) {
-      console.error('Failed to select Excel file:', error)
-      message.error('Excel 파일 선택에 실패했습니다.')
-    }
-  }
-
   const handleSubmit = async (values: SettingsForm) => {
     try {
       setLoading(true)
@@ -105,21 +90,6 @@ const Settings: React.FC = () => {
             readOnly
             addonAfter={
               <Button type="text" icon={<FolderOutlined />} onClick={handleSelectDirectory} disabled={loading}>
-                선택
-              </Button>
-            }
-          />
-        </Form.Item>
-
-        <Form.Item
-          label="등록용 Excel 파일 경로"
-          name="excelPath"
-          rules={[{ required: true, message: 'Excel 파일을 선택해주세요' }]}
-        >
-          <Input
-            readOnly
-            addonAfter={
-              <Button type="text" icon={<FolderOutlined />} onClick={handleSelectExcel} disabled={loading}>
                 선택
               </Button>
             }

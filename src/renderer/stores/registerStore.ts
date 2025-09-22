@@ -13,6 +13,7 @@ export interface RegisterSettings {
   dateRange: [Dayjs, Dayjs]
   registrationStatus: string
   loading: boolean
+  excelPath?: string
 }
 
 export const REGISTRATION_STATUS = {
@@ -49,5 +50,6 @@ export const registerSettingsState = atom<RegisterSettings>({
     dateRange: [dayjs(), dayjs().add(3, 'month')],
     registrationStatus: REGISTRATION_STATUS.ALL,
     loading: false,
+    excelPath: undefined,
   },
 })

@@ -48,6 +48,8 @@ export const useRegister = () => {
           )
 
           message.success('Excel 데이터를 성공적으로 불러왔습니다.')
+          // 현재 선택된 엑셀 경로를 상태에 보관 (UI 표시용)
+          set(registerSettingsState, prev => ({ ...prev, excelPath: settingsData.excelPath }))
         } catch (error) {
           console.error('Failed to load Excel data:', error)
           message.error('데이터 로드에 실패했습니다.')
