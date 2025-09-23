@@ -20,6 +20,7 @@ import { useLog } from '../hooks/useLog'
 import { useSourcing } from '../hooks/useSourcing'
 import { usePermission } from '../hooks/usePermission'
 import { SourcingItem } from '../stores/sourcingStore'
+import { fetchCredits } from '../api/creditsApi'
 
 const { shell } = window.require('electron')
 
@@ -35,6 +36,8 @@ const Sourcing: React.FC = () => {
   const [vendor, setVendor] = useState<string>(VENDORS[0].value)
   const [urlInput, setUrlInput] = useState<string>('')
   const [loading, setLoading] = useState(false)
+  const [credits, setCredits] = useState<number | null>(null)
+  const [creditsLoading, setCreditsLoading] = useState(false)
 
   // Recoil 기반 상태 관리
   const { logs, progress, clearLogs } = useLog()
@@ -84,6 +87,24 @@ const Sourcing: React.FC = () => {
     loadSettings()
     checkPermission()
   }, [loadSettings, checkPermission])
+
+  const handleFetchCredits = async () => {
+    try {
+      setCreditsLoading(true)
+      const settingsData = await (window as any).require('electron').ipcRenderer.invoke('get-settings')
+      const s2bId = settingsData?.loginId
+      const credits = await fetchCredits(s2bId)
+      setCredits(credits)
+    } catch (e) {
+      setCredits(null)
+    } finally {
+      setCreditsLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    handleFetchCredits()
+  }, [])
 
   const columns: ColumnsType<SourcingItem> = useMemo(
     () => [
@@ -310,7 +331,20 @@ const Sourcing: React.FC = () => {
         />
       )}
 
-      <Card title="검색">
+      <Card
+        title="검색"
+        extra={
+          <Space>
+            <Typography.Text>
+              사용권:{' '}
+              {creditsLoading ? '조회 중…' : credits === null ? '알 수 없음' : `${credits.toLocaleString('ko-KR')}회`}
+            </Typography.Text>
+            <Button size="small" onClick={handleFetchCredits} loading={creditsLoading}>
+              새로고침
+            </Button>
+          </Space>
+        }
+      >
         <Space wrap>
           <Form form={form} layout="inline">
             <Form.Item label="업체">

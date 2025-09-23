@@ -195,7 +195,13 @@ export class S2BSourcing extends S2BBase {
       'certifications',
       '특성',
     ])
-    return await fetchAiRefined(payload)
+
+    const s2bId = this.settings?.loginId
+
+    return await fetchAiRefined({
+      ...payload,
+      s2b_id: s2bId,
+    })
   }
 
   private async _determineKcFromAI(aiRefined: AiRefinedPayload): Promise<{

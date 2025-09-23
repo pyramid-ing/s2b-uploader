@@ -23,12 +23,31 @@ export interface AiWebhookResponse {
   output?: AiRefinedPayload
 }
 
-export async function fetchAiRefined(data: any): Promise<AiRefinedPayload> {
-  const response = await axios.post<AiWebhookResponse>('https://n8n.pyramid-ing.com/webhook/s2b-sourcing', data, {
-    headers: { 'Content-Type': 'application/json' },
-  })
-  if (!response?.data?.output) {
-    throw new Error('AI 결과가 비어 있습니다.')
+export class InsufficientCreditsError extends Error {
+  public readonly balance?: number
+  public readonly status: number
+
+  constructor(message: string, balance?: number) {
+    super(message)
+    this.name = 'InsufficientCreditsError'
+    this.balance = balance
+    this.status = 403
   }
-  return response.data.output
+}
+
+export async function fetchAiRefined(data: any): Promise<AiRefinedPayload> {
+  try {
+    const response = await axios.post<AiWebhookResponse>('https://n8n.pyramid-ing.com/webhook/s2b-sourcing', data, {
+      headers: { 'Content-Type': 'application/json' },
+    })
+    if (!response?.data?.output) {
+      throw new Error('AI 결과가 비어 있습니다.')
+    }
+    return response.data.output
+  } catch (err: any) {
+    if (err?.response?.status === 403) {
+      throw new InsufficientCreditsError(err?.response?.data?.message)
+    }
+    throw err
+  }
 }
