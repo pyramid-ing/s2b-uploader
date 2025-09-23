@@ -1,4 +1,4 @@
-import { chromium, Browser, BrowserContext, Page } from 'playwright'
+import { chromium, type Browser, type BrowserContext, type Page } from 'playwright-core'
 import * as fsSync from 'fs'
 
 export abstract class S2BBase {
@@ -6,6 +6,7 @@ export abstract class S2BBase {
   protected context: BrowserContext | null = null
   protected page: Page | null = null
   protected chromePath: string
+  protected edgePath: string
   protected headless: boolean
   protected logCallback: (message: string, level?: 'info' | 'warning' | 'error') => void
 
@@ -15,15 +16,24 @@ export abstract class S2BBase {
 
     if (process.platform === 'darwin') {
       this.chromePath = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
+      this.edgePath = '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge'
     } else if (process.platform === 'win32') {
       const possiblePaths = [
-        'C\\\:\\Program Files\\\Google\\\Chrome\\\Application\\\chrome.exe'.replace(/\\/g, '\\\\\\'),
-        'C\\\:\\Program Files (x86)\\\Google\\\Chrome\\\Application\\\chrome.exe'.replace(/\\/g, '\\\\\\'),
+        'C\\\\:\\Program Files\\\\Google\\\\Chrome\\\\Application\\\\chrome.exe',
+        'C\\\\:\\Program Files (x86)\\\\Google\\\\Chrome\\\\Application\\\\chrome.exe',
         (process.env.LOCALAPPDATA || '') + '\\Google\\Chrome\\Application\\chrome.exe',
       ]
       this.chromePath = possiblePaths.find(p => fsSync.existsSync(p)) || ''
+
+      const possibleEdgePaths = [
+        'C\\\\:\\Program Files (x86)\\\\Microsoft\\\\Edge\\\\Application\\\\msedge.exe',
+        'C\\\\:\\Program Files\\\\Microsoft\\\\Edge\\\\Application\\\\msedge.exe',
+        (process.env.LOCALAPPDATA || '') + '\\Microsoft\\Edge\\Application\\msedge.exe',
+      ]
+      this.edgePath = possibleEdgePaths.find(p => fsSync.existsSync(p)) || ''
     } else {
       this.chromePath = '/usr/bin/google-chrome'
+      this.edgePath = '/usr/bin/microsoft-edge'
     }
   }
 
@@ -33,11 +43,40 @@ export abstract class S2BBase {
 
   public async launch(): Promise<void> {
     if (this.browser) return
-    this.browser = await chromium.launch({
-      headless: this.headless,
-      executablePath: this.chromePath,
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
-    })
+
+    const executablePath =
+      this.chromePath && fsSync.existsSync(this.chromePath)
+        ? this.chromePath
+        : this.edgePath && fsSync.existsSync(this.edgePath)
+          ? this.edgePath
+          : ''
+
+    const commonArgs = ['--no-sandbox', '--disable-setuid-sandbox']
+
+    if (executablePath) {
+      this.browser = await chromium.launch({
+        headless: this.headless,
+        executablePath,
+        args: commonArgs,
+      })
+    } else {
+      try {
+        this.browser = await chromium.launch({
+          headless: this.headless,
+          channel: process.platform === 'win32' ? 'msedge' : 'chrome',
+          args: commonArgs,
+        } as any)
+      } catch (e) {
+        const guide = [
+          '브라우저 실행 파일을 찾지 못했습니다.',
+          '해결 방법:',
+          '- Windows: Chrome 또는 Edge 설치 후 재시도',
+          '- 서버/개발환경에서는 `npx playwright install chromium`으로 Playwright 브라우저 설치 가능',
+        ].join('\n')
+        throw new Error(guide)
+      }
+    }
+
     this.context = await this.browser.newContext({ viewport: null })
     this.page = await this.context.newPage()
     this.browser.on('disconnected', () => {

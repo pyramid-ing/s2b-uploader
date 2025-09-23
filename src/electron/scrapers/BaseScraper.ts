@@ -1,4 +1,4 @@
-import type { Page } from 'playwright'
+import type { Page } from 'playwright-core'
 import type { VendorConfig, VendorKey } from '../sourcing-config'
 import axios from 'axios'
 import sharp from 'sharp'
