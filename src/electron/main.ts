@@ -1,7 +1,9 @@
 import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
 import * as path from 'path'
 import Store from 'electron-store'
-import { S2BAutomation } from './s2b-automation'
+import { S2BSourcing } from './s2b-sourcing'
+import { S2BRegistration } from './s2b-registration'
+import { S2BManagement } from './s2b-management'
 import fs from 'fs/promises'
 import * as fsSync from 'fs'
 import * as XLSX from 'xlsx'
@@ -249,7 +251,9 @@ function createWindow() {
 
 // IPC 핸들러 설정
 function setupIpcHandlers() {
-  let automation: S2BAutomation | null = null
+  let sourcing: S2BSourcing | null = null
+  let registration: S2BRegistration | null = null
+  let management: S2BManagement | null = null
 
   let isCancelled = false // ✅ 등록 중단 상태 변수
 
@@ -279,7 +283,7 @@ function setupIpcHandlers() {
     }
   })
 
-  // Excel 데이터 로드 및 automation 초기화
+  // Excel 데이터 로드 및 registration 초기화
   ipcMain.handle('load-excel-data', async (_, { excelPath, fileDir }) => {
     try {
       // 경로 확인 및 유효성 체크
@@ -295,8 +299,8 @@ function setupIpcHandlers() {
 
       sendLogToRenderer(`엑셀 데이터 로드 시작: ${resolvedExcelPath}`, 'info')
       const settings = store.get('settings')
-      const automation = new S2BAutomation(resolvedFileDir, sendLogToRenderer, settings.headless, settings)
-      const data = await automation.readExcelFile(resolvedExcelPath)
+      const registration = new S2BRegistration(resolvedFileDir, sendLogToRenderer, settings.headless, settings)
+      const data = await registration.readExcelFile(resolvedExcelPath)
       return data
     } catch (error) {
       console.error('Error loading Excel data:', error)
@@ -312,14 +316,14 @@ function setupIpcHandlers() {
       sendLogToRenderer('자동화 시작', 'info')
 
       const settings = store.get('settings')
-      automation = new S2BAutomation(settings.fileDir, sendLogToRenderer, settings.headless, settings)
+      registration = new S2BRegistration(settings.fileDir, sendLogToRenderer, settings.headless, settings)
 
-      await automation.launchRegistration()
+      await registration.launch()
 
-      await automation.login(settings.loginId, settings.loginPw)
+      await registration.login(settings.loginId, settings.loginPw)
       sendLogToRenderer(`로그인 성공 (ID: ${settings.loginId})`, 'info')
 
-      automation.setImageOptimize(settings.imageOptimize)
+      registration.setImageOptimize(settings.imageOptimize)
       sendLogToRenderer(`이미지 최적화 설정: ${settings.imageOptimize}`, 'info')
 
       // ✅ 계정 유효성 검사
@@ -345,7 +349,7 @@ function setupIpcHandlers() {
           // ✅ 상품 등록 전 데이터 정리
           const sanitizedProduct = sanitizeProductData(product)
 
-          await automation.registerProduct(sanitizedProduct)
+          await registration.registerProduct(sanitizedProduct)
           product.result = '성공' // ✅ 성공한 경우 결과 업데이트
         } catch (error) {
           if (error.message && isIgnorableError(error.message)) {
@@ -371,7 +375,7 @@ function setupIpcHandlers() {
     } finally {
       const resultPath = await saveExcelResult(allProducts)
       sendLogToRenderer(`결과 파일 저장 완료: ${resultPath}`, 'info')
-      await automation.close()
+      await registration?.close()
     }
   })
 
@@ -380,17 +384,16 @@ function setupIpcHandlers() {
     try {
       const settings = store.get('settings')
 
-      // 기존 automation 인스턴스가 없으면 새로 생성
-      if (!automation) {
-        automation = new S2BAutomation(settings.fileDir, sendLogToRenderer, settings.headless, settings)
+      // 기존 sourcing 인스턴스가 없으면 새로 생성
+      if (!sourcing) {
+        sourcing = new S2BSourcing(settings.fileDir, sendLogToRenderer, settings.headless, settings)
       }
 
-      // 브라우저 상태 확인 및 필요시 재시작
-      await automation.ensureBrowserConnected('sourcing')
+      await sourcing.launch()
 
       const baseUrl = vendor === 'domeggook' ? 'https://www.domeggook.com/' : 'https://www.domesin.com/'
-      await automation.openUrl(baseUrl)
-      return { success: true, url: automation.getCurrentUrl() }
+      await sourcing.openUrl(baseUrl)
+      return { success: true, url: sourcing.getCurrentUrl() }
     } catch (error) {
       return { success: false, error: error.message || '사이트 열기 실패' }
     }
@@ -399,14 +402,11 @@ function setupIpcHandlers() {
   // 소싱: 현재 페이지에서 목록 수집 (이미 열린 브라우저 기준)
   ipcMain.handle('sourcing-collect-list-current', async () => {
     try {
-      if (!automation) throw new Error('브라우저가 열려있지 않습니다. 먼저 사이트를 여세요.')
+      if (!sourcing) throw new Error('브라우저가 열려있지 않습니다. 먼저 사이트를 여세요.')
 
-      // 브라우저 상태 확인 및 필요시 재시작
-      await automation.ensureBrowserConnected('sourcing')
-
-      const currentUrl = automation.getCurrentUrl()
+      const currentUrl = sourcing.getCurrentUrl()
       if (!currentUrl) throw new Error('현재 URL을 확인할 수 없습니다.')
-      const list = await automation.collectListFromUrl(currentUrl)
+      const list = await sourcing.collectListFromUrl(currentUrl)
       return { success: true, items: list }
     } catch (error) {
       return { success: false, error: error.message || '현재 페이지 목록 수집 실패' }
@@ -418,14 +418,14 @@ function setupIpcHandlers() {
     try {
       const settings = store.get('settings')
 
-      // 기존 automation 인스턴스가 없으면 새로 생성
-      if (!automation) {
-        automation = new S2BAutomation(settings.fileDir, sendLogToRenderer, settings.headless, settings)
+      // 기존 sourcing 인스턴스가 없으면 새로 생성
+      if (!sourcing) {
+        sourcing = new S2BSourcing(settings.fileDir, sendLogToRenderer, settings.headless, settings)
       }
 
-      await automation.launchSourcing()
-      const list = await automation.collectListFromUrl(url)
-      await automation.close()
+      await sourcing.launch()
+      const list = await sourcing.collectListFromUrl(url)
+      await sourcing.close()
       return { success: true, items: list }
     } catch (error) {
       return { success: false, error: error.message || '목록 수집 실패' }
@@ -437,14 +437,14 @@ function setupIpcHandlers() {
     try {
       const settings = store.get('settings')
 
-      // 기존 automation 인스턴스가 없으면 새로 생성
-      if (!automation) {
-        automation = new S2BAutomation(settings.fileDir, sendLogToRenderer, settings.headless, settings)
+      // 기존 sourcing 인스턴스가 없으면 새로 생성
+      if (!sourcing) {
+        sourcing = new S2BSourcing(settings.fileDir, sendLogToRenderer, settings.headless, settings)
       }
 
-      await automation.launchSourcing()
-      const details = await automation.collectNormalizedDetailForUrls(urls)
-      await automation.close()
+      await sourcing.launch()
+      const details = await sourcing.collectNormalizedDetailForUrls(urls)
+      await sourcing.close()
       return { success: true, items: details }
     } catch (error) {
       sendLogToRenderer(`에러 발생: ${error.message}`, 'error')
@@ -508,19 +508,21 @@ function setupIpcHandlers() {
   ipcMain.handle('extend-management-date', async (_, { startDate, endDate, registrationStatus }) => {
     try {
       const settings = store.get('settings')
-      automation = new S2BAutomation(settings.fileDir, sendLogToRenderer, settings.headless, settings)
+      management = new S2BManagement(settings.fileDir, sendLogToRenderer, settings.headless, settings)
 
-      await automation.launchManagement()
+      await management.launch()
 
-      await automation.login(settings.loginId, settings.loginPw)
+      await management.login(settings.loginId, settings.loginPw)
       sendLogToRenderer(`로그인 성공 (ID: ${settings.loginId})`, 'info')
 
-      await automation.extendManagementDateForRange(startDate, endDate, registrationStatus)
+      await management.extendManagementDateForRange(startDate, endDate, registrationStatus)
 
       return { success: true, message: `상품 관리일이 ${startDate} ~ ${endDate}로 설정되었습니다.` }
     } catch (error) {
       console.error('Failed to extend management date:', error)
       return { success: false, error: error.message || 'Unknown error occurred.' }
+    } finally {
+      await management?.close()
     }
   })
 
