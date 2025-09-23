@@ -1,15 +1,14 @@
 import path from 'node:path'
 import * as fsSync from 'fs'
 import dayjs from 'dayjs'
-import axios from 'axios'
 import { pick } from 'lodash'
+import { type AiRefinedPayload, fetchAiRefined } from './lib/ai-client'
 import { VENDOR_CONFIG, VendorConfig, VendorKey } from './sourcing-config'
 import DomeggookScraper from './scrapers/DomeggookScraper'
 import DomesinScraper from './scrapers/DomesinScraper'
 import type { Scraper } from './scrapers/BaseScraper'
 import { S2BBase } from './s2b-base'
-
-const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
+import { validateKcByCertNum, KcValidationError } from './kc-validator'
 
 interface SourcingCrawlData {
   url: string
@@ -114,11 +113,12 @@ export class S2BSourcing extends S2BBase {
       }
       this._log(`AI 데이터 정제 시작: ${basicInfo.name}`, 'info')
       const aiRefined = await this._refineCrawlWithAI(crawlData)
+      const kcResolved = await this._determineKcFromAI(aiRefined)
       const categoryMapped =
         basicInfo.categories && basicInfo.categories.length >= 3
           ? await this._mapCategories(vendorKey || '', basicInfo.categories)
           : {}
-      const excelMapped = this._mapToExcelFormat(crawlData, aiRefined, categoryMapped, this.settings)
+      const excelMapped = this._mapToExcelFormat(crawlData, aiRefined, categoryMapped, this.settings, kcResolved)
       this._log(`데이터 정제 완료: ${basicInfo.name}`, 'info')
       outputs.push({ ...crawlData, excelMapped })
     }
@@ -184,16 +184,92 @@ export class S2BSourcing extends S2BBase {
     return dir
   }
 
-  private async _refineCrawlWithAI(data: SourcingCrawlData): Promise<any> {
-    const response = await axios.post(
-      'https://n8n.pyramid-ing.com/webhook/s2b-sourcing',
-      pick(data, ['name', 'shippingFee', 'imageUsage', 'origin', 'manufacturer', 'options', 'additionalInfo']),
-      { headers: { 'Content-Type': 'application/json' } },
-    )
-    if (!response?.data?.output) {
-      throw new Error('AI 결과가 비어 있습니다.')
+  private async _refineCrawlWithAI(data: SourcingCrawlData): Promise<AiRefinedPayload> {
+    const payload = pick(data, [
+      'name',
+      'shippingFee',
+      'imageUsage',
+      'origin',
+      'manufacturer',
+      'options',
+      'certifications',
+      '특성',
+    ])
+    return await fetchAiRefined(payload)
+  }
+
+  private async _determineKcFromAI(aiRefined: AiRefinedPayload): Promise<{
+    kids?: { type: 'Y' | 'F' | 'N'; certNum?: string }
+    elec?: { type: 'Y' | 'F' | 'N'; certNum?: string }
+    daily?: { type: 'Y' | 'F' | 'N'; certNum?: string }
+    broadcasting?: { type: 'Y' | 'F' | 'N'; certNum?: string }
+    issue: boolean
+    issuesText: string
+  }> {
+    const kcAuthKey = 'c953b79d-7da6-4cde-8086-bc866fcb5d27'
+
+    const defaultBucket: { type: 'Y' | 'F' | 'N'; certNum?: string } = { type: 'N' }
+    const result: {
+      kids: { type: 'Y' | 'F' | 'N'; certNum?: string }
+      elec: { type: 'Y' | 'F' | 'N'; certNum?: string }
+      daily: { type: 'Y' | 'F' | 'N'; certNum?: string }
+      broadcasting: { type: 'Y' | 'F' | 'N'; certNum?: string }
+      issue: boolean
+      issuesText: string
+    } = {
+      kids: { ...defaultBucket },
+      elec: { ...defaultBucket },
+      daily: { ...defaultBucket },
+      broadcasting: { ...defaultBucket },
+      issue: false,
+      issuesText: '',
     }
-    return response.data.output
+
+    const detectBucket = (num: string, detail: any): 'kids' | 'elec' | 'daily' | 'broadcasting' => {
+      const n = (num || '').toUpperCase().trim()
+      if (n.startsWith('R-') || n.includes('MSIP') || n.includes('KCC')) return 'broadcasting'
+      const div: string = String(detail?.certDiv || '').trim()
+      if (div.includes('어린이')) return 'kids'
+      if (div.includes('전기')) return 'elec'
+      // 기타는 생활용품으로 분류
+      return 'daily'
+    }
+
+    const numbers: string[] = Array.isArray(aiRefined?.certificationNumbers)
+      ? (aiRefined.certificationNumbers as any[]).map(v => (v ?? '').toString().trim()).filter(Boolean)
+      : []
+
+    let failed = 0
+    const errorByBucket: Partial<Record<'kids' | 'elec' | 'daily' | 'broadcasting', { num: string; msg: string }>> = {}
+    for (const num of numbers) {
+      try {
+        const detail = await validateKcByCertNum(kcAuthKey, num)
+        const bucket = detectBucket(num, detail)
+        if (!result[bucket].certNum) {
+          result[bucket] = { type: 'Y', certNum: num }
+        }
+        this._log(`KC 검증 성공(${bucket}): ${num}`, 'info')
+      } catch (err: any) {
+        failed++
+        const bucketOnFail = detectBucket(num, undefined)
+        const msg = err instanceof KcValidationError ? err.statusText || err.message : err?.message
+        if (msg && !errorByBucket[bucketOnFail]) errorByBucket[bucketOnFail] = { num, msg }
+        this._log(`KC 검증 실패(AI 추출): ${num}${msg ? ` - ${msg}` : ''}`, 'warning')
+      }
+    }
+
+    result.issue = failed > 0
+    if (result.issue) {
+      const parts: string[] = []
+      if (errorByBucket.kids) parts.push(`[${errorByBucket.kids.num}] 어린이제품: ${errorByBucket.kids.msg}`)
+      if (errorByBucket.daily) parts.push(`[${errorByBucket.daily.num}] 생활용품: ${errorByBucket.daily.msg}`)
+      if (errorByBucket.broadcasting)
+        parts.push(`[${errorByBucket.broadcasting.num}] 방송통신: ${errorByBucket.broadcasting.msg}`)
+      if (errorByBucket.elec) parts.push(`[${errorByBucket.elec.num}] 전기용품: ${errorByBucket.elec.msg}`)
+      result.issuesText = parts.join(' / ')
+    }
+
+    return result
   }
 
   private async _mapCategories(
@@ -255,13 +331,27 @@ export class S2BSourcing extends S2BBase {
     }
   }
 
-  private _mapToExcelFormat(rawData: any, aiRefined: any, categoryMapped: any, settings?: any): any[] {
+  private _mapToExcelFormat(
+    rawData: any,
+    aiRefined: any,
+    categoryMapped: any,
+    settings?: any,
+    kcResolved?: {
+      kids?: { type: 'Y' | 'F' | 'N'; certNum?: string }
+      elec?: { type: 'Y' | 'F' | 'N'; certNum?: string }
+      daily?: { type: 'Y' | 'F' | 'N'; certNum?: string }
+      broadcasting?: { type: 'Y' | 'F' | 'N'; certNum?: string }
+      issue: boolean
+      issuesText?: string
+    },
+  ): any[] {
     const originalPrice = rawData.price || 0
     const marginRate = settings?.marginRate || 20
 
     // 기본 상품 정보
     const baseProduct = {
       'G2B 물품목록번호': categoryMapped.g2bCode || '',
+      KC문제: kcResolved?.issuesText || '',
       이미지사용여부: aiRefined.이미지사용여부 || '', // 참고용
       원가: originalPrice, // 참고용
       최소구매수량: rawData.minPurchase || 1, // 참고용
@@ -324,17 +414,17 @@ export class S2BSourcing extends S2BBase {
       전화번호: '',
       '제조사 A/S전화번호': '',
       과세여부: '과세(세금계산서)',
-      어린이제품KC유형: '',
-      어린이제품KC인증번호: aiRefined.어린이제품KC인증번호 || '',
+      어린이제품KC유형: kcResolved?.kids?.type || '',
+      어린이제품KC인증번호: kcResolved?.kids?.certNum || aiRefined.어린이제품KC인증번호 || '',
       어린이제품KC성적서: '',
-      전기용품KC유형: '',
-      전기용품KC인증번호: aiRefined.전기용품KC인증번호 || '',
+      전기용품KC유형: kcResolved?.elec?.type || '',
+      전기용품KC인증번호: kcResolved?.elec?.certNum || aiRefined.전기용품KC인증번호 || '',
       전기용품KC성적서: '',
-      생활용품KC유형: '',
-      생활용품KC인증번호: aiRefined.생활용품KC인증번호 || '',
+      생활용품KC유형: kcResolved?.daily?.type || '',
+      생활용품KC인증번호: kcResolved?.daily?.certNum || aiRefined.생활용품KC인증번호 || '',
       생활용품KC성적서: '',
-      방송통신KC유형: '',
-      방송통신KC인증번호: aiRefined.방송통신KC인증번호 || '',
+      방송통신KC유형: kcResolved?.broadcasting?.type || '',
+      방송통신KC인증번호: kcResolved?.broadcasting?.certNum || aiRefined.방송통신KC인증번호 || '',
       방송통신KC성적서: '',
     }
     // 옵션이 있는 경우 옵션별로 상품 생성
