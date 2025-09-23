@@ -117,43 +117,13 @@ export class DomesinScraper extends BaseScraper {
     // 먼저 특성 데이터를 수집
     const additionalInfo = await this.collectAdditionalInfo(page, vendor)
 
-    // certifications를 특성 데이터에서 추출
+    // 인증정보는 additional info에서 단순히 값을 사용 (파싱/폴백 제거)
     let certifications: { type: string; number: string }[] | undefined
     if (additionalInfo) {
-      for (const item of additionalInfo) {
-        if (item.label === '인증정보' && item.value && item.value !== '인증대상아님') {
-          const certText = item.value.trim()
-          // 인증 정보 파싱: "방송통신기기 인증(MIC) (인증번호: R-R-ACT-PWB-08)"
-          const certMatch = certText.match(/^([^(]+)\s*\(([^)]+)\)/)
-          if (certMatch) {
-            const type = certMatch[1].trim()
-            const number = certMatch[2].replace(/인증번호:\s*/, '').trim()
-            if (type && number) {
-              certifications = [{ type, number }]
-            }
-          } else {
-            // 단순한 인증명만 있는 경우
-            certifications = [{ type: certText, number: '' }]
-          }
-          break
-        }
+      const cert = additionalInfo.find(item => item.label === '인증정보' && item.value && item.value !== '인증대상아님')
+      if (cert) {
+        certifications = [{ type: cert.value.trim(), number: '' }]
       }
-    }
-
-    // 특성에서 찾지 못한 경우 기존 XPath로 시도
-    if (!certifications && vendor.certification_xpath) {
-      const certItems = await page.$$eval(`xpath=${vendor.certification_xpath}`, nodes => {
-        return Array.from(nodes)
-          .map(li => {
-            const titleEl = (li as Element).querySelector('.lCertTitle') as HTMLElement | null
-            const numEl = (li as Element).querySelector('.lCertNum') as HTMLElement | null
-            const type = titleEl ? titleEl.textContent?.trim() || '' : ''
-            const number = numEl ? numEl.textContent?.replace(/자세히보기.*/, '').trim() || '' : ''
-            return { type, number }
-          })
-          .filter(cert => (cert as any).type && (cert as any).number)
-      })
-      if (certItems.length > 0) certifications = certItems as { type: string; number: string }[]
     }
 
     // 특성에서 제조사와 원산지 추출
