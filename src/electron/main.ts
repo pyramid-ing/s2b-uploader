@@ -553,7 +553,7 @@ function setupIpcHandlers() {
       const headers = Object.keys(excelData[0] || {})
 
       // 참고용 헤더들 정의
-      const referenceHeaders = ['이미지사용여부', '최소구매수량', '원가']
+      const referenceHeaders = ['구매처', '구매처URL', 'KC문제', '이미지사용여부', '최소구매수량', '원가']
 
       // 헤더 행 추가
       headers.forEach((header, colIndex) => {

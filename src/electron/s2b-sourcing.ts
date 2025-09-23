@@ -350,11 +350,13 @@ export class S2BSourcing extends S2BBase {
 
     // 기본 상품 정보
     const baseProduct = {
-      'G2B 물품목록번호': categoryMapped.g2bCode || '',
       KC문제: kcResolved?.issuesText || '',
       이미지사용여부: aiRefined.이미지사용여부 || '', // 참고용
       원가: originalPrice, // 참고용
       최소구매수량: rawData.minPurchase || 1, // 참고용
+      구매처: String(rawData.vendor || ''), // 참고용
+      구매처URL: rawData.url || '', // 참고용
+      'G2B 물품목록번호': categoryMapped.g2bCode || '',
       카테고리1: categoryMapped.targetCategory1 || '',
       카테고리2: categoryMapped.targetCategory2 || '',
       카테고리3: categoryMapped.targetCategory3 || '',
