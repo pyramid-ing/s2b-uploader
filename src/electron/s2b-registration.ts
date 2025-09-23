@@ -1,4 +1,3 @@
-import { chromium, Browser, BrowserContext, Page } from 'playwright'
 import path from 'node:path'
 import * as fsSync from 'fs'
 import * as fs from 'fs'
@@ -7,6 +6,7 @@ import axios from 'axios'
 import crypto from 'crypto'
 import FileType from 'file-type'
 import sharp from 'sharp'
+import { S2BBase } from './s2b-base'
 
 type SaleType = '물품' | '용역'
 
@@ -14,13 +14,7 @@ const SALE_TYPE_MAP: Record<SaleType, string> = { 물품: '1', 용역: '3' }
 
 const DELIVERY_TYPE_MAP: Record<'무료' | '유료' | '조건부무료', string> = { 무료: '1', 유료: '2', 조건부무료: '3' }
 
-export class S2BRegistration {
-  private browser: Browser | null = null
-  private context: BrowserContext | null = null
-  private page: Page | null = null
-  private chromePath: string
-  private headless: boolean
-  private logCallback: (message: string, level?: 'info' | 'warning' | 'error') => void
+export class S2BRegistration extends S2BBase {
   private baseFilePath: string
   private settings: any
   private dialogErrorMessage: string | null = null
@@ -32,51 +26,18 @@ export class S2BRegistration {
     headless: boolean = false,
     settings?: any,
   ) {
+    super(logCallback, headless)
     this.baseFilePath = baseImagePath
-    this.logCallback = logCallback
-    this.headless = headless
     this.settings = settings
-
-    if (process.platform === 'darwin') {
-      this.chromePath = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
-    } else if (process.platform === 'win32') {
-      const possiblePaths = [
-        'C\\\:\\Program Files\\\Google\\\Chrome\\\Application\\\chrome.exe'.replace(/\\/g, '\\\\\\'),
-        'C\\\:\\Program Files (x86)\\\Google\\\Chrome\\\Application\\\chrome.exe'.replace(/\\/g, '\\\\\\'),
-        (process.env.LOCALAPPDATA || '') + '\\Google\\Chrome\\Application\\chrome.exe',
-      ]
-      this.chromePath = possiblePaths.find(p => fsSync.existsSync(p)) || ''
-    } else {
-      this.chromePath = '/usr/bin/google-chrome'
-    }
   }
 
   public setImageOptimize(optimize: boolean): void {
     this.imageOptimize = optimize
   }
 
-  private _log(message: string, level: 'info' | 'warning' | 'error' = 'info') {
-    this.logCallback?.(message, level)
-  }
-
   public async launch(): Promise<void> {
-    if (this.browser) return
-    this.browser = await chromium.launch({
-      headless: this.headless,
-      executablePath: this.chromePath,
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
-    })
-    this.context = await this.browser.newContext({ viewport: null })
-    this.page = await this.context.newPage()
-    this.browser.on('disconnected', () => {
-      this._log('registration 브라우저가 수동으로 닫혔습니다.', 'warning')
-      this.browser = null
-      this.context = null
-      this.page = null
-    })
+    await super.launch()
     this._setupRegistrationPopupHandlers()
-    this.page.setDefaultNavigationTimeout(30000)
-    this.page.setDefaultTimeout(30000)
   }
 
   public async registerProduct(data: any): Promise<void> {
@@ -150,56 +111,6 @@ export class S2BRegistration {
     } finally {
       this.page.off('dialog', handleRegistrationDialog)
     }
-  }
-
-  public async close(): Promise<void> {
-    try {
-      await this.page?.close()
-    } catch {}
-    try {
-      await this.context?.close()
-    } catch {}
-    try {
-      await this.browser?.close()
-    } catch {}
-    this.page = null
-    this.context = null
-    this.browser = null
-  }
-
-  public async login(id: string, password: string): Promise<void> {
-    if (!this.page) throw new Error('브라우저가 초기화되지 않았습니다.')
-
-    await this.page.goto('https://www.s2b.kr/S2BNCustomer/Login.do?type=sp&userDomain=')
-    await this.page.fill('form[name="vendor_loginForm"] [name="uid"]', id)
-    await this.page.fill('form[name="vendor_loginForm"] [name="pwd"]', password)
-
-    let alertMessage = ''
-    const alertHandler = (dialog: any) => {
-      alertMessage = dialog.message()
-      dialog.accept()
-    }
-
-    this.page.on('dialog', alertHandler)
-
-    try {
-      await this.page.click('form[name="vendor_loginForm"] .btn_login > a')
-      await this.page.waitForLoadState('networkidle')
-
-      if (alertMessage) {
-        throw new Error(`LOGIN_ERROR_UNKNOWN: ${alertMessage}`)
-      }
-
-      const currentUrl = this.page.url()
-      if (currentUrl.includes('Login1.do') || currentUrl.includes('Login.do')) {
-        throw new Error('LOGIN_ERROR_UNKNOWN: 로그인에 실패했습니다.')
-      }
-    } catch (error) {
-      this.page.off('dialog', alertHandler)
-      throw error
-    }
-
-    this.page.off('dialog', alertHandler)
   }
 
   public async readExcelFile(filePath: string): Promise<any[]> {
