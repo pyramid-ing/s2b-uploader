@@ -263,6 +263,8 @@ export class S2BSourcing extends S2BBase {
     const baseProduct = {
       'G2B 물품목록번호': categoryMapped.g2bCode || '',
       이미지사용여부: aiRefined.이미지사용여부 || '', // 참고용
+      원가: originalPrice, // 참고용
+      최소구매수량: rawData.minPurchase || 1, // 참고용
       카테고리1: categoryMapped.targetCategory1 || '',
       카테고리2: categoryMapped.targetCategory2 || '',
       카테고리3: categoryMapped.targetCategory3 || '',
@@ -277,10 +279,8 @@ export class S2BSourcing extends S2BBase {
         return baseSpec
       })(),
       모델명: aiRefined.모델명 || '상세설명참고',
-      원가: originalPrice, // 참고용
       제조사: rawData.manufacturer || '상세설명참고',
       '소재/재질': aiRefined.소재재질 || '상세설명참고',
-      최소구매수량: rawData.minPurchase || 1, // 참고용
       판매단위: '개',
       보증기간: '1년',
       납품가능기간: '7일',

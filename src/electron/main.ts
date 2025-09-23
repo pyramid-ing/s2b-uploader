@@ -544,14 +544,47 @@ function setupIpcHandlers() {
         throw new Error('다운로드할 데이터가 없습니다.')
       }
 
-      // 워크북 생성
-      const workbook = XLSX.utils.book_new()
+      // xlsx-populate 사용하여 워크북 생성
+      const XlsxPopulate = require('xlsx-populate') as any
+      const workbook = await XlsxPopulate.fromBlankAsync()
+      const worksheet = workbook.sheet(0)
 
-      // 워크시트 생성
-      const worksheet = XLSX.utils.json_to_sheet(excelData)
+      // 헤더와 데이터 설정
+      const headers = Object.keys(excelData[0] || {})
 
-      // 워크북에 워크시트 추가
-      XLSX.utils.book_append_sheet(workbook, worksheet, '소싱데이터')
+      // 참고용 헤더들 정의
+      const referenceHeaders = ['이미지사용여부', '최소구매수량', '원가']
+
+      // 헤더 행 추가
+      headers.forEach((header, colIndex) => {
+        const cell = worksheet.cell(1, colIndex + 1)
+        cell.value(header)
+      })
+
+      // 데이터 행 추가
+      excelData.forEach((rowData, rowIndex) => {
+        headers.forEach((header, colIndex) => {
+          const cell = worksheet.cell(rowIndex + 2, colIndex + 1)
+          cell.value(rowData[header] || '')
+        })
+      })
+
+      // 참고용 헤더 열들에 전체 열 회색 배경색 적용
+      headers.forEach((header, colIndex) => {
+        if (referenceHeaders.includes(header)) {
+          const columnLetter = String.fromCharCode(65 + colIndex) // A, B, C, ...
+          const totalRows = excelData.length + 1 // 헤더 + 데이터 행
+
+          // 열 전체에 스타일 적용 (예: A1:A10)
+          const range = worksheet.range(`${columnLetter}1:${columnLetter}${totalRows}`)
+          range.style({
+            fill: {
+              type: 'solid',
+              color: 'D3D3D3', // 연한 회색
+            },
+          })
+        }
+      })
 
       // 엑셀 파일명 생성
       const timestamp = dayjs().format('YYYYMMDD_HHmmss')
@@ -577,7 +610,7 @@ function setupIpcHandlers() {
       }
 
       // 파일 저장
-      XLSX.writeFile(workbook, filePath)
+      await workbook.toFileAsync(filePath)
 
       const fileName = path.basename(filePath)
       sendLogToRenderer(`소싱 데이터 엑셀 파일 생성 완료: ${fileName}`, 'info')
