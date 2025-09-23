@@ -258,20 +258,29 @@ export class S2BSourcing extends S2BBase {
   private _mapToExcelFormat(rawData: any, aiRefined: any, categoryMapped: any, settings?: any): any[] {
     const originalPrice = rawData.price || 0
     const marginRate = settings?.marginRate || 20
+
+    // 기본 상품 정보
     const baseProduct = {
       'G2B 물품목록번호': categoryMapped.g2bCode || '',
-      이미지사용여부: aiRefined.이미지사용여부 || '',
+      이미지사용여부: aiRefined.이미지사용여부 || '', // 참고용
       카테고리1: categoryMapped.targetCategory1 || '',
       카테고리2: categoryMapped.targetCategory2 || '',
       카테고리3: categoryMapped.targetCategory3 || '',
       등록구분: '물품',
       물품명: aiRefined.물품명 || rawData.name || '',
-      규격: aiRefined['특성']?.map((info: any) => info).join(', ') || '',
+      규격: (() => {
+        const baseSpec = aiRefined['특성']?.map((info: any) => info).join(', ') || ''
+        const minPurchase = rawData.minPurchase || 1
+        if (minPurchase > 1) {
+          return baseSpec ? `${baseSpec}, 최소구매수량: ${minPurchase}개` : `최소구매수량: ${minPurchase}개`
+        }
+        return baseSpec
+      })(),
       모델명: aiRefined.모델명 || '상세설명참고',
-      원가: originalPrice,
+      원가: originalPrice, // 참고용
       제조사: rawData.manufacturer || '상세설명참고',
       '소재/재질': aiRefined.소재재질 || '상세설명참고',
-      최소구매수량: rawData.minPurchase || 1,
+      최소구매수량: rawData.minPurchase || 1, // 참고용
       판매단위: '개',
       보증기간: '1년',
       납품가능기간: '7일',
@@ -288,7 +297,47 @@ export class S2BSourcing extends S2BBase {
       추가이미지1: rawData.mainImages?.[2] || '',
       추가이미지2: rawData.mainImages?.[3] || '',
       상세이미지: rawData.detailImages?.[0] || '',
+      원산지구분: aiRefined.원산지구분 || '',
+      국내원산지: aiRefined.국내원산지 || '',
+      해외원산지: aiRefined.해외원산지 || '',
+      배송방법: '택배',
+      배송지역: '',
+      '정격전압/소비전력': '',
+      크기및무게: '',
+      동일모델출시년월: '',
+      냉난방면적: '',
+      제품구성: '',
+      안전표시: '',
+      용량: '',
+      주요사양: '',
+      소비기한선택: '',
+      소비기한입력: '',
+      어린이하차확인장치타입: '',
+      어린이하차확인장치인증번호: '',
+      어린이하차확인장치첨부파일: '',
+      안전확인대상타입: '',
+      안전확인대상신고번호: '',
+      안전확인대상첨부파일: '',
+      조달청계약여부: '',
+      계약시작일: '',
+      계약종료일: '',
+      전화번호: '',
+      '제조사 A/S전화번호': '',
+      과세여부: '과세(세금계산서)',
+      어린이제품KC유형: '',
+      어린이제품KC인증번호: aiRefined.어린이제품KC인증번호 || '',
+      어린이제품KC성적서: '',
+      전기용품KC유형: '',
+      전기용품KC인증번호: aiRefined.전기용품KC인증번호 || '',
+      전기용품KC성적서: '',
+      생활용품KC유형: '',
+      생활용품KC인증번호: aiRefined.생활용품KC인증번호 || '',
+      생활용품KC성적서: '',
+      방송통신KC유형: '',
+      방송통신KC인증번호: aiRefined.방송통신KC인증번호 || '',
+      방송통신KC성적서: '',
     }
+    // 옵션이 있는 경우 옵션별로 상품 생성
     if (aiRefined.options && aiRefined.options.length > 0) {
       return aiRefined.options.map((option: any) => ({
         ...baseProduct,
@@ -298,6 +347,8 @@ export class S2BSourcing extends S2BBase {
         재고수량: Math.min(option.qty || 9999, 9999),
       }))
     }
+
+    // 옵션이 없는 경우 기본 상품 1개 반환
     return [
       {
         ...baseProduct,
