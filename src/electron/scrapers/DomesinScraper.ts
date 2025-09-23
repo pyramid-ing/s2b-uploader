@@ -7,7 +7,7 @@ import type { ExtractedBasicInfo, ImageCollectResult } from './BaseScraper'
 import { BaseScraper } from './BaseScraper'
 
 export class DomesinScraper extends BaseScraper {
-  public vendorKey: VendorKey = VendorKey.도매신
+  public vendorKey: VendorKey = VendorKey.도매의신
 
   async collectList(
     page: Page,

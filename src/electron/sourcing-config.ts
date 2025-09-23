@@ -1,6 +1,6 @@
 export enum VendorKey {
   도매꾹 = '도매꾹',
-  도매신 = '도매신',
+  도매의신 = '도매의신',
 }
 
 export interface VendorConfig {
@@ -127,7 +127,7 @@ export const VENDOR_CONFIG: Record<VendorKey, VendorConfig> = {
     fallback_prefix: 'DMG',
     fallback_sheet: 'DMG',
   },
-  [VendorKey.도매신]: {
+  [VendorKey.도매의신]: {
     login_url: 'https://www.domesin.com/index.html?p=member/login_form.html',
     // 상품 목록 페이지에서 상품 링크 추출
     product_list_xpath: '//*[@id="listfrm"]/table/tbody/tr/td/div[2]/a',

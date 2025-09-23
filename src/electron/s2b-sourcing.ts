@@ -137,7 +137,7 @@ export class S2BSourcing extends S2BBase {
     try {
       const host = new URL(targetUrl).hostname
       if (host.includes('domeggook')) return VendorKey.도매꾹
-      if (host.includes('domesin')) return VendorKey.도매신
+      if (host.includes('domesin')) return VendorKey.도매의신
       return null
     } catch {
       return null
@@ -155,7 +155,7 @@ export class S2BSourcing extends S2BBase {
     switch (vendorKey) {
       case VendorKey.도매꾹:
         return new DomeggookScraper()
-      case VendorKey.도매신:
+      case VendorKey.도매의신:
         return new DomesinScraper()
       default:
         return null
