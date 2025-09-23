@@ -529,27 +529,6 @@ function setupIpcHandlers() {
   // 소싱 데이터 엑셀 다운로드 핸들러
   ipcMain.handle('download-sourcing-excel', async (_, { sourcingItems }) => {
     try {
-      const settings = store.get('settings')
-      const fileDir = settings.fileDir
-
-      if (!fileDir) {
-        throw new Error('파일 폴더가 설정되지 않았습니다.')
-      }
-
-      // 다운로드 폴더 생성
-      const downloadDir = path.join(fileDir, 'downloads')
-      if (!fsSync.existsSync(downloadDir)) {
-        fsSync.mkdirSync(downloadDir, { recursive: true })
-      }
-
-      // 엑셀 파일 생성
-      const timestamp = dayjs().format('YYYYMMDD_HHmmss')
-      const fileName = `소싱데이터_${timestamp}.xlsx`
-      const filePath = path.join(downloadDir, fileName)
-
-      // 워크북 생성
-      const workbook = XLSX.utils.book_new()
-
       // excelMapped 데이터를 평면화하여 사용
       const excelData: any[] = []
       sourcingItems.forEach((item: any) => {
@@ -565,15 +544,42 @@ function setupIpcHandlers() {
         throw new Error('다운로드할 데이터가 없습니다.')
       }
 
+      // 워크북 생성
+      const workbook = XLSX.utils.book_new()
+
       // 워크시트 생성
       const worksheet = XLSX.utils.json_to_sheet(excelData)
 
       // 워크북에 워크시트 추가
       XLSX.utils.book_append_sheet(workbook, worksheet, '소싱데이터')
 
+      // 엑셀 파일명 생성
+      const timestamp = dayjs().format('YYYYMMDD_HHmmss')
+      const defaultFileName = `소싱데이터_${timestamp}.xlsx`
+
+      // saveAs 다이얼로그 표시
+      const result = await dialog.showSaveDialog(mainWindow, {
+        title: '소싱 데이터 엑셀 파일 저장',
+        defaultPath: defaultFileName,
+        filters: [
+          { name: 'Excel Files', extensions: ['xlsx'] },
+          { name: 'All Files', extensions: ['*'] },
+        ],
+      })
+
+      if (result.canceled) {
+        return { success: false, error: '사용자가 저장을 취소했습니다.' }
+      }
+
+      const filePath = result.filePath
+      if (!filePath) {
+        throw new Error('파일 경로가 선택되지 않았습니다.')
+      }
+
       // 파일 저장
       XLSX.writeFile(workbook, filePath)
 
+      const fileName = path.basename(filePath)
       sendLogToRenderer(`소싱 데이터 엑셀 파일 생성 완료: ${fileName}`, 'info')
 
       return {
