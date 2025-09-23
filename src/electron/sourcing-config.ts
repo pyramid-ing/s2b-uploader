@@ -133,8 +133,8 @@ export const VENDOR_CONFIG: Record<VendorKey, VendorConfig> = {
     product_list_xpath: '//*[@id="listfrm"]/table/tbody/tr/td/div[2]/a',
     // 상품 목록 페이지에서 상품명 추출
     product_name_list_xpath: '//*[@id="listfrm"]/table/tbody/tr/td/div[5]/a[@class="itemname"]',
-    // 상품 상세 페이지에서 상품명 추출 (새로운 구조)
-    product_name_xpath: '//div[@class="item_title"]',
+    // 상품 상세 페이지에서 상품명 추출 (새로운 구조) - 상품명은 별도 영역에 있음
+    product_name_xpath: '//h1[@class="item_title"] | //div[@class="item_title"] | //title',
     // 상품 목록 페이지에서 가격 추출
     product_price_list_xpath: '//*[@id="listfrm"]/table/tbody/tr/td/div[4]//span[@class="amount_text"]',
     // 상품 상세 페이지에서 상품코드 추출 (새로운 구조)
@@ -155,32 +155,32 @@ export const VENDOR_CONFIG: Record<VendorKey, VendorConfig> = {
     // 제조사 정보 추출 (새로운 구조)
     manufacturer_xpath: '//table[@class="item_view_tb"]//tr[td[contains(text(), "제조사")]]/td[2]',
     fallback_manufacturer: '(주)머니로드',
-    // 옵션 정보 추출 - 중첩 옵션 처리
+    // 옵션 정보 추출 - 새로운 구조에 맞게 수정 (색상, 두께, 사이즈 등)
     option1_box_xpath:
-      '//table[@class="item_view_tb"]//tr[td[contains(text(), "옵션") or contains(text(), "색상") or contains(text(), "사이즈")]]/td[2]/select[1]',
+      '//table[@class="item_view_tb"]//tr[td[contains(text(), "색상") or contains(text(), "두께") or contains(text(), "옵션")]]/td[2]/select[@id="option_select_1"]',
     option1_item_xpaths:
-      '//table[@class="item_view_tb"]//tr[td[contains(text(), "옵션") or contains(text(), "색상") or contains(text(), "사이즈")]]/td[2]/select[1]/option[position()>1]',
+      '//table[@class="item_view_tb"]//tr[td[contains(text(), "색상") or contains(text(), "두께") or contains(text(), "옵션")]]/td[2]/select[@id="option_select_1"]/option[position()>1]',
     option2_box_xpath:
-      '//table[@class="item_view_tb"]//tr[td[contains(text(), "옵션") or contains(text(), "색상") or contains(text(), "사이즈")]]/td[2]/select[2]',
+      '//table[@class="item_view_tb"]//tr[td[contains(text(), "사이즈") or contains(text(), "옵션")]]/td[2]/select[@id="option_select_2"]',
     option2_item_xpaths:
-      '//table[@class="item_view_tb"]//tr[td[contains(text(), "옵션") or contains(text(), "색상") or contains(text(), "사이즈")]]/td[2]/select[2]/option[position()>1]',
+      '//table[@class="item_view_tb"]//tr[td[contains(text(), "사이즈") or contains(text(), "옵션")]]/td[2]/select[@id="option_select_2"]/option[position()>1]',
     option_xpath: [
-      '//table[@class="item_view_tb"]//tr[td[contains(text(), "옵션") or contains(text(), "색상") or contains(text(), "사이즈")]]/td[2]/select[1]/option[position()>1]',
-      '//table[@class="item_view_tb"]//tr[td[contains(text(), "옵션") or contains(text(), "색상") or contains(text(), "사이즈")]]/td[2]/select[2]/option[position()>1]',
+      '//table[@class="item_view_tb"]//tr[td[contains(text(), "색상") or contains(text(), "두께") or contains(text(), "옵션")]]/td[2]/select[@id="option_select_1"]/option[position()>1]',
+      '//table[@class="item_view_tb"]//tr[td[contains(text(), "사이즈") or contains(text(), "옵션")]]/td[2]/select[@id="option_select_2"]/option[position()>1]',
     ],
     // 메인 이미지 추출 (새로운 구조)
     main_image_xpath: '//img[@id="mainimg"]',
     // 상세 이미지 영역 추출 (새로운 구조)
     detail_image_xpath: '//div[@id="alink1"]/following-sibling::div[1]',
-    // 추가 정보 추출 (새로운 구조)
+    // 추가 정보 추출 (새로운 구조) - 더 정확한 매칭
     additional_info_pairs: [
       {
-        label_xpath: '//table[@class="item_view_tb"]//tr/td[1]',
-        value_xpath: '//table[@class="item_view_tb"]//tr/td[2]',
+        label_xpath: '//table[@class="item_view_tb"]//tr[td[1] and td[2]]/td[1]',
+        value_xpath: '//table[@class="item_view_tb"]//tr[td[1] and td[2]]/td[2]',
       },
       {
-        label_xpath: '//table[@class="item_view_tb"]//tr/td[3]',
-        value_xpath: '//table[@class="item_view_tb"]//tr/td[4]',
+        label_xpath: '//table[@class="item_view_tb"]//tr[td[3] and td[4]]/td[3]',
+        value_xpath: '//table[@class="item_view_tb"]//tr[td[3] and td[4]]/td[4]',
       },
     ],
     // URL 처리 설정

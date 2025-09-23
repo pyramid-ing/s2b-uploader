@@ -114,8 +114,34 @@ export class DomesinScraper extends BaseScraper {
       if (usage) imageUsage = usage.trim()
     }
 
+    // 먼저 특성 데이터를 수집
+    const additionalInfo = await this.collectAdditionalInfo(page, vendor)
+
+    // certifications를 특성 데이터에서 추출
     let certifications: { type: string; number: string }[] | undefined
-    if (vendor.certification_xpath) {
+    if (additionalInfo) {
+      for (const item of additionalInfo) {
+        if (item.label === '인증정보' && item.value && item.value !== '인증대상아님') {
+          const certText = item.value.trim()
+          // 인증 정보 파싱: "방송통신기기 인증(MIC) (인증번호: R-R-ACT-PWB-08)"
+          const certMatch = certText.match(/^([^(]+)\s*\(([^)]+)\)/)
+          if (certMatch) {
+            const type = certMatch[1].trim()
+            const number = certMatch[2].replace(/인증번호:\s*/, '').trim()
+            if (type && number) {
+              certifications = [{ type, number }]
+            }
+          } else {
+            // 단순한 인증명만 있는 경우
+            certifications = [{ type: certText, number: '' }]
+          }
+          break
+        }
+      }
+    }
+
+    // 특성에서 찾지 못한 경우 기존 XPath로 시도
+    if (!certifications && vendor.certification_xpath) {
       const certItems = await page.$$eval(`xpath=${vendor.certification_xpath}`, nodes => {
         return Array.from(nodes)
           .map(li => {
@@ -130,8 +156,43 @@ export class DomesinScraper extends BaseScraper {
       if (certItems.length > 0) certifications = certItems as { type: string; number: string }[]
     }
 
-    const origin = vendor.origin_xpath ? await this._textByXPath(page, vendor.origin_xpath) : null
-    let manufacturer = vendor.manufacturer_xpath ? await this._textByXPath(page, vendor.manufacturer_xpath) : null
+    // 특성에서 제조사와 원산지 추출
+    let origin: string | null = null
+    let manufacturer: string | null = null
+
+    if (additionalInfo) {
+      for (const item of additionalInfo) {
+        if (item.label === '제조사' && item.value && item.value !== '인증대상아님') {
+          manufacturer = item.value.trim()
+        }
+        if (item.label === '브랜드' && item.value && item.value.trim()) {
+          // 브랜드가 있고 제조사가 없거나 "인증대상아님"인 경우 브랜드를 제조사로 사용
+          if (!manufacturer || manufacturer === '인증대상아님') {
+            manufacturer = item.value.trim()
+          }
+        }
+        if (item.label === '원산지' && item.value) {
+          origin = item.value.trim()
+          // "해외|아시아|중국" 형태에서 실제 원산지만 추출
+          if (origin.includes('|')) {
+            const parts = origin.split('|')
+            if (parts.length >= 3) {
+              origin = parts[2].trim() // 마지막 부분이 실제 원산지
+            }
+          }
+        }
+      }
+    }
+
+    // 특성에서 찾지 못한 경우 기존 XPath로 시도
+    if (!origin && vendor.origin_xpath) {
+      origin = await this._textByXPath(page, vendor.origin_xpath)
+    }
+    if (!manufacturer && vendor.manufacturer_xpath) {
+      manufacturer = await this._textByXPath(page, vendor.manufacturer_xpath)
+    }
+
+    // 여전히 제조사가 없으면 fallback 사용
     if ((!manufacturer || !manufacturer.trim()) && vendor.fallback_manufacturer) {
       manufacturer = vendor.fallback_manufacturer
     }
@@ -177,7 +238,7 @@ export class DomesinScraper extends BaseScraper {
     // 메인 이미지와 썸네일 이미지들을 모두 수집
     const mainImageUrls: string[] = []
 
-    // 메인 이미지 수집
+    // 메인 이미지 수집 - 새로운 구조에 맞게 수정
     if (vendor.main_image_xpath) {
       const mainImages = await page.$$eval(`xpath=${vendor.main_image_xpath}`, nodes =>
         Array.from(nodes)
@@ -194,6 +255,14 @@ export class DomesinScraper extends BaseScraper {
         .filter(Boolean),
     )
     mainImageUrls.push(...thumbnailImages)
+
+    // 추가로 상품 상세 이미지들도 수집
+    const detailImages = await page.$$eval('//div[@id="alink1"]//img | //div[contains(@class, "detail")]//img', nodes =>
+      Array.from(nodes)
+        .map(n => (n as HTMLImageElement).src || '')
+        .filter(Boolean),
+    )
+    mainImageUrls.push(...detailImages)
 
     // 중복 제거 및 URL 정규화
     const uniqueUrls = [...new Set(mainImageUrls)]
@@ -255,7 +324,40 @@ export class DomesinScraper extends BaseScraper {
           : []
         const len = Math.min(labels.length, values.length)
         for (let i = 0; i < len; i++) {
-          collected.push({ label: labels[i], value: values[i] })
+          // 데이터 정리: 탭, 줄바꿈, ": " 접두사 제거
+          let cleanLabel = labels[i]
+            .replace(/[\t\n\r]/g, ' ') // 탭, 줄바꿈을 공백으로 변환
+            .replace(/\s+/g, ' ') // 연속된 공백을 하나로 변환
+            .replace(/^:\s*/, '') // ": " 접두사 제거
+            .trim()
+
+          let cleanValue = values[i]
+            .replace(/[\t\n\r]/g, ' ') // 탭, 줄바꿈을 공백으로 변환
+            .replace(/\s+/g, ' ') // 연속된 공백을 하나로 변환
+            .replace(/^:\s*/, '') // ": " 접두사 제거
+            .trim()
+
+          // 의미있는 데이터만 수집 (빈 값이나 CSS 코드 제외)
+          if (
+            cleanLabel &&
+            cleanValue &&
+            !cleanLabel.includes('{') &&
+            !cleanLabel.includes('position:') &&
+            !cleanLabel.includes('display:') &&
+            !cleanLabel.includes('공급사코드') && // 공급사코드 관련 버튼 제외
+            !cleanLabel.includes('공급사등급') &&
+            !cleanLabel.includes('상품수') &&
+            !cleanLabel.includes('출고속도') &&
+            !cleanLabel.includes('주문이행률') &&
+            !cleanLabel.includes('문의응답률') &&
+            !cleanLabel.includes('배송정책') &&
+            !cleanLabel.includes('배송일정') &&
+            !cleanLabel.includes('배송불가일') &&
+            cleanLabel.length < 100
+          ) {
+            // 너무 긴 라벨 제외
+            collected.push({ label: cleanLabel, value: cleanValue })
+          }
         }
       } catch {}
     }
@@ -274,7 +376,15 @@ export class DomesinScraper extends BaseScraper {
           return null
         }
       }, xpath)
-      return text || null
+
+      if (!text) return null
+
+      // 데이터 정리: 탭, 줄바꿈, ": " 접두사 제거
+      return text
+        .replace(/[\t\n\r]/g, ' ') // 탭, 줄바꿈을 공백으로 변환
+        .replace(/\s+/g, ' ') // 연속된 공백을 하나로 변환
+        .replace(/^:\s*/, '') // ": " 접두사 제거
+        .trim()
     } catch {
       return null
     }
@@ -283,16 +393,29 @@ export class DomesinScraper extends BaseScraper {
   private _parsePrice(text: string | null): number | null {
     if (!text) return null
     const cleanText = text.trim()
+
+    // 도매의신 특화: "18,040원" 형태의 가격 처리
+    const priceMatch = cleanText.match(/([0-9,]+)\s*원/)
+    if (priceMatch) {
+      const digits = priceMatch[1].replace(/[^0-9]/g, '')
+      if (digits) return Number(digits)
+    }
+
+    // 범위 가격 처리: "1,000원 ~ 2,000원"
     const rangeMatch = cleanText.match(/([0-9,]+)\s*원?\s*~\s*([0-9,]+)\s*원?/)
     if (rangeMatch) {
       const minPrice = rangeMatch[1].replace(/[^0-9]/g, '')
       if (minPrice) return Number(minPrice)
     }
+
+    // 첫 번째 가격 패턴
     const firstPriceMatch = cleanText.match(/([0-9,]+)\s*원?/)
     if (firstPriceMatch) {
       const digits = firstPriceMatch[1].replace(/[^0-9]/g, '')
       if (digits) return Number(digits)
     }
+
+    // 숫자만 추출
     const digits = cleanText.replace(/[^0-9]/g, '')
     if (!digits) return null
     return Number(digits)
@@ -315,8 +438,8 @@ export class DomesinScraper extends BaseScraper {
           if (firstOption) {
             try {
               await firstOption.click()
-              // 옵션 변경 후 페이지 로딩 대기
-              await page.waitForTimeout(500)
+              // 옵션 변경 후 AJAX 로딩 대기
+              await page.waitForTimeout(2000)
             } catch (error) {
               console.warn('이전 옵션 선택 실패:', error)
             }
@@ -335,8 +458,32 @@ export class DomesinScraper extends BaseScraper {
               const opt = el as HTMLOptionElement
               nameText = (opt.textContent || opt.value || '').trim()
               const name = nameText.replace(/\s+/g, ' ').trim()
-              if (name && !/선택|옵션|선택하세요|옵션선택/i.test(name)) {
-                result.push({ name, price: 0, qty: 9999 })
+
+              // data-option 속성에서 가격 정보 추출
+              let price = 0
+              let qty = 9999
+              const dataOption = opt.getAttribute('data-option')
+              if (dataOption) {
+                try {
+                  const optionData = JSON.parse(dataOption)
+                  if (optionData.price) {
+                    price = optionData.price
+                  }
+                  if (optionData.total_amount) {
+                    price = optionData.total_amount - (optionData.base_amount || 0)
+                  }
+                } catch (e) {
+                  console.warn('옵션 데이터 파싱 실패:', e)
+                }
+              }
+
+              if (
+                name &&
+                !/선택|옵션|선택하세요|옵션선택|1차 옵션을 선택하세요|2차 옵션 선택|색상 선택|두께 선택|사이즈 선택/i.test(
+                  name,
+                )
+              ) {
+                result.push({ name, price, qty })
               }
             } else {
               // 버튼/라벨 기반 UI
