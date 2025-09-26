@@ -281,20 +281,12 @@ const Sourcing: React.FC = () => {
       return
     }
 
-    Modal.confirm({
-      title: '확인',
-      content: `${count}개를 정말로 처리하시나요?`,
-      okText: '예',
-      cancelText: '아니오',
-      onOk: async () => {
-        try {
-          setLoading(true)
-          await requestRegister(keys)
-        } finally {
-          setLoading(false)
-        }
-      },
-    })
+    try {
+      setLoading(true)
+      await requestRegister(keys)
+    } finally {
+      setLoading(false)
+    }
   }
 
   const handleBulkDelete = () => {
