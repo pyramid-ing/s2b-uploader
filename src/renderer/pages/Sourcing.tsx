@@ -21,6 +21,7 @@ import { useSourcing } from '../hooks/useSourcing'
 import { usePermission } from '../hooks/usePermission'
 import { SourcingItem } from '../stores/sourcingStore'
 import { fetchCredits } from '../api/creditsApi'
+import ConfigSetManager from '../components/ConfigSetManager'
 
 const { shell } = window.require('electron')
 
@@ -371,41 +372,7 @@ const Sourcing: React.FC = () => {
         </Space>
       </Card>
 
-      <Card title="세팅">
-        <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-          <Form layout="inline">
-            <Form.Item label="마진율(%)">
-              <Input
-                type="number"
-                style={{ width: 120 }}
-                value={settings.marginRate}
-                onChange={e => setSettings(prev => ({ ...prev, marginRate: Number(e.target.value) }))}
-                min={0}
-              />
-            </Form.Item>
-          </Form>
-          <Form.Item
-            label="상세설명 HTML"
-            validateStatus={settings.detailHtmlTemplate.length < 10 ? 'error' : 'success'}
-            help={settings.detailHtmlTemplate.length < 10 ? '상세설명 HTML은 10자 이상 입력해야 합니다.' : ''}
-          >
-            <Input.TextArea
-              value={settings.detailHtmlTemplate}
-              onChange={e => setSettings(prev => ({ ...prev, detailHtmlTemplate: e.target.value }))}
-              placeholder="상세설명 HTML을 입력하세요... (최소 10자 이상)"
-              rows={4}
-              style={{ width: '100%' }}
-            />
-          </Form.Item>
-          <Divider />
-
-          <Form.Item>
-            <Button type="primary" onClick={saveSettings}>
-              설정 저장
-            </Button>
-          </Form.Item>
-        </Space>
-      </Card>
+      <ConfigSetManager />
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>

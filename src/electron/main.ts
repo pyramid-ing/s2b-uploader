@@ -144,6 +144,8 @@ interface StoreSchema {
     marginRate: number
     detailHtmlTemplate: string
   }
+  configSets: any[]
+  activeConfigSetId: string | null
 }
 
 // Store 인스턴스 생성
@@ -160,6 +162,8 @@ const store = new Store<StoreSchema>({
       marginRate: 20,
       detailHtmlTemplate: '<p>상세설명을 입력하세요.</p>',
     },
+    configSets: [],
+    activeConfigSetId: null,
   },
   // 중요한 데이터는 암호화
   encryptionKey: 's2b-uploader-secret-key',
@@ -480,6 +484,30 @@ function setupIpcHandlers() {
     }
   })
 
+  // 설정값 세트 불러오기
+  ipcMain.handle('get-config-sets', () => {
+    try {
+      const configSets = store.get('configSets') || []
+      const activeConfigSetId = store.get('activeConfigSetId')
+      return { configSets, activeConfigSetId }
+    } catch (error) {
+      console.error('Error loading config sets:', error)
+      throw error
+    }
+  })
+
+  // 설정값 세트 저장하기
+  ipcMain.handle('save-config-sets', async (_, { configSets, activeConfigSetId }) => {
+    try {
+      store.set('configSets', configSets)
+      store.set('activeConfigSetId', activeConfigSetId)
+      return true
+    } catch (error) {
+      console.error('Error saving config sets:', error)
+      throw error
+    }
+  })
+
   // 디렉토리 선택 다이얼로그
   ipcMain.handle('select-directory', async () => {
     if (!mainWindow) return null
@@ -526,8 +554,193 @@ function setupIpcHandlers() {
     }
   })
 
+  // 설정값 세트 엑셀 다운로드 핸들러
+  ipcMain.handle('download-config-set-excel', async (_, configSet) => {
+    try {
+      const XlsxPopulate = require('xlsx-populate') as any
+      const workbook = await XlsxPopulate.fromBlankAsync()
+      const worksheet = workbook.sheet(0)
+
+      // 설정값 세트 데이터를 엑셀 형식으로 변환
+      const configData = {
+        설정값세트명: configSet.name,
+        '납품가능기간(일)': configSet.config.deliveryPeriod,
+        '견적서유효기간(일)': configSet.config.quoteValidityPeriod,
+        배송비종류:
+          configSet.config.shippingFeeType === 'free'
+            ? '무료'
+            : configSet.config.shippingFeeType === 'fixed'
+              ? '유료'
+              : '조건부무료',
+        '배송비(원)': configSet.config.shippingFee,
+        '반품배송비(원)': configSet.config.returnShippingFee,
+        묶음배송여부: configSet.config.bundleShipping ? '가능' : '불가능',
+        제주배송여부: configSet.config.jejuShipping ? '가능' : '불가능',
+        '제주추가배송비(원)': configSet.config.jejuAdditionalFee,
+        상세설명HTML: configSet.config.detailHtmlTemplate,
+        '마진율(%)': configSet.config.marginRate,
+      }
+
+      // 헤더 행 추가
+      const headers = Object.keys(configData)
+      headers.forEach((header, colIndex) => {
+        const cell = worksheet.cell(1, colIndex + 1)
+        cell.value(header)
+      })
+
+      // 데이터 행 추가
+      headers.forEach((header, colIndex) => {
+        const cell = worksheet.cell(2, colIndex + 1)
+        cell.value(configData[header])
+      })
+
+      // 엑셀 파일명 생성
+      const timestamp = dayjs().format('YYYYMMDD_HHmmss')
+      const defaultFileName = `설정값세트_${configSet.name}_${timestamp}.xlsx`
+
+      // saveAs 다이얼로그 표시
+      const result = await dialog.showSaveDialog(mainWindow, {
+        title: '설정값 세트 엑셀 파일 저장',
+        defaultPath: defaultFileName,
+        filters: [
+          { name: 'Excel Files', extensions: ['xlsx'] },
+          { name: 'All Files', extensions: ['*'] },
+        ],
+      })
+
+      if (result.canceled) {
+        return { success: false, error: '사용자가 저장을 취소했습니다.' }
+      }
+
+      const filePath = result.filePath
+      if (!filePath) {
+        throw new Error('파일 경로가 선택되지 않았습니다.')
+      }
+
+      // 파일 저장
+      await workbook.toFileAsync(filePath)
+
+      const fileName = path.basename(filePath)
+      sendLogToRenderer(`설정값 세트 엑셀 파일 생성 완료: ${fileName}`, 'info')
+
+      return {
+        success: true,
+        filePath,
+        fileName,
+      }
+    } catch (error) {
+      console.error('Config set Excel download failed:', error)
+      sendLogToRenderer(`설정값 세트 엑셀 다운로드 실패: ${error.message}`, 'error')
+      return { success: false, error: error.message || '설정값 세트 엑셀 다운로드 중 오류가 발생했습니다.' }
+    }
+  })
+
+  // 설정값 세트 엑셀 업로드 핸들러
+  ipcMain.handle('upload-config-set-excel', async (_, arrayBuffer) => {
+    try {
+      const workbook = XLSX.read(arrayBuffer, { type: 'array' })
+      const sheetName = workbook.SheetNames[0]
+      const worksheet = workbook.Sheets[sheetName]
+
+      // JSON으로 변환
+      const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 })
+
+      if (jsonData.length < 2) {
+        throw new Error('엑셀 파일에 데이터가 충분하지 않습니다.')
+      }
+
+      const headers = jsonData[0] as string[]
+      const dataRow = jsonData[1] as any[]
+
+      // 헤더 매핑
+      const headerMap: { [key: string]: string } = {
+        설정값세트명: 'name',
+        '납품가능기간(일)': 'deliveryPeriod',
+        '견적서유효기간(일)': 'quoteValidityPeriod',
+        배송비종류: 'shippingFeeType',
+        '배송비(원)': 'shippingFee',
+        '반품배송비(원)': 'returnShippingFee',
+        묶음배송여부: 'bundleShipping',
+        제주배송여부: 'jejuShipping',
+        '제주추가배송비(원)': 'jejuAdditionalFee',
+        상세설명HTML: 'detailHtmlTemplate',
+        '마진율(%)': 'marginRate',
+      }
+
+      const configData: any = {}
+      headers.forEach((header, index) => {
+        const mappedKey = headerMap[header]
+        if (mappedKey && dataRow[index] !== undefined) {
+          let value = dataRow[index]
+
+          // 특정 필드 타입 변환
+          if (
+            mappedKey === 'deliveryPeriod' ||
+            mappedKey === 'quoteValidityPeriod' ||
+            mappedKey === 'shippingFee' ||
+            mappedKey === 'returnShippingFee' ||
+            mappedKey === 'jejuAdditionalFee' ||
+            mappedKey === 'marginRate'
+          ) {
+            value = Number(value) || 0
+          } else if (mappedKey === 'bundleShipping' || mappedKey === 'jejuShipping') {
+            value = value === '가능' || value === true || value === 'true'
+          } else if (mappedKey === 'shippingFeeType') {
+            if (value === '무료') value = 'free'
+            else if (value === '유료') value = 'fixed'
+            else if (value === '조건부무료') value = 'conditional'
+          }
+
+          configData[mappedKey] = value
+        }
+      })
+
+      // 필수 필드 검증
+      if (!configData.name) {
+        throw new Error('설정값세트명이 필요합니다.')
+      }
+
+      // 새로운 설정값 세트 생성
+      // 기존 기본설정 가져오기
+      const existingSettings = store.get('settings')
+
+      const newConfigSet = {
+        id: `config_${Date.now()}`,
+        name: configData.name,
+        isDefault: false,
+        isActive: false,
+        config: {
+          deliveryPeriod: configData.deliveryPeriod || 'ZD000001', // 3일
+          quoteValidityPeriod: configData.quoteValidityPeriod || 'ZD000001', // 7일
+          shippingFeeType: configData.shippingFeeType || 'fixed', // 고정배송비
+          shippingFee: configData.shippingFee || 3000,
+          returnShippingFee: configData.returnShippingFee || 3000,
+          bundleShipping: configData.bundleShipping !== undefined ? configData.bundleShipping : true, // 묶음배송여부 true
+          jejuShipping: configData.jejuShipping !== undefined ? configData.jejuShipping : true, // 제주배송여부 true
+          jejuAdditionalFee: configData.jejuAdditionalFee || 5000,
+          detailHtmlTemplate:
+            configData.detailHtmlTemplate || existingSettings.detailHtmlTemplate || '<p>상세설명을 입력하세요.</p>',
+          marginRate: configData.marginRate || existingSettings.marginRate || 20, // 마진율
+        },
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      }
+
+      sendLogToRenderer(`설정값 세트 업로드 완료: ${newConfigSet.name}`, 'info')
+
+      return {
+        success: true,
+        configSets: [newConfigSet], // 새로 생성된 설정값 세트 반환
+      }
+    } catch (error) {
+      console.error('Config set Excel upload failed:', error)
+      sendLogToRenderer(`설정값 세트 업로드 실패: ${error.message}`, 'error')
+      return { success: false, error: error.message || '설정값 세트 업로드 중 오류가 발생했습니다.' }
+    }
+  })
+
   // 소싱 데이터 엑셀 다운로드 핸들러
-  ipcMain.handle('download-sourcing-excel', async (_, { sourcingItems }) => {
+  ipcMain.handle('download-sourcing-excel', async (_, { sourcingItems, configSet }) => {
     try {
       // excelMapped 데이터를 평면화하여 사용
       const excelData: any[] = []
@@ -561,11 +774,65 @@ function setupIpcHandlers() {
         cell.value(header)
       })
 
-      // 데이터 행 추가
+      // 데이터 행 추가 및 설정값 세트 적용
       excelData.forEach((rowData, rowIndex) => {
         headers.forEach((header, colIndex) => {
           const cell = worksheet.cell(rowIndex + 2, colIndex + 1)
-          cell.value(rowData[header] || '')
+          let value = rowData[header] || ''
+
+          // 설정값 세트가 있으면 해당 값으로 덮어쓰기
+          if (configSet) {
+            switch (header) {
+              case '납품가능기간':
+                const deliveryOption = {
+                  ZD000001: '3일',
+                  ZD000002: '5일',
+                  ZD000003: '7일',
+                  ZD000004: '15일',
+                  ZD000005: '30일',
+                  ZD000006: '45일',
+                }
+                value = deliveryOption[configSet.config.deliveryPeriod]
+                break
+              case '견적서 유효기간':
+                const quoteOption = {
+                  ZD000001: '7일',
+                  ZD000002: '10일',
+                  ZD000003: '15일',
+                  ZD000004: '30일',
+                }
+                value = quoteOption[configSet.config.quoteValidityPeriod]
+                break
+              case '배송비종류':
+                const shippingTypeMap = {
+                  free: '무료',
+                  fixed: '유료',
+                  conditional: '조건부무료',
+                }
+                value = shippingTypeMap[configSet.config.shippingFeeType]
+                break
+              case '배송비':
+                value = configSet.config.shippingFee
+                break
+              case '반품배송비':
+                value = configSet.config.returnShippingFee
+                break
+              case '묶음배송여부':
+                value = configSet.config.bundleShipping ? '가능' : '불가능'
+                break
+              case '제주배송여부':
+                value = configSet.config.jejuShipping ? '가능' : '불가능'
+                break
+              case '제주추가배송비':
+                value = configSet.config.jejuAdditionalFee
+                break
+              case '상세설명HTML':
+                value = configSet.config.detailHtmlTemplate
+                break
+            }
+          }
+
+          cell.value(value)
         })
       })
 
