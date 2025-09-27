@@ -39,8 +39,7 @@ export interface VendorConfig {
   url_mode?: 'relative' | 'absolute'
   custom_url_prefix?: string | null
   additional_info_pairs?: { label_xpath: string; value_xpath: string }[]
-  fallback_prefix?: string
-  fallback_sheet?: string
+  prefix?: string
 }
 
 export const VENDOR_CONFIG: Record<VendorKey, VendorConfig> = {
@@ -124,8 +123,7 @@ export const VENDOR_CONFIG: Record<VendorKey, VendorConfig> = {
           '//*[@id="lInfoViewItemInfoWrap"]//div[contains(@class, "lTblCellLabel")]/following-sibling::div[contains(@class, "lTblCell")]',
       },
     ],
-    fallback_prefix: 'DMG',
-    fallback_sheet: 'DMG',
+    prefix: 'DMK_',
   },
   [VendorKey.도매의신]: {
     login_url: 'https://www.domesin.com/index.html?p=member/login_form.html',
@@ -186,8 +184,7 @@ export const VENDOR_CONFIG: Record<VendorKey, VendorConfig> = {
     // URL 처리 설정
     url_mode: 'relative',
     custom_url_prefix: 'https://www.domesin.com',
-    fallback_prefix: 'DMS',
-    fallback_sheet: 'DMS',
+    prefix: 'DOM_',
   },
 }
 

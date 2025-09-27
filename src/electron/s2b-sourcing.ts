@@ -89,7 +89,7 @@ export class S2BSourcing extends S2BBase {
         throw new Error('크롤링 실패: 상품명(name) 추출에 실패했습니다.')
       }
       const baseName = (basicInfo.name || basicInfo.productCode || 'product').toString()
-      const productDir = this._createProductDir(baseName)
+      const productDir = this._createProductDir(baseName, basicInfo.productCode, vendorKey)
       const { savedMainImages, detailCapturePath } = await scraper.collectImages(this.page, vendor, productDir)
       const 특성 = await scraper.collectAdditionalInfo(this.page, vendor)
       const crawlData: SourcingCrawlData = {
@@ -176,12 +176,31 @@ export class S2BSourcing extends S2BBase {
     if (!fsSync.existsSync(dirPath)) fsSync.mkdirSync(dirPath, { recursive: true })
   }
 
-  private _createProductDir(baseName: string): string {
+  private _createProductDir(baseName: string, productCode?: string, vendorKey?: VendorKey): string {
     const dateDir = dayjs().format('YYYYMMDD')
-    const safeName = this._sanitizeFileName(baseName)
-    const dir = path.join(this.baseFilePath, 'downloads', dateDir, `${safeName}_${Date.now()}`)
+
+    // 상품코드가 있으면 상품코드 기반으로 폴더명 생성, 없으면 기존 방식 사용
+    let folderName: string
+    if (productCode && productCode.trim()) {
+      // 채널별 접두사 추가 (설정에서 가져오기)
+      const prefix = this._getVendorPrefix(vendorKey)
+      folderName = `${prefix}${productCode.trim()}`
+    } else {
+      // 상품코드가 없으면 기존 방식 (상품명 기반)
+      const safeName = this._sanitizeFileName(baseName)
+      folderName = `${safeName}_${Date.now()}`
+    }
+
+    const dir = path.join(this.baseFilePath, 'downloads', dateDir, folderName)
     this._ensureDir(dir)
     return dir
+  }
+
+  private _getVendorPrefix(vendorKey?: VendorKey): string {
+    if (!vendorKey) return 'UNK_'
+
+    const vendor = VENDOR_CONFIG[vendorKey]
+    return vendor?.prefix || 'UNK_'
   }
 
   private async _refineCrawlWithAI(data: SourcingCrawlData): Promise<AiRefinedPayload> {
