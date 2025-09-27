@@ -10,6 +10,7 @@ export interface SourcingItem {
   listThumbnail?: string
   downloadDir?: string
   additionalInfo?: any
+  isCollected?: boolean // 수집완료 상태
 }
 
 export interface SourcingSettings {

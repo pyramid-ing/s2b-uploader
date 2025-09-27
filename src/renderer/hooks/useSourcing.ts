@@ -133,6 +133,7 @@ export const useSourcing = () => {
               vendor: found.vendor,
               listThumbnail: found.listThumbnail,
               downloadDir: found.downloadDir,
+              isCollected: true, // URL로 직접 가져온 것은 수집완료 상태로 설정
             }
             set(sourcingItemsState, prev => [item, ...prev])
             message.success('URL 기준으로 1개 항목을 가져왔습니다.')
@@ -184,6 +185,7 @@ export const useSourcing = () => {
                 ...it,
                 ...found,
                 downloadDir: found.downloadDir ?? it.downloadDir,
+                isCollected: true, // 수집완료 상태로 설정
               }
             })
           })

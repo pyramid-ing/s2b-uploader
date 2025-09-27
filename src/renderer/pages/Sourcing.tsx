@@ -15,7 +15,7 @@ import {
   Tooltip,
 } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
-import { DeleteOutlined, PlusOutlined, SendOutlined, DownloadOutlined } from '@ant-design/icons'
+import { DeleteOutlined, PlusOutlined, SendOutlined, DownloadOutlined, CheckCircleOutlined } from '@ant-design/icons'
 import { useLog } from '../hooks/useLog'
 import { useSourcing } from '../hooks/useSourcing'
 import { usePermission } from '../hooks/usePermission'
@@ -156,51 +156,25 @@ const Sourcing: React.FC = () => {
         dataIndex: 'name',
         key: 'name',
         render: (text: string, record: SourcingItem) => (
-          <Typography.Link
-            onClick={e => {
-              e.preventDefault()
-              if (!record.url) return
-              try {
-                shell.openExternal(record.url)
-              } catch (err) {
-                message.error('링크를 열 수 없습니다.')
-              }
-            }}
-          >
-            {text}
-          </Typography.Link>
-        ),
-      },
-      {
-        title: '품목코드',
-        dataIndex: 'productCode',
-        key: 'productCode',
-        render: (text: string, record: SourcingItem) => {
-          const displayText = text || '-'
-          return (
-            <Tooltip
-              title={
-                <pre
-                  style={{
-                    fontFamily: 'monospace',
-                    fontSize: '12px',
-                    margin: 0,
-                    whiteSpace: 'pre-wrap',
-                    maxWidth: '400px',
-                    maxHeight: '300px',
-                    overflow: 'auto',
-                  }}
-                >
-                  {JSON.stringify(record, null, 2)}
-                </pre>
-              }
-              placement="topLeft"
-              overlayStyle={{ maxWidth: '500px' }}
+          <Space>
+            {record.isCollected && (
+              <CheckCircleOutlined style={{ color: '#52c41a', fontSize: '16px' }} />
+            )}
+            <Typography.Link
+              onClick={e => {
+                e.preventDefault()
+                if (!record.url) return
+                try {
+                  shell.openExternal(record.url)
+                } catch (err) {
+                  message.error('링크를 열 수 없습니다.')
+                }
+              }}
             >
-              <Typography.Text style={{ cursor: 'help' }}>{displayText}</Typography.Text>
-            </Tooltip>
-          )
-        },
+              {text}
+            </Typography.Link>
+          </Space>
+        ),
       },
       {
         title: '액션',
@@ -208,15 +182,16 @@ const Sourcing: React.FC = () => {
         render: (_, record) => (
           <Space>
             <Button type="link" icon={<SendOutlined />} onClick={() => handleRequestRegister([record.key])}>
-              등록요청
+              수집하기
             </Button>
             <Button
               type="link"
               icon={<DownloadOutlined />}
+              disabled={!record.isCollected}
               onClick={() => {
                 try {
                   if (!record.downloadDir) {
-                    message.warning('저장 폴더 정보가 없습니다. 먼저 상세 수집을 실행하세요.')
+                    message.warning('저장 폴더 정보가 없습니다. 먼저 수집을 실행하세요.')
                     return
                   }
                   shell.openPath(record.downloadDir)
@@ -272,7 +247,7 @@ const Sourcing: React.FC = () => {
   const handleRequestRegister = async (keys?: React.Key[]) => {
     const count = keys && keys.length > 0 ? keys.length : selectedRowKeys.length
     if (count === 0) {
-      message.warning('등록 요청할 품목을 선택하세요.')
+      message.warning('수집할 품목을 선택하세요.')
       return
     }
 
@@ -384,7 +359,7 @@ const Sourcing: React.FC = () => {
                 onClick={() => handleRequestRegister()}
                 disabled={settings.detailHtmlTemplate.length < 10}
               >
-                등록요청({selectedRowKeys.length}개)
+                수집하기({selectedRowKeys.length}개)
               </Button>
               <Button danger icon={<DeleteOutlined />} onClick={handleBulkDelete}>
                 선택 삭제({selectedRowKeys.length}개)
