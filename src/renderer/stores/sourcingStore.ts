@@ -11,6 +11,8 @@ export interface SourcingItem {
   downloadDir?: string
   additionalInfo?: any
   isCollected?: boolean // 수집완료 상태
+  loading?: boolean // 수집 중 상태
+  result?: string // 수집 결과
 }
 
 export interface SourcingSettings {

@@ -437,6 +437,29 @@ function setupIpcHandlers() {
   })
 
   // 선택된 항목에 대해 상세정보 수집
+  // 단일 상품 상세 수집 핸들러
+  ipcMain.handle('sourcing-collect-single-detail', async (_, { url }: { url: string }) => {
+    try {
+      const settings = store.get('settings')
+
+      // 기존 sourcing 인스턴스가 없으면 새로 생성
+      if (!sourcing) {
+        sourcing = new S2BSourcing(settings.fileDir, sendLogToRenderer, settings.headless, settings)
+        await sourcing.launch()
+      }
+
+      const details = await sourcing.collectNormalizedDetailForUrls([url])
+      if (details.length === 0) {
+        throw new Error('상품 정보를 가져올 수 없습니다.')
+      }
+
+      return { success: true, item: details[0] }
+    } catch (error) {
+      sendLogToRenderer(`에러 발생: ${error.message}`, 'error')
+      return { success: false, error: error.message || '상세 수집 실패' }
+    }
+  })
+
   ipcMain.handle('sourcing-collect-details', async (_, { urls }: { urls: string[] }) => {
     try {
       const settings = store.get('settings')

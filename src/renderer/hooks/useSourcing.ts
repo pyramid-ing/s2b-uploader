@@ -171,27 +171,70 @@ export const useSourcing = () => {
         }
 
         try {
-          const targetItems = currentItems.filter(i => targetKeys.includes(i.key))
-          const urls = targetItems.map(i => i.url)
-          const res = await ipcRenderer.invoke('sourcing-collect-details', { urls })
-          if (!res?.success) throw new Error(res?.error || '상세 수집 실패')
+          // 선택된 상품들만 필터링
+          const selectedItems = currentItems.filter(item => targetKeys.includes(item.key))
 
-          // 상세 수집 결과를 테이블에 반영 (가격/이름/품목코드/추가정보 업데이트)
-          set(sourcingItemsState, prev => {
-            return prev.map(it => {
-              const found = (res.items || []).find((d: any) => d.url === it.url)
-              if (!found) return it
-              return {
-                ...it,
-                ...found,
-                downloadDir: found.downloadDir ?? it.downloadDir,
-                isCollected: true, // 수집완료 상태로 설정
+          // 각 상품을 순차적으로 처리
+          for (let i = 0; i < selectedItems.length; i++) {
+            const item = selectedItems[i]
+
+            // 현재 상품 로딩 상태 시작
+            set(sourcingItemsState, prev =>
+              prev.map(p => (p.key === item.key ? { ...p, loading: true, result: undefined } : p)),
+            )
+
+            try {
+              // 단일 상품 수집
+              const result = await ipcRenderer.invoke('sourcing-collect-single-detail', {
+                url: item.url,
+              })
+
+              if (result?.success) {
+                // 성공 시 결과 업데이트
+                set(sourcingItemsState, prev =>
+                  prev.map(p =>
+                    p.key === item.key
+                      ? {
+                          ...p,
+                          ...result.item,
+                          downloadDir: result.item.downloadDir ?? p.downloadDir,
+                          isCollected: true,
+                          loading: false,
+                          result: '성공',
+                        }
+                      : p,
+                  ),
+                )
+
+                message.success(`${item.name} 수집 완료`)
+              } else {
+                throw new Error(result?.error || '수집 실패')
               }
-            })
-          })
-          message.success(`${urls.length}건 상세 수집 완료`)
+            } catch (error: any) {
+              // 실패 시 결과 업데이트
+              set(sourcingItemsState, prev =>
+                prev.map(p =>
+                  p.key === item.key ? { ...p, loading: false, result: error.message || '수집 실패' } : p,
+                ),
+              )
+
+              message.error(`${item.name} 수집 실패: ${error.message}`)
+            }
+
+            // 마지막 상품이 아니면 잠시 대기
+            if (i < selectedItems.length - 1) {
+              await new Promise(resolve => setTimeout(resolve, 2000)) // 2초 대기
+            }
+          }
+
+          message.success('모든 상품 수집 처리가 완료되었습니다.')
         } catch (e) {
           message.error('상세 수집 중 오류가 발생했습니다.')
+
+          // 전체 프로세스 실패 시 로딩 중인 모든 상품을 실패 상태로 처리
+          set(sourcingItemsState, prev =>
+            prev.map(p => (p.loading ? { ...p, loading: false, result: '프로세스 실패' } : p)),
+          )
         }
       },
     [],
@@ -250,6 +293,25 @@ export const useSourcing = () => {
     [],
   )
 
+  // 수집 중단
+  const cancelSourcing = useRecoilCallback(
+    ({ set }) =>
+      async () => {
+        try {
+          // 로딩 중인 모든 상품을 실패 상태로 처리
+          set(sourcingItemsState, prev =>
+            prev.map(p => (p.loading ? { ...p, loading: false, result: '사용자 중단' } : p)),
+          )
+
+          message.warning('상품 수집이 중단되었습니다.')
+        } catch (error) {
+          console.error('Cancel sourcing failed:', error)
+          message.error('수집 중단 중 오류가 발생했습니다.')
+        }
+      },
+    [],
+  )
+
   return {
     // 상태
     items,
@@ -268,5 +330,6 @@ export const useSourcing = () => {
     requestRegister,
     downloadExcel,
     openVendorSite,
+    cancelSourcing,
   }
 }

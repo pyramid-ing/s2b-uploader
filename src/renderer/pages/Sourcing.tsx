@@ -1,21 +1,14 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react'
-import {
-  Alert,
-  Button,
-  Card,
-  Divider,
-  Form,
-  Input,
-  message,
-  Modal,
-  Select,
-  Space,
-  Table,
-  Typography,
-  Tooltip,
-} from 'antd'
+import { Alert, Button, Card, Divider, Form, Input, message, Modal, Select, Space, Table, Typography } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
-import { DeleteOutlined, PlusOutlined, SendOutlined, DownloadOutlined, CheckCircleOutlined } from '@ant-design/icons'
+import {
+  DeleteOutlined,
+  PlusOutlined,
+  SendOutlined,
+  DownloadOutlined,
+  CheckCircleOutlined,
+  StopOutlined,
+} from '@ant-design/icons'
 import { useLog } from '../hooks/useLog'
 import { useSourcing } from '../hooks/useSourcing'
 import { usePermission } from '../hooks/usePermission'
@@ -57,6 +50,7 @@ const Sourcing: React.FC = () => {
     requestRegister,
     downloadExcel,
     openVendorSite,
+    cancelSourcing,
   } = useSourcing()
 
   const terminalRef = useRef<HTMLDivElement>(null)
@@ -157,9 +151,7 @@ const Sourcing: React.FC = () => {
         key: 'name',
         render: (text: string, record: SourcingItem) => (
           <Space>
-            {record.isCollected && (
-              <CheckCircleOutlined style={{ color: '#52c41a', fontSize: '16px' }} />
-            )}
+            {record.isCollected && <CheckCircleOutlined style={{ color: '#52c41a', fontSize: '16px' }} />}
             <Typography.Link
               onClick={e => {
                 e.preventDefault()
@@ -175,6 +167,23 @@ const Sourcing: React.FC = () => {
             </Typography.Link>
           </Space>
         ),
+      },
+      {
+        title: '상태',
+        key: 'status',
+        width: 120,
+        render: (_, record) => {
+          if (record.loading) {
+            return <span style={{ color: '#1890ff' }}>수집 중...</span>
+          }
+          if (record.result) {
+            return <span style={{ color: record.result === '성공' ? '#52c41a' : '#ff4d4f' }}>{record.result}</span>
+          }
+          if (record.isCollected) {
+            return <span style={{ color: '#52c41a' }}>수집완료</span>
+          }
+          return <span style={{ color: '#8c8c8c' }}>대기</span>
+        },
       },
       {
         title: '액션',
@@ -358,11 +367,15 @@ const Sourcing: React.FC = () => {
                 icon={<SendOutlined />}
                 onClick={() => handleRequestRegister()}
                 disabled={settings.detailHtmlTemplate.length < 10}
+                loading={loading}
               >
                 수집하기({selectedRowKeys.length}개)
               </Button>
               <Button danger icon={<DeleteOutlined />} onClick={handleBulkDelete}>
                 선택 삭제({selectedRowKeys.length}개)
+              </Button>
+              <Button type="primary" danger icon={<StopOutlined />} onClick={cancelSourcing} disabled={!loading}>
+                중단
               </Button>
             </Space>
           )}
