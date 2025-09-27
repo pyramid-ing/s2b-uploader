@@ -5,6 +5,7 @@ import dayjs from 'dayjs'
 import { VendorConfig, VendorKey, normalizeUrl } from '../sourcing-config'
 import type { ExtractedBasicInfo, ImageCollectResult } from './BaseScraper'
 import { BaseScraper } from './BaseScraper'
+import { envConfig } from '../envConfig'
 
 export class DomesinScraper extends BaseScraper {
   public vendorKey: VendorKey = VendorKey.도매의신
@@ -243,7 +244,7 @@ export class DomesinScraper extends BaseScraper {
       })
       .filter(Boolean)
 
-    const targetDir = productDir || path.join(process.cwd(), 'downloads', dayjs().format('YYYYMMDD'))
+    const targetDir = productDir || path.join(envConfig.downloadsPath, dayjs().format('YYYYMMDD'))
     if (!fsSync.existsSync(targetDir)) fsSync.mkdirSync(targetDir, { recursive: true })
 
     const savedMainImages: string[] = []

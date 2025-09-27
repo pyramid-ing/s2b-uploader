@@ -9,6 +9,7 @@ import DomesinScraper from './scrapers/DomesinScraper'
 import type { Scraper } from './scrapers/BaseScraper'
 import { S2BBase } from './s2b-base'
 import { validateKcByCertNum, KcValidationError } from './kc-validator'
+import { envConfig } from './envConfig'
 
 interface SourcingCrawlData {
   url: string
@@ -302,7 +303,7 @@ export class S2BSourcing extends S2BBase {
     categories: string[],
   ): Promise<{ targetCategory1?: string; targetCategory2?: string; targetCategory3?: string; g2bCode?: string }> {
     try {
-      const excelPath = path.join(process.cwd(), 'files', 'S2B_Sourcing_category_mapper.xlsx')
+      const excelPath = path.join(envConfig.filesPath, 'S2B_Sourcing_category_mapper.xlsx')
       if (!fsSync.existsSync(excelPath)) {
         this._log('카테고리 매핑 엑셀 파일을 찾을 수 없습니다.', 'warning')
         return {}
