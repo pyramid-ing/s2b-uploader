@@ -841,10 +841,10 @@ function setupIpcHandlers() {
                 value = configSet.config.returnShippingFee
                 break
               case '묶음배송여부':
-                value = configSet.config.bundleShipping ? '가능' : '불가능'
+                value = configSet.config.bundleShipping ? 'Y' : 'N'
                 break
               case '제주배송여부':
-                value = configSet.config.jejuShipping ? '가능' : '불가능'
+                value = configSet.config.jejuShipping ? 'Y' : 'N'
                 break
               case '제주추가배송비':
                 value = configSet.config.jejuAdditionalFee
