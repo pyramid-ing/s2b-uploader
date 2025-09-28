@@ -7,6 +7,7 @@ import crypto from 'crypto'
 import FileType from 'file-type'
 import sharp from 'sharp'
 import { S2BBase } from './s2b-base'
+import { ExcelRegistrationData, ExcelRawData } from './types/excel'
 
 type SaleType = '물품' | '용역'
 
@@ -40,7 +41,7 @@ export class S2BRegistration extends S2BBase {
     this._setupRegistrationPopupHandlers()
   }
 
-  public async registerProduct(data: any): Promise<void> {
+  public async registerProduct(data: ExcelRegistrationData): Promise<void> {
     if (!this.page) throw new Error('브라우저가 초기화되지 않았습니다.')
     this.dialogErrorMessage = null
 
@@ -113,13 +114,13 @@ export class S2BRegistration extends S2BBase {
     }
   }
 
-  public async readExcelFile(filePath: string): Promise<any[]> {
+  public async readExcelFile(filePath: string): Promise<ExcelRegistrationData[]> {
     this._log('엑셀 파일 스트림 읽기 시작', 'info')
 
     const stream = fs.createReadStream(filePath)
     const rawData = await this._readExcelStream(stream)
 
-    return rawData.map((row: any) => {
+    return rawData.map((row: ExcelRawData) => {
       const rawSaleType = row['등록구분']?.toString() || '물품'
       const saleTypeText = this._validateSaleType(rawSaleType)
 
@@ -231,7 +232,7 @@ export class S2BRegistration extends S2BBase {
         validateRadio: this._getConsumptionPeriodCode(row['소비기한선택']) || '',
         fValidate: row['소비기한입력']?.toString(),
         approvalRequest: row['승인관련 요청사항']?.toString() || '',
-      }
+      } as ExcelRegistrationData
     })
   }
 
@@ -272,7 +273,7 @@ export class S2BRegistration extends S2BBase {
     })
   }
 
-  private async _setBasicInfo(data: any): Promise<void> {
+  private async _setBasicInfo(data: ExcelRegistrationData): Promise<void> {
     await this.page!.selectOption('select[name="sale_type"]', SALE_TYPE_MAP[data.saleTypeText] || '1')
     await this.page!.fill('input[name="f_goods_name"]', data.goodsName)
     await this.page!.fill('input[name="f_size"]', data.spec)
@@ -318,7 +319,7 @@ export class S2BRegistration extends S2BBase {
     await this.page!.waitForSelector('#apiData', { timeout: 10000 })
   }
 
-  private async _setReturnExchangeFee(data: any): Promise<void> {
+  private async _setReturnExchangeFee(data: ExcelRegistrationData): Promise<void> {
     if (data.returnFee) {
       await this.page!.evaluate(() => {
         const el = document.querySelector('input[name="f_return_fee"]') as HTMLInputElement
@@ -335,7 +336,7 @@ export class S2BRegistration extends S2BBase {
     }
   }
 
-  private async _setOriginInfo(data: any): Promise<void> {
+  private async _setOriginInfo(data: ExcelRegistrationData): Promise<void> {
     const HOME_DIVI_MAP: Record<'국내' | '국외', string> = { 국내: '1', 국외: '2' }
     const homeValue = HOME_DIVI_MAP[data.originType] || '1'
     await this.page!.check(`input[name="f_home_divi"][value="${homeValue}"]`)
@@ -362,7 +363,7 @@ export class S2BRegistration extends S2BBase {
     }
   }
 
-  private async _setDeliveryFee(data: any): Promise<void> {
+  private async _setDeliveryFee(data: ExcelRegistrationData): Promise<void> {
     const deliveryType = DELIVERY_TYPE_MAP[data.deliveryFeeKindText] || '1'
     await this.page!.check(`input[name="f_delivery_fee_kind"][value="${deliveryType}"]`)
     if (deliveryType === '2' && data.deliveryFee) {
@@ -375,7 +376,7 @@ export class S2BRegistration extends S2BBase {
     }
   }
 
-  private async _setSalesUnitAndTax(data: any): Promise<void> {
+  private async _setSalesUnitAndTax(data: ExcelRegistrationData): Promise<void> {
     await this.page!.evaluate(unitText => {
       const select = document.querySelector('select[name="f_credit"]') as HTMLSelectElement
       const options = Array.from(select.options)
@@ -400,7 +401,7 @@ export class S2BRegistration extends S2BBase {
     }, data.taxType)
   }
 
-  private async _selectCategory(data: any): Promise<void> {
+  private async _selectCategory(data: ExcelRegistrationData): Promise<void> {
     await this.page!.selectOption('select[name="sale_type"]', SALE_TYPE_MAP[data.saleTypeText] || '1')
     await this.page!.evaluate(categoryText => {
       const select = document.querySelector('select[name="f_category_code1"]') as HTMLSelectElement
@@ -434,7 +435,7 @@ export class S2BRegistration extends S2BBase {
     }, data.category3)
   }
 
-  private async _setCategoryDetails(data: any): Promise<void> {
+  private async _setCategoryDetails(data: ExcelRegistrationData): Promise<void> {
     if (data.validateRadio) {
       await this.page!.check(`input[name="validateRadio"][value="${data.validateRadio}"]`)
       if (data.validateRadio === 'date' && data.fValidate)
@@ -450,7 +451,7 @@ export class S2BRegistration extends S2BBase {
     if (data.selSpecification) await this.page!.fill('input[name="f_sel_specification"]', data.selSpecification)
   }
 
-  private async _setCertifications(data: any): Promise<void> {
+  private async _setCertifications(data: ExcelRegistrationData): Promise<void> {
     const certFields = [
       { name: 'f_woman_cert', value: data.womanCert },
       { name: 'f_disabledCompany_cert', value: data.disabledCompanyCert },
@@ -486,7 +487,7 @@ export class S2BRegistration extends S2BBase {
     await se2Frame.locator('.se2_to_editor').click()
   }
 
-  private async _setKcCertifications(data: any): Promise<void> {
+  private async _setKcCertifications(data: ExcelRegistrationData): Promise<void> {
     await this.page!.check(`input[name="kidsKcUseGubunChk"][value="${data.kidsKcType}"]`)
     if (data.kidsKcType === 'Y' && data.kidsKcCertId) {
       await this.page!.fill('#kidsKcCertId', data.kidsKcCertId)
@@ -517,7 +518,7 @@ export class S2BRegistration extends S2BBase {
     }
   }
 
-  private async _setOtherAttachments(data: any): Promise<void> {
+  private async _setOtherAttachments(data: ExcelRegistrationData): Promise<void> {
     await this.page!.check(`input[name="childexitcheckerKcUseGubunChk"][value="${data.childExitCheckerKcType}"]`)
     if (data.childExitCheckerKcType === 'Y' && data.childExitCheckerKcCertId) {
       await this.page!.fill('#childexitcheckerKcCertId', data.childExitCheckerKcCertId)
@@ -533,7 +534,7 @@ export class S2BRegistration extends S2BBase {
     }
   }
 
-  private async _uploadAllImages(data: any): Promise<void> {
+  private async _uploadAllImages(data: ExcelRegistrationData): Promise<void> {
     if (data.image1) {
       await this._uploadFile('#f_img1_file', data.image1, '#f_img1_file_size_ck')
       await new Promise(r => setTimeout(r, 5000))
@@ -640,7 +641,7 @@ export class S2BRegistration extends S2BBase {
     }
   }
 
-  private async _setAsInfo(data: any): Promise<void> {
+  private async _setAsInfo(data: ExcelRegistrationData): Promise<void> {
     if (data.asTelephone1) await this.page!.fill('input[name="f_as_telephone1"]', data.asTelephone1)
     if (data.asTelephone2) await this.page!.fill('input[name="f_as_telephone2"]', data.asTelephone2)
     if (data.addressCode) await this.page!.fill('input[name="f_address_code"]', data.addressCode)
@@ -648,7 +649,7 @@ export class S2BRegistration extends S2BBase {
     if (data.addressDetail) await this.page!.fill('input[name="f_address_detail"]', data.addressDetail)
   }
 
-  private async _setDeliveryInfo(data: any): Promise<void> {
+  private async _setDeliveryInfo(data: ExcelRegistrationData): Promise<void> {
     if (data.deliveryMethod) await this.page!.check(`input[name="f_delivery_method"][value="${data.deliveryMethod}"]`)
     const VALID_DELIVERY_AREAS = [
       '강원',
@@ -695,14 +696,14 @@ export class S2BRegistration extends S2BBase {
     }
   }
 
-  private async _setNaraInformation(data: any): Promise<void> {
+  private async _setNaraInformation(data: ExcelRegistrationData): Promise<void> {
     if (data.naraRegisterYn) await this.page!.check(`input[name="f_nara_register_yn"][value="${data.naraRegisterYn}"]`)
     if (data.naraAmt) await this.page!.fill('input[name="f_nara_amt"]', data.naraAmt)
     if (data.siteName) await this.page!.fill('input[name="f_site_name"]', data.siteName)
     if (data.siteUrl) await this.page!.fill('input[name="f_site_url"]', data.siteUrl)
   }
 
-  private async _setOtherSiteInformation(data: any): Promise<void> {
+  private async _setOtherSiteInformation(data: ExcelRegistrationData): Promise<void> {
     if (data.otherSiteRegisterYn)
       await this.page!.check(`input[name="f_site_register_yn"][value="${data.otherSiteRegisterYn}"]`)
     if (data.otherSiteAmt) await this.page!.fill('input[name="f_site_amt"]', data.otherSiteAmt)
@@ -716,7 +717,7 @@ export class S2BRegistration extends S2BBase {
     if (this.dialogErrorMessage) throw new Error(this.dialogErrorMessage)
   }
 
-  private async _readExcelStream(stream: fs.ReadStream): Promise<any[]> {
+  private async _readExcelStream(stream: fs.ReadStream): Promise<ExcelRawData[]> {
     return new Promise((resolve, reject) => {
       const chunks: Buffer[] = []
       stream.on('data', (chunk: Buffer) => {
@@ -742,7 +743,7 @@ export class S2BRegistration extends S2BBase {
           if (!sheetName) throw new Error('시트를 찾을 수 없습니다')
           const worksheet = workbook.Sheets[sheetName]
           const jsonData = XLSX.utils.sheet_to_json(worksheet, { defval: '', blankrows: false })
-          resolve(jsonData as any[])
+          resolve(jsonData as ExcelRawData[])
         } catch (error) {
           reject(error)
         }

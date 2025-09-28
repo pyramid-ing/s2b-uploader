@@ -10,6 +10,7 @@ import type { Scraper } from './scrapers/BaseScraper'
 import { S2BBase } from './s2b-base'
 import { validateKcByCertNum, KcValidationError } from './kc-validator'
 import { envConfig } from './envConfig'
+import { ExcelRegistrationData } from './types/excel'
 
 interface SourcingCrawlData {
   url: string
@@ -71,7 +72,7 @@ export class S2BSourcing extends S2BBase {
 
   public async collectNormalizedDetailForUrls(urls: string[]) {
     if (!this.page) throw new Error('Browser page not initialized')
-    const outputs: (SourcingCrawlData & { excelMapped?: any[] })[] = []
+    const outputs: (SourcingCrawlData & { excelMapped?: ExcelRegistrationData[] })[] = []
     for (const url of urls) {
       this._log(`상품 데이터 수집 시작: ${url}`, 'info')
       const { vendorKey, vendor } = this._getVendor(url)
@@ -358,8 +359,8 @@ export class S2BSourcing extends S2BBase {
   }
 
   private _mapToExcelFormat(
-    rawData: any,
-    aiRefined: any,
+    rawData: SourcingCrawlData,
+    aiRefined: AiRefinedPayload,
     categoryMapped: any,
     settings?: any,
     kcResolved?: {
@@ -370,12 +371,12 @@ export class S2BSourcing extends S2BBase {
       issue: boolean
       issuesText?: string
     },
-  ): any[] {
+  ): ExcelRegistrationData[] {
     const originalPrice = rawData.price || 0
     const marginRate = settings?.marginRate || 20
 
     // 기본 상품 정보
-    const baseProduct = {
+    const baseProduct: ExcelRegistrationData = {
       KC문제: kcResolved?.issuesText || '',
       이미지사용여부: aiRefined.이미지사용여부 || '', // 참고용
       원가: originalPrice, // 참고용
@@ -398,7 +399,7 @@ export class S2BSourcing extends S2BBase {
       })(),
       모델명: aiRefined.모델명 || '상세설명참고',
       제조사: rawData.manufacturer || '상세설명참고',
-      '소재/재질': aiRefined.소재재질 || '상세설명참고',
+      '소재/재질': aiRefined['소재/재질'] || '상세설명참고',
       판매단위: '개',
       보증기간: '1년',
       납품가능기간: '7일',
@@ -415,7 +416,7 @@ export class S2BSourcing extends S2BBase {
       추가이미지1: rawData.mainImages?.[2] || '',
       추가이미지2: rawData.mainImages?.[3] || '',
       상세이미지: rawData.detailImages?.[0] || '',
-      원산지구분: aiRefined.원산지구분 || '',
+      원산지구분: aiRefined.원산지구분 || '국내',
       국내원산지: aiRefined.국내원산지 || '',
       해외원산지: aiRefined.해외원산지 || '',
       배송방법: '택배',
@@ -428,42 +429,45 @@ export class S2BSourcing extends S2BBase {
       안전표시: '',
       용량: '',
       주요사양: '',
-      소비기한선택: '',
+      소비기한선택: '제품에 별도 표시',
       소비기한입력: '',
-      어린이하차확인장치타입: '',
+      어린이하차확인장치타입: 'N',
       어린이하차확인장치인증번호: '',
       어린이하차확인장치첨부파일: '',
-      안전확인대상타입: '',
+      안전확인대상타입: 'N',
       안전확인대상신고번호: '',
       안전확인대상첨부파일: '',
-      조달청계약여부: '',
+      조달청계약여부: 'N',
       계약시작일: '',
       계약종료일: '',
       전화번호: '',
       '제조사 A/S전화번호': '',
       과세여부: '과세(세금계산서)',
-      어린이제품KC유형: kcResolved?.kids?.type || '',
-      어린이제품KC인증번호: kcResolved?.kids?.certNum || aiRefined.어린이제품KC인증번호 || '',
+      어린이제품KC유형: kcResolved?.kids?.type || 'N',
+      어린이제품KC인증번호: kcResolved?.kids?.certNum || '',
       어린이제품KC성적서: '',
-      전기용품KC유형: kcResolved?.elec?.type || '',
-      전기용품KC인증번호: kcResolved?.elec?.certNum || aiRefined.전기용품KC인증번호 || '',
+      전기용품KC유형: kcResolved?.elec?.type || 'N',
+      전기용품KC인증번호: kcResolved?.elec?.certNum || '',
       전기용품KC성적서: '',
-      생활용품KC유형: kcResolved?.daily?.type || '',
-      생활용품KC인증번호: kcResolved?.daily?.certNum || aiRefined.생활용품KC인증번호 || '',
+      생활용품KC유형: kcResolved?.daily?.type || 'N',
+      생활용품KC인증번호: kcResolved?.daily?.certNum || '',
       생활용품KC성적서: '',
-      방송통신KC유형: kcResolved?.broadcasting?.type || '',
-      방송통신KC인증번호: kcResolved?.broadcasting?.certNum || aiRefined.방송통신KC인증번호 || '',
+      방송통신KC유형: kcResolved?.broadcasting?.type || 'N',
+      방송통신KC인증번호: kcResolved?.broadcasting?.certNum || '',
       방송통신KC성적서: '',
     }
     // 옵션이 있는 경우 옵션별로 상품 생성
     if (aiRefined.options && aiRefined.options.length > 0) {
-      return aiRefined.options.map((option: any) => ({
-        ...baseProduct,
-        물품명: baseProduct.물품명,
-        규격: `${option.name}, ${baseProduct.규격}`,
-        제시금액: Math.ceil(((originalPrice + (option.price || 0)) * (1 + marginRate / 100)) / 100) * 100,
-        재고수량: Math.min(option.qty || 9999, 9999),
-      }))
+      return aiRefined.options.map(
+        (option: any) =>
+          ({
+            ...baseProduct,
+            물품명: baseProduct.물품명,
+            규격: `${option.name}, ${baseProduct.규격}`,
+            제시금액: Math.ceil(((originalPrice + (option.price || 0)) * (1 + marginRate / 100)) / 100) * 100,
+            재고수량: Math.min(option.qty || 9999, 9999),
+          }) as ExcelRegistrationData,
+      )
     }
 
     // 옵션이 없는 경우 기본 상품 1개 반환
@@ -472,7 +476,7 @@ export class S2BSourcing extends S2BBase {
         ...baseProduct,
         제시금액: Math.ceil((originalPrice * (1 + marginRate / 100)) / 100) * 100,
         재고수량: 9999,
-      },
+      } as ExcelRegistrationData,
     ]
   }
 }

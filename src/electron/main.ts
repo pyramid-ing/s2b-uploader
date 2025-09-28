@@ -10,6 +10,7 @@ import * as XLSX from 'xlsx'
 import axios from 'axios'
 import dayjs from 'dayjs'
 import { autoUpdater } from 'electron-updater'
+import { ExcelRegistrationData, ConfigSet } from './types/excel'
 
 /**
  * 계정 유효성 확인 함수
@@ -74,7 +75,7 @@ const isIgnorableError = (errorMessage: string): boolean => {
   return ignoredErrorPatterns.some(pattern => errorMessage.includes(pattern))
 }
 
-const saveExcelResult = async (allProducts: any[]) => {
+const saveExcelResult = async (allProducts: ExcelRegistrationData[]) => {
   try {
     const settings = store.get('settings')
     const originalPath = settings.excelPath // 원본 엑셀 파일 경로
@@ -313,75 +314,78 @@ function setupIpcHandlers() {
     }
   })
 
-  ipcMain.handle('start-and-register-products', async (_, { allProducts }) => {
-    isCancelled = false // ✅ 시작 시 중단 상태 초기화
+  ipcMain.handle(
+    'start-and-register-products',
+    async (_, { allProducts }: { allProducts: ExcelRegistrationData[] }) => {
+      isCancelled = false // ✅ 시작 시 중단 상태 초기화
 
-    try {
-      sendLogToRenderer('자동화 시작', 'info')
+      try {
+        sendLogToRenderer('자동화 시작', 'info')
 
-      const settings = store.get('settings')
-      registration = new S2BRegistration(settings.fileDir, sendLogToRenderer, settings.headless, settings)
+        const settings = store.get('settings')
+        registration = new S2BRegistration(settings.fileDir, sendLogToRenderer, settings.headless, settings)
 
-      await registration.launch()
+        await registration.launch()
 
-      await registration.login(settings.loginId, settings.loginPw)
-      sendLogToRenderer(`로그인 성공 (ID: ${settings.loginId})`, 'info')
+        await registration.login(settings.loginId, settings.loginPw)
+        sendLogToRenderer(`로그인 성공 (ID: ${settings.loginId})`, 'info')
 
-      registration.setImageOptimize(settings.imageOptimize)
-      sendLogToRenderer(`이미지 최적화 설정: ${settings.imageOptimize}`, 'info')
+        registration.setImageOptimize(settings.imageOptimize)
+        sendLogToRenderer(`이미지 최적화 설정: ${settings.imageOptimize}`, 'info')
 
-      // ✅ 계정 유효성 검사
-      const isAccountValid = await checkAccountValidity(settings.loginId)
-      if (!isAccountValid) {
-        throw new Error('인증되지 않은 계정입니다. 상품 등록이 불가능합니다.')
-      }
-
-      const delay = Number(settings.registrationDelay) || 0 // 등록 간격 (초)
-      const selectedProducts = allProducts.filter(p => p.selected) // ✅ 선택된 상품만 필터링
-
-      for (let i = 0; i < selectedProducts.length; i++) {
-        if (isCancelled) {
-          sendLogToRenderer('상품 등록이 사용자에 의해 중단되었습니다.', 'warning')
-          break
+        // ✅ 계정 유효성 검사
+        const isAccountValid = await checkAccountValidity(settings.loginId)
+        if (!isAccountValid) {
+          throw new Error('인증되지 않은 계정입니다. 상품 등록이 불가능합니다.')
         }
 
-        const product = selectedProducts[i]
+        const delay = Number(settings.registrationDelay) || 0 // 등록 간격 (초)
+        const selectedProducts = allProducts.filter(p => p.selected) // ✅ 선택된 상품만 필터링
 
-        if (!product.selected) continue // ✅ 선택되지 않은 상품은 무시
+        for (let i = 0; i < selectedProducts.length; i++) {
+          if (isCancelled) {
+            sendLogToRenderer('상품 등록이 사용자에 의해 중단되었습니다.', 'warning')
+            break
+          }
 
-        try {
-          // ✅ 상품 등록 전 데이터 정리
-          const sanitizedProduct = sanitizeProductData(product)
+          const product = selectedProducts[i]
 
-          await registration.registerProduct(sanitizedProduct)
-          product.result = '성공' // ✅ 성공한 경우 결과 업데이트
-        } catch (error) {
-          if (error.message && isIgnorableError(error.message)) {
-            // ✅ 무시할 에러
-            console.warn(`무시된 에러: ${error.message}`)
-          } else {
-            // ✅ 사용자에게 보여줘야 하는 에러만 처리
-            sendLogToRenderer(`상품 등록 실패: ${product.goodsName} - ${error.message}`, 'error')
-            product.result = error.message || '알 수 없는 에러' // ✅ 실패한 경우 결과 업데이트
+          if (!product.selected) continue // ✅ 선택되지 않은 상품은 무시
+
+          try {
+            // ✅ 상품 등록 전 데이터 정리
+            const sanitizedProduct = sanitizeProductData(product)
+
+            await registration.registerProduct(sanitizedProduct)
+            product.result = '성공' // ✅ 성공한 경우 결과 업데이트
+          } catch (error) {
+            if (error.message && isIgnorableError(error.message)) {
+              // ✅ 무시할 에러
+              console.warn(`무시된 에러: ${error.message}`)
+            } else {
+              // ✅ 사용자에게 보여줘야 하는 에러만 처리
+              sendLogToRenderer(`상품 등록 실패: ${product.goodsName} - ${error.message}`, 'error')
+              product.result = error.message || '알 수 없는 에러' // ✅ 실패한 경우 결과 업데이트
+            }
+          }
+
+          // ✅ 설정된 등록 간격만큼 대기
+          if (i < selectedProducts.length - 1 && delay > 0) {
+            sendLogToRenderer(`다음 상품 등록까지 ${delay}초 대기 중...`, 'info')
+            await new Promise(resolve => setTimeout(resolve, delay * 1000))
           }
         }
 
-        // ✅ 설정된 등록 간격만큼 대기
-        if (i < selectedProducts.length - 1 && delay > 0) {
-          sendLogToRenderer(`다음 상품 등록까지 ${delay}초 대기 중...`, 'info')
-          await new Promise(resolve => setTimeout(resolve, delay * 1000))
-        }
+        return { success: true }
+      } catch (error) {
+        sendLogToRenderer(`에러 발생: ${error.message}`, 'error')
+      } finally {
+        const resultPath = await saveExcelResult(allProducts)
+        sendLogToRenderer(`결과 파일 저장 완료: ${resultPath}`, 'info')
+        await registration?.close()
       }
-
-      return { success: true }
-    } catch (error) {
-      sendLogToRenderer(`에러 발생: ${error.message}`, 'error')
-    } finally {
-      const resultPath = await saveExcelResult(allProducts)
-      sendLogToRenderer(`결과 파일 저장 완료: ${resultPath}`, 'info')
-      await registration?.close()
-    }
-  })
+    },
+  )
 
   // 소싱: 사이트 열기 (브라우저 시작 및 벤더 기본 URL 이동)
   ipcMain.handle('sourcing-open-site', async (_, { vendor }: { vendor: string }) => {
@@ -578,7 +582,7 @@ function setupIpcHandlers() {
   })
 
   // 설정값 세트 엑셀 다운로드 핸들러
-  ipcMain.handle('download-config-set-excel', async (_, configSet) => {
+  ipcMain.handle('download-config-set-excel', async (_, configSet: ConfigSet) => {
     try {
       const XlsxPopulate = require('xlsx-populate') as any
       const workbook = await XlsxPopulate.fromBlankAsync()
@@ -763,160 +767,163 @@ function setupIpcHandlers() {
   })
 
   // 소싱 데이터 엑셀 다운로드 핸들러
-  ipcMain.handle('download-sourcing-excel', async (_, { sourcingItems, configSet }) => {
-    try {
-      // excelMapped 데이터를 평면화하여 사용
-      const excelData: any[] = []
-      sourcingItems.forEach((item: any) => {
-        if (item.excelMapped && Array.isArray(item.excelMapped)) {
-          // excelMapped 배열의 각 항목을 개별 행으로 추가
-          item.excelMapped.forEach((mappedItem: any) => {
-            excelData.push(mappedItem)
-          })
-        }
-      })
-
-      if (excelData.length === 0) {
-        throw new Error('다운로드할 데이터가 없습니다.')
-      }
-
-      // xlsx-populate 사용하여 워크북 생성
-      const XlsxPopulate = require('xlsx-populate') as any
-      const workbook = await XlsxPopulate.fromBlankAsync()
-      const worksheet = workbook.sheet(0)
-
-      // 헤더와 데이터 설정
-      const headers = Object.keys(excelData[0] || {})
-
-      // 참고용 헤더들 정의
-      const referenceHeaders = ['구매처', '구매처URL', 'KC문제', '이미지사용여부', '최소구매수량', '원가']
-
-      // 헤더 행 추가
-      headers.forEach((header, colIndex) => {
-        const cell = worksheet.cell(1, colIndex + 1)
-        cell.value(header)
-      })
-
-      // 데이터 행 추가 및 설정값 세트 적용
-      excelData.forEach((rowData, rowIndex) => {
-        headers.forEach((header, colIndex) => {
-          const cell = worksheet.cell(rowIndex + 2, colIndex + 1)
-          let value = rowData[header] || ''
-
-          // 설정값 세트가 있으면 해당 값으로 덮어쓰기
-          if (configSet) {
-            switch (header) {
-              case '납품가능기간':
-                const deliveryOption = {
-                  ZD000001: '3일',
-                  ZD000002: '5일',
-                  ZD000003: '7일',
-                  ZD000004: '15일',
-                  ZD000005: '30일',
-                  ZD000006: '45일',
-                }
-                value = deliveryOption[configSet.config.deliveryPeriod]
-                break
-              case '견적서 유효기간':
-                const quoteOption = {
-                  ZD000001: '7일',
-                  ZD000002: '10일',
-                  ZD000003: '15일',
-                  ZD000004: '30일',
-                }
-                value = quoteOption[configSet.config.quoteValidityPeriod]
-                break
-              case '배송비종류':
-                const shippingTypeMap = {
-                  free: '무료',
-                  fixed: '유료',
-                  conditional: '조건부무료',
-                }
-                value = shippingTypeMap[configSet.config.shippingFeeType]
-                break
-              case '배송비':
-                value = configSet.config.shippingFee
-                break
-              case '반품배송비':
-                value = configSet.config.returnShippingFee
-                break
-              case '묶음배송여부':
-                value = configSet.config.bundleShipping ? 'Y' : 'N'
-                break
-              case '제주배송여부':
-                value = configSet.config.jejuShipping ? 'Y' : 'N'
-                break
-              case '제주추가배송비':
-                value = configSet.config.jejuAdditionalFee
-                break
-              case '상세설명HTML':
-                value = configSet.config.detailHtmlTemplate
-                break
-            }
+  ipcMain.handle(
+    'download-sourcing-excel',
+    async (_, { sourcingItems, configSet }: { sourcingItems: any[]; configSet?: ConfigSet }) => {
+      try {
+        // excelMapped 데이터를 평면화하여 사용
+        const excelData: ExcelRegistrationData[] = []
+        sourcingItems.forEach((item: any) => {
+          if (item.excelMapped && Array.isArray(item.excelMapped)) {
+            // excelMapped 배열의 각 항목을 개별 행으로 추가
+            item.excelMapped.forEach((mappedItem: ExcelRegistrationData) => {
+              excelData.push(mappedItem)
+            })
           }
-
-          cell.value(value)
         })
-      })
 
-      // 참고용 헤더 열들에 전체 열 회색 배경색 적용
-      headers.forEach((header, colIndex) => {
-        if (referenceHeaders.includes(header)) {
-          const columnLetter = String.fromCharCode(65 + colIndex) // A, B, C, ...
-          const totalRows = excelData.length + 1 // 헤더 + 데이터 행
-
-          // 열 전체에 스타일 적용 (예: A1:A10)
-          const range = worksheet.range(`${columnLetter}1:${columnLetter}${totalRows}`)
-          range.style({
-            fill: {
-              type: 'solid',
-              color: 'D3D3D3', // 연한 회색
-            },
-          })
+        if (excelData.length === 0) {
+          throw new Error('다운로드할 데이터가 없습니다.')
         }
-      })
 
-      // 엑셀 파일명 생성
-      const timestamp = dayjs().format('YYYYMMDD_HHmmss')
-      const defaultFileName = `소싱데이터_${timestamp}.xlsx`
+        // xlsx-populate 사용하여 워크북 생성
+        const XlsxPopulate = require('xlsx-populate') as any
+        const workbook = await XlsxPopulate.fromBlankAsync()
+        const worksheet = workbook.sheet(0)
 
-      // saveAs 다이얼로그 표시
-      const result = await dialog.showSaveDialog(mainWindow, {
-        title: '소싱 데이터 엑셀 파일 저장',
-        defaultPath: defaultFileName,
-        filters: [
-          { name: 'Excel Files', extensions: ['xlsx'] },
-          { name: 'All Files', extensions: ['*'] },
-        ],
-      })
+        // 헤더와 데이터 설정
+        const headers = Object.keys(excelData[0] || {})
 
-      if (result.canceled) {
-        return { success: false, error: '사용자가 저장을 취소했습니다.' }
+        // 참고용 헤더들 정의
+        const referenceHeaders = ['구매처', '구매처URL', 'KC문제', '이미지사용여부', '최소구매수량', '원가']
+
+        // 헤더 행 추가
+        headers.forEach((header, colIndex) => {
+          const cell = worksheet.cell(1, colIndex + 1)
+          cell.value(header)
+        })
+
+        // 데이터 행 추가 및 설정값 세트 적용
+        excelData.forEach((rowData, rowIndex) => {
+          headers.forEach((header, colIndex) => {
+            const cell = worksheet.cell(rowIndex + 2, colIndex + 1)
+            let value = (rowData as any)[header] || ''
+
+            // 설정값 세트가 있으면 해당 값으로 덮어쓰기
+            if (configSet) {
+              switch (header) {
+                case '납품가능기간':
+                  const deliveryOption = {
+                    ZD000001: '3일',
+                    ZD000002: '5일',
+                    ZD000003: '7일',
+                    ZD000004: '15일',
+                    ZD000005: '30일',
+                    ZD000006: '45일',
+                  }
+                  value = deliveryOption[configSet.config.deliveryPeriod]
+                  break
+                case '견적서 유효기간':
+                  const quoteOption = {
+                    ZD000001: '7일',
+                    ZD000002: '10일',
+                    ZD000003: '15일',
+                    ZD000004: '30일',
+                  }
+                  value = quoteOption[configSet.config.quoteValidityPeriod]
+                  break
+                case '배송비종류':
+                  const shippingTypeMap = {
+                    free: '무료',
+                    fixed: '유료',
+                    conditional: '조건부무료',
+                  }
+                  value = shippingTypeMap[configSet.config.shippingFeeType]
+                  break
+                case '배송비':
+                  value = configSet.config.shippingFee
+                  break
+                case '반품배송비':
+                  value = configSet.config.returnShippingFee
+                  break
+                case '묶음배송여부':
+                  value = configSet.config.bundleShipping ? 'Y' : 'N'
+                  break
+                case '제주배송여부':
+                  value = configSet.config.jejuShipping ? 'Y' : 'N'
+                  break
+                case '제주추가배송비':
+                  value = configSet.config.jejuAdditionalFee
+                  break
+                case '상세설명HTML':
+                  value = configSet.config.detailHtmlTemplate
+                  break
+              }
+            }
+
+            cell.value(value)
+          })
+        })
+
+        // 참고용 헤더 열들에 전체 열 회색 배경색 적용
+        headers.forEach((header, colIndex) => {
+          if (referenceHeaders.includes(header)) {
+            const columnLetter = String.fromCharCode(65 + colIndex) // A, B, C, ...
+            const totalRows = excelData.length + 1 // 헤더 + 데이터 행
+
+            // 열 전체에 스타일 적용 (예: A1:A10)
+            const range = worksheet.range(`${columnLetter}1:${columnLetter}${totalRows}`)
+            range.style({
+              fill: {
+                type: 'solid',
+                color: 'D3D3D3', // 연한 회색
+              },
+            })
+          }
+        })
+
+        // 엑셀 파일명 생성
+        const timestamp = dayjs().format('YYYYMMDD_HHmmss')
+        const defaultFileName = `소싱데이터_${timestamp}.xlsx`
+
+        // saveAs 다이얼로그 표시
+        const result = await dialog.showSaveDialog(mainWindow, {
+          title: '소싱 데이터 엑셀 파일 저장',
+          defaultPath: defaultFileName,
+          filters: [
+            { name: 'Excel Files', extensions: ['xlsx'] },
+            { name: 'All Files', extensions: ['*'] },
+          ],
+        })
+
+        if (result.canceled) {
+          return { success: false, error: '사용자가 저장을 취소했습니다.' }
+        }
+
+        const filePath = result.filePath
+        if (!filePath) {
+          throw new Error('파일 경로가 선택되지 않았습니다.')
+        }
+
+        // 파일 저장
+        await workbook.toFileAsync(filePath)
+
+        const fileName = path.basename(filePath)
+        sendLogToRenderer(`소싱 데이터 엑셀 파일 생성 완료: ${fileName}`, 'info')
+
+        return {
+          success: true,
+          filePath,
+          fileName,
+          recordCount: excelData.length, // 실제 엑셀에 저장된 행 수
+        }
+      } catch (error) {
+        console.error('Sourcing Excel download failed:', error)
+        sendLogToRenderer(`소싱 데이터 엑셀 다운로드 실패: ${error.message}`, 'error')
+        return { success: false, error: error.message || '소싱 데이터 엑셀 다운로드 중 오류가 발생했습니다.' }
       }
-
-      const filePath = result.filePath
-      if (!filePath) {
-        throw new Error('파일 경로가 선택되지 않았습니다.')
-      }
-
-      // 파일 저장
-      await workbook.toFileAsync(filePath)
-
-      const fileName = path.basename(filePath)
-      sendLogToRenderer(`소싱 데이터 엑셀 파일 생성 완료: ${fileName}`, 'info')
-
-      return {
-        success: true,
-        filePath,
-        fileName,
-        recordCount: excelData.length, // 실제 엑셀에 저장된 행 수
-      }
-    } catch (error) {
-      console.error('Sourcing Excel download failed:', error)
-      sendLogToRenderer(`소싱 데이터 엑셀 다운로드 실패: ${error.message}`, 'error')
-      return { success: false, error: error.message || '소싱 데이터 엑셀 다운로드 중 오류가 발생했습니다.' }
-    }
-  })
+    },
+  )
 }
 
 async function clearTempFiles(fileDir: string): Promise<void> {
