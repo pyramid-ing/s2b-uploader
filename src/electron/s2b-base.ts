@@ -7,6 +7,7 @@ export abstract class S2BBase {
   protected page: Page | null = null
   protected chromePath: string
   protected edgePath: string
+  protected executablePath: string
   protected headless: boolean
   protected logCallback: (message: string, level?: 'info' | 'warning' | 'error') => void
 
@@ -35,6 +36,15 @@ export abstract class S2BBase {
       this.chromePath = '/usr/bin/google-chrome'
       this.edgePath = '/usr/bin/microsoft-edge'
     }
+
+    // 최종 실행 경로 결정: 1) Chrome → 2) Edge → 3) 없음
+    if (this.chromePath && fsSync.existsSync(this.chromePath)) {
+      this.executablePath = this.chromePath
+    } else if (this.edgePath && fsSync.existsSync(this.edgePath)) {
+      this.executablePath = this.edgePath
+    } else {
+      this.executablePath = ''
+    }
   }
 
   protected _log(message: string, level: 'info' | 'warning' | 'error' = 'info') {
@@ -44,38 +54,17 @@ export abstract class S2BBase {
   public async launch(): Promise<void> {
     if (this.browser) return
 
-    const executablePath =
-      this.chromePath && fsSync.existsSync(this.chromePath)
-        ? this.chromePath
-        : this.edgePath && fsSync.existsSync(this.edgePath)
-          ? this.edgePath
-          : ''
-
     const commonArgs = ['--no-sandbox', '--disable-setuid-sandbox']
 
-    if (executablePath) {
-      this.browser = await chromium.launch({
-        headless: this.headless,
-        executablePath,
-        args: commonArgs,
-      })
-    } else {
-      try {
-        this.browser = await chromium.launch({
-          headless: this.headless,
-          channel: process.platform === 'win32' ? 'msedge' : 'chrome',
-          args: commonArgs,
-        } as any)
-      } catch (e) {
-        const guide = [
-          '브라우저 실행 파일을 찾지 못했습니다.',
-          '해결 방법:',
-          '- Windows: Chrome 또는 Edge 설치 후 재시도',
-          '- 서버/개발환경에서는 `npx playwright install chromium`으로 Playwright 브라우저 설치 가능',
-        ].join('\n')
-        throw new Error(guide)
-      }
+    if (!this.executablePath) {
+      throw new Error('Chrome 또는 Edge 실행 파일을 찾지 못했습니다. 설치 후 다시 시도하세요.')
     }
+
+    this.browser = await chromium.launch({
+      headless: this.headless,
+      executablePath: this.executablePath,
+      args: commonArgs,
+    })
 
     this.context = await this.browser.newContext({ viewport: null })
     this.page = await this.context.newPage()
