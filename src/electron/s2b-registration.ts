@@ -36,6 +36,7 @@ export class S2BRegistration extends S2BBase {
 
   public async launch(): Promise<void> {
     await super.launch()
+    this._handleWindowPopup()
   }
 
   public async registerProduct(data: ExcelRegistrationData): Promise<void> {
@@ -217,9 +218,7 @@ export class S2BRegistration extends S2BBase {
     this.popupHandlersSetup = true
     this.context.on('page', async newPage => {
       const url = newPage.url()
-      if (url.includes('certificateInfo_pop.jsp')) {
-        await newPage.close()
-      } else if (url.includes('mygPreviewerThumb.jsp')) {
+      if (url.includes('mygPreviewerThumb.jsp')) {
         try {
           await newPage.waitForSelector('#MpreviewerImg', { timeout: 20000 })
           const resizeStatus = await newPage.evaluate(() => {
@@ -246,6 +245,10 @@ export class S2BRegistration extends S2BBase {
         } catch {
           await newPage.close()
         }
+      } else {
+        const title = await newPage.title()
+        this._log(`팝업 닫음: ${title}`, 'info')
+        await newPage.close()
       }
     })
   }
