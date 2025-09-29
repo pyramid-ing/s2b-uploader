@@ -17,7 +17,6 @@ const DELIVERY_TYPE_MAP: Record<'무료' | '유료' | '조건부무료', string>
 
 export class S2BRegistration extends S2BBase {
   private baseFilePath: string
-  private settings: any
   private dialogErrorMessage: string | null = null
   private imageOptimize: boolean = false
 
@@ -25,11 +24,9 @@ export class S2BRegistration extends S2BBase {
     baseImagePath: string,
     logCallback: (message: string, level?: 'info' | 'warning' | 'error') => void,
     headless: boolean = false,
-    settings?: any,
   ) {
     super(logCallback, headless)
     this.baseFilePath = baseImagePath
-    this.settings = settings
   }
 
   public setImageOptimize(optimize: boolean): void {

@@ -304,7 +304,7 @@ function setupIpcHandlers() {
 
       sendLogToRenderer(`엑셀 데이터 로드 시작: ${resolvedExcelPath}`, 'info')
       const settings = store.get('settings')
-      const registration = new S2BRegistration(resolvedFileDir, sendLogToRenderer, settings.headless, settings)
+      const registration = new S2BRegistration(resolvedFileDir, sendLogToRenderer, settings.headless)
       const data = await registration.readExcelFile(resolvedExcelPath)
       return data
     } catch (error) {
@@ -323,7 +323,7 @@ function setupIpcHandlers() {
         sendLogToRenderer('자동화 시작', 'info')
 
         const settings = store.get('settings')
-        registration = new S2BRegistration(settings.fileDir, sendLogToRenderer, settings.headless, settings)
+        registration = new S2BRegistration(settings.fileDir, sendLogToRenderer, settings.headless)
 
         await registration.launch()
 
