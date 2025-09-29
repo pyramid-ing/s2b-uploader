@@ -252,7 +252,6 @@ export class S2BRegistration extends S2BBase {
 
   private _handleRegistrationDialog = async (dialog: any) => {
     const message = dialog.message()
-    this._log(`Alert 메시지: ${message}`, 'info')
 
     switch (dialog.type()) {
       case 'alert':
