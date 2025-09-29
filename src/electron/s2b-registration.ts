@@ -19,6 +19,7 @@ export class S2BRegistration extends S2BBase {
   private baseFilePath: string
   private dialogErrorMessage: string | null = null
   private imageOptimize: boolean = false
+  private popupHandlersSetup: boolean = false
 
   constructor(
     baseImagePath: string,
@@ -35,37 +36,13 @@ export class S2BRegistration extends S2BBase {
 
   public async launch(): Promise<void> {
     await super.launch()
-    this._setupRegistrationPopupHandlers()
   }
 
   public async registerProduct(data: ExcelRegistrationData): Promise<void> {
     if (!this.page) throw new Error('브라우저가 초기화되지 않았습니다.')
     this.dialogErrorMessage = null
-
-    const handleRegistrationDialog = async (dialog: any) => {
-      const message = dialog.message()
-      this._log(`Alert 메시지: ${message}`, 'info')
-
-      switch (dialog.type()) {
-        case 'alert':
-          if (message.includes('S2B의 "견적정보 등록"은 지방자치단체를 당사자로 하는 계약에 관한 법률 시행령 제30조')) {
-            await dialog.accept()
-          } else if (
-            message.includes('등록대기 상태로 변경되었으며') ||
-            message.includes('식품을 등록 할 경우 소비기한은 필수 입력 값입니다')
-          ) {
-            await dialog.accept()
-          } else {
-            this.dialogErrorMessage = message
-            await dialog.dismiss()
-          }
-          break
-        case 'confirm':
-          await dialog.dismiss()
-          break
-      }
-    }
-    this.page.on('dialog', handleRegistrationDialog)
+    this._handleWindowPopup()
+    this.page.on('dialog', this._handleRegistrationDialog)
 
     this._log(`상품 등록 시작: ${data.goodsName}`, 'info')
     try {
@@ -109,7 +86,7 @@ export class S2BRegistration extends S2BBase {
       this._log(`상품 등록 실패: ${error.message}`, 'error')
       throw error
     } finally {
-      this.page.off('dialog', handleRegistrationDialog)
+      this.page.off('dialog', this._handleRegistrationDialog)
     }
   }
 
@@ -235,8 +212,9 @@ export class S2BRegistration extends S2BBase {
     })
   }
 
-  private _setupRegistrationPopupHandlers(): void {
-    if (!this.context) return
+  private _handleWindowPopup(): void {
+    if (!this.context || this.popupHandlersSetup) return
+    this.popupHandlersSetup = true
     this.context.on('page', async newPage => {
       const url = newPage.url()
       if (url.includes('certificateInfo_pop.jsp')) {
@@ -270,6 +248,32 @@ export class S2BRegistration extends S2BBase {
         }
       }
     })
+  }
+
+  private _handleRegistrationDialog = async (dialog: any) => {
+    const message = dialog.message()
+    this._log(`Alert 메시지: ${message}`, 'info')
+
+    switch (dialog.type()) {
+      case 'alert':
+        // 예상가능 alert
+        if (
+          message.includes('S2B의 "견적정보 등록"은 지방자치단체를 당사자로 하는 계약에 관한 법률 시행령 제30조') ||
+          message.includes('등록대기 상태로 변경되었으며') ||
+          message.includes('식품을 등록 할 경우 소비기한은 필수 입력 값입니다')
+        ) {
+          await dialog.accept()
+          // 그외 로깅후 무시
+        } else {
+          this._log(`Alert 메시지: ${message}`, 'info')
+          await dialog.accept()
+        }
+        break
+      case 'confirm':
+        this._log(`Confirm 자동 수락: ${message}`, 'info')
+        await dialog.accept()
+        break
+    }
   }
 
   private async _setBasicInfo(data: ExcelRegistrationData): Promise<void> {
