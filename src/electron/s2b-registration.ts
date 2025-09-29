@@ -47,6 +47,8 @@ export class S2BRegistration extends S2BBase {
 
     const handleRegistrationDialog = async (dialog: any) => {
       const message = dialog.message()
+      this._log(`Alert 메시지: ${message}`, 'info')
+
       switch (dialog.type()) {
         case 'alert':
           if (message.includes('S2B의 "견적정보 등록"은 지방자치단체를 당사자로 하는 계약에 관한 법률 시행령 제30조')) {
