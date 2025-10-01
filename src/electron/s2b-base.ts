@@ -5,8 +5,6 @@ export abstract class S2BBase {
   protected browser: Browser | null = null
   protected context: BrowserContext | null = null
   protected page: Page | null = null
-  protected chromePath: string
-  protected edgePath: string
   protected executablePath: string
   protected headless: boolean
   protected logCallback: (message: string, level?: 'info' | 'warning' | 'error') => void
@@ -15,36 +13,26 @@ export abstract class S2BBase {
     this.logCallback = logCallback
     this.headless = headless
 
-    if (process.platform === 'darwin') {
-      this.chromePath = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
-      this.edgePath = '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge'
-    } else if (process.platform === 'win32') {
-      const possiblePaths = [
-        'C\\\\:\\Program Files\\\\Google\\\\Chrome\\\\Application\\\\chrome.exe',
-        'C\\\\:\\Program Files (x86)\\\\Google\\\\Chrome\\\\Application\\\\chrome.exe',
-        (process.env.LOCALAPPDATA || '') + '\\Google\\Chrome\\Application\\chrome.exe',
-      ]
-      this.chromePath = possiblePaths.find(p => fsSync.existsSync(p)) || ''
+    let possiblePaths: string[] = []
 
-      const possibleEdgePaths = [
-        'C\\\\:\\Program Files (x86)\\\\Microsoft\\\\Edge\\\\Application\\\\msedge.exe',
-        'C\\\\:\\Program Files\\\\Microsoft\\\\Edge\\\\Application\\\\msedge.exe',
-        (process.env.LOCALAPPDATA || '') + '\\Microsoft\\Edge\\Application\\msedge.exe',
-      ]
-      this.edgePath = possibleEdgePaths.find(p => fsSync.existsSync(p)) || ''
-    } else {
-      this.chromePath = '/usr/bin/google-chrome'
-      this.edgePath = '/usr/bin/microsoft-edge'
+    switch (process.platform) {
+      case 'darwin':
+        possiblePaths = ['/Applications/Google Chrome.app/Contents/MacOS/Google Chrome']
+        break
+      case 'win32':
+        possiblePaths = [
+          'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+          'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
+          'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
+          'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
+        ]
+        break
+      default:
+        possiblePaths = ['/usr/bin/google-chrome']
+        break
     }
 
-    // 최종 실행 경로 결정: 1) Chrome → 2) Edge → 3) 없음
-    if (this.chromePath && fsSync.existsSync(this.chromePath)) {
-      this.executablePath = this.chromePath
-    } else if (this.edgePath && fsSync.existsSync(this.edgePath)) {
-      this.executablePath = this.edgePath
-    } else {
-      this.executablePath = ''
-    }
+    this.executablePath = possiblePaths.find(p => fsSync.existsSync(p)) || ''
   }
 
   protected _log(message: string, level: 'info' | 'warning' | 'error' = 'info') {
