@@ -403,6 +403,8 @@ function setupIpcHandlers() {
       await sourcing.openUrl(baseUrl)
       return { success: true, url: sourcing.getCurrentUrl() }
     } catch (error) {
+      console.error('Error opening sourcing site:', error)
+      sendLogToRenderer(`사이트 열기 실패: ${error.message || '알 수 없는 오류'}`, 'error')
       return { success: false, error: error.message || '사이트 열기 실패' }
     }
   })
@@ -417,6 +419,8 @@ function setupIpcHandlers() {
       const list = await sourcing.collectListFromUrl(currentUrl)
       return { success: true, items: list }
     } catch (error) {
+      console.error('Error collecting list from current page:', error)
+      sendLogToRenderer(`현재 페이지 목록 수집 실패: ${error.message || '알 수 없는 오류'}`, 'error')
       return { success: false, error: error.message || '현재 페이지 목록 수집 실패' }
     }
   })
@@ -436,6 +440,8 @@ function setupIpcHandlers() {
       await sourcing.close()
       return { success: true, items: list }
     } catch (error) {
+      console.error('Error collecting list:', error)
+      sendLogToRenderer(`목록 수집 실패: ${error.message || '알 수 없는 오류'}`, 'error')
       return { success: false, error: error.message || '목록 수집 실패' }
     }
   })
@@ -459,7 +465,8 @@ function setupIpcHandlers() {
 
       return { success: true, item: details[0] }
     } catch (error) {
-      sendLogToRenderer(`에러 발생: ${error.message}`, 'error')
+      console.error('Error collecting single detail:', error)
+      sendLogToRenderer(`상세 수집 실패: ${error.message || '알 수 없는 오류'}`, 'error')
       return { success: false, error: error.message || '상세 수집 실패' }
     }
   })
@@ -478,7 +485,8 @@ function setupIpcHandlers() {
       await sourcing.close()
       return { success: true, items: details }
     } catch (error) {
-      sendLogToRenderer(`에러 발생: ${error.message}`, 'error')
+      console.error('Error collecting details:', error)
+      sendLogToRenderer(`상세 수집 실패: ${error.message || '알 수 없는 오류'}`, 'error')
       return { success: false, error: error.message || '상세 수집 실패' }
     }
   })
