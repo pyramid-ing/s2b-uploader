@@ -92,7 +92,8 @@ export class S2BSourcing extends S2BBase {
       }
       const baseName = (basicInfo.name || basicInfo.productCode || 'product').toString()
       const productDir = this._createProductDir(baseName, basicInfo.productCode, vendorKey)
-      const { savedMainImages, detailCapturePath } = await scraper.collectImages(this.page, vendor, productDir)
+      const savedMainImages = await scraper.collectThumbnails(this.page, vendor, productDir)
+      const detailCapturePath = await scraper.collectDetailImage(this.page, vendor, productDir)
       const 특성 = await scraper.collectAdditionalInfo(this.page, vendor)
       const crawlData: SourcingCrawlData = {
         url,

@@ -3,7 +3,7 @@ import path from 'node:path'
 import * as fsSync from 'fs'
 import dayjs from 'dayjs'
 import { VendorConfig, VendorKey, normalizeUrl } from '../sourcing-config'
-import type { ExtractedBasicInfo, ImageCollectResult } from './BaseScraper'
+import type { ExtractedBasicInfo } from './BaseScraper'
 import { BaseScraper } from './BaseScraper'
 import { envConfig } from '../envConfig'
 
@@ -171,7 +171,7 @@ export class DomeggookScraper extends BaseScraper {
     }
   }
 
-  async collectImages(page: Page, vendor: VendorConfig, productDir?: string): Promise<ImageCollectResult> {
+  async collectThumbnails(page: Page, vendor: VendorConfig, productDir?: string): Promise<string[]> {
     const mainImageUrls: string[] = vendor.main_image_xpath
       ? await page.$$eval(`xpath=${vendor.main_image_xpath}`, nodes =>
           Array.from(nodes)
@@ -193,17 +193,25 @@ export class DomeggookScraper extends BaseScraper {
       savedMainImages.push(outPath)
     }
 
-    let detailCapturePath: string | null = null
-    if (vendor.detail_image_xpath) {
-      try {
-        const outPath = path.join(targetDir, `상세이미지.jpg`)
-        const locator = page.locator(`xpath=${vendor.detail_image_xpath}`)
-        await locator.first().screenshot({ path: outPath })
-        detailCapturePath = outPath
-      } catch {}
-    }
+    return savedMainImages
+  }
 
-    return { savedMainImages, detailCapturePath }
+  async collectDetailImage(page: Page, vendor: VendorConfig, productDir?: string): Promise<string | null> {
+    if (!vendor.detail_image_xpath) return null
+
+    try {
+      const targetDir = productDir || path.join(envConfig.downloadsPath, dayjs().format('YYYYMMDD'))
+      if (!fsSync.existsSync(targetDir)) fsSync.mkdirSync(targetDir, { recursive: true })
+
+      const outPath = path.join(targetDir, `상세이미지.jpg`)
+      const locator = page.locator(`xpath=${vendor.detail_image_xpath}`)
+
+      // 공통 함수를 사용하여 fixed 요소들을 숨기고 캡처
+      await this.screenshotWithHiddenFixedElements(page, locator.first(), { path: outPath })
+      return outPath
+    } catch {
+      return null
+    }
   }
 
   async collectAdditionalInfo(
