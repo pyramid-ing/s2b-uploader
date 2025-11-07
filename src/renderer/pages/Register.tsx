@@ -1,17 +1,10 @@
 import React, { useEffect, useRef } from 'react'
-import { Alert, Button, Card, Space, Table, DatePicker, Radio, Input } from 'antd'
+import { Alert, Button, Card, Space, Table, Input } from 'antd'
 import { FolderOpenOutlined, ReloadOutlined, StopOutlined, UploadOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import { useLog } from '../hooks/useLog'
 import { useRegister } from '../hooks/useRegister'
-import { ProductData, REGISTRATION_STATUS_LABELS } from '../stores/registerStore'
-import dayjs from 'dayjs'
-import 'dayjs/locale/ko'
-import koKR from 'antd/es/date-picker/locale/ko_KR'
-
-dayjs.locale('ko')
-
-const { RangePicker } = DatePicker
+import { ProductData } from '../stores/registerStore'
 
 const Register: React.FC = () => {
   const { logs, progress, clearLogs } = useLog()
@@ -25,10 +18,7 @@ const Register: React.FC = () => {
     loadExcelData,
     openResultFolder,
     registerProducts,
-    extendManagementDate,
     cancelRegistration,
-    updateDateRange,
-    updateRegistrationStatus,
   } = useRegister()
 
   const { ipcRenderer } = (window as any).require('electron')
@@ -75,55 +65,6 @@ const Register: React.FC = () => {
           style={{ marginBottom: '20px' }}
         />
       )}
-
-      <Card
-        title="관리일 설정"
-        style={{ marginBottom: '20px', opacity: permission.hasPermission === false ? 0.5 : 1 }}
-        bordered={false}
-      >
-        <Space direction="vertical" size="middle">
-          <Space>
-            <label>관리일(기간):</label>
-            <RangePicker
-              value={settings.dateRange}
-              onChange={dates => updateDateRange(dates as [any, any])}
-              disabled={permission.hasPermission === false}
-              format="YYYY-MM-DD"
-              locale={koKR}
-              presets={[
-                { label: '전체', value: [dayjs('2000-01-01'), dayjs('2100-01-01')] },
-                { label: '1주일', value: [dayjs(), dayjs().add(1, 'week')] },
-                { label: '1개월', value: [dayjs(), dayjs().add(1, 'month')] },
-                { label: '3개월', value: [dayjs(), dayjs().add(3, 'month')] },
-                { label: '1년', value: [dayjs(), dayjs().add(1, 'year')] },
-              ]}
-              showNow
-              allowClear={false}
-            />
-          </Space>
-          <Space>
-            <label>등록상태:</label>
-            <Radio.Group
-              value={settings.registrationStatus}
-              onChange={e => updateRegistrationStatus(e.target.value)}
-              disabled={permission.hasPermission === false}
-            >
-              {Object.entries(REGISTRATION_STATUS_LABELS).map(([value, label]) => (
-                <Radio key={value} value={value}>
-                  {label}
-                </Radio>
-              ))}
-            </Radio.Group>
-          </Space>
-          <Button
-            type="primary"
-            onClick={extendManagementDate}
-            disabled={permission.hasPermission === false || settings.loading || !settings.dateRange}
-          >
-            관리일 연장
-          </Button>
-        </Space>
-      </Card>
 
       <Card
         title="상품 등록"

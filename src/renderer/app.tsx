@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react'
 import { Layout, Menu, theme } from 'antd'
-import { AppstoreOutlined, SettingOutlined, UploadOutlined } from '@ant-design/icons'
+import { AppstoreOutlined, SettingOutlined, UploadOutlined, CalendarOutlined } from '@ant-design/icons'
 import { Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { RecoilRoot } from 'recoil'
 import Settings from './pages/Settings'
 import Register from './pages/Register'
 import Sourcing from './pages/Sourcing'
+import Management from './pages/Management'
 
 const { ipcRenderer } = window.require('electron')
 
@@ -30,6 +31,11 @@ const App: React.FC = () => {
       key: '/sourcing',
       icon: <AppstoreOutlined />,
       label: '소싱',
+    },
+    {
+      key: '/management',
+      icon: <CalendarOutlined />,
+      label: '최종관리일',
     },
     {
       key: '/settings',
@@ -85,6 +91,7 @@ const App: React.FC = () => {
             <Routes>
               <Route path="/register" element={<Register />} />
               <Route path="/sourcing" element={<Sourcing />} />
+              <Route path="/management" element={<Management />} />
               <Route path="/settings" element={<Settings />} />
             </Routes>
           </Content>
