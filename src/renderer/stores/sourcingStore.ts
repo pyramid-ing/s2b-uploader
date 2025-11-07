@@ -1,4 +1,5 @@
 import { atom } from 'recoil'
+import { AtomEffect } from 'recoil'
 
 export interface SourcingItem {
   key: string
@@ -72,4 +73,25 @@ export const sourcingConfigSetsState = atom<SourcingConfigSet[]>({
 export const activeConfigSetIdState = atom<string | null>({
   key: 'activeConfigSetIdState',
   default: null,
+})
+
+// localStorage와 동기화하는 effect
+const localStorageEffect: <T>(key: string) => AtomEffect<T> =
+  key =>
+  ({ setSelf, onSet }) => {
+    const savedValue = localStorage.getItem(key)
+    if (savedValue != null) {
+      setSelf(JSON.parse(savedValue))
+    }
+
+    onSet((newValue, _, isReset) => {
+      isReset ? localStorage.removeItem(key) : localStorage.setItem(key, JSON.stringify(newValue))
+    })
+  }
+
+// 영상 collapse 상태를 저장하는 atom
+export const videoCollapsedState = atom<boolean>({
+  key: 'videoCollapsedState',
+  default: false,
+  effects: [localStorageEffect<boolean>('sourcing-video-collapsed')],
 })

@@ -1,5 +1,6 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react'
-import { Alert, Button, Card, Divider, Form, Input, message, Modal, Select, Space, Table, Typography } from 'antd'
+import { useRecoilState } from 'recoil'
+import { Alert, Button, Card, Collapse, Divider, Form, Input, message, Modal, Select, Space, Table, Typography } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import {
   DeleteOutlined,
@@ -12,7 +13,7 @@ import {
 import { useLog } from '../hooks/useLog'
 import { useSourcing } from '../hooks/useSourcing'
 import { usePermission } from '../hooks/usePermission'
-import { SourcingItem } from '../stores/sourcingStore'
+import { SourcingItem, videoCollapsedState } from '../stores/sourcingStore'
 import { fetchCredits } from '../api/creditsApi'
 import ConfigSetManager from '../components/ConfigSetManager'
 
@@ -32,6 +33,7 @@ const Sourcing: React.FC = () => {
   const [loading, setLoading] = useState(false)
   const [credits, setCredits] = useState<number | null>(null)
   const [creditsLoading, setCreditsLoading] = useState(false)
+  const [videoCollapsed, setVideoCollapsed] = useRecoilState(videoCollapsedState)
 
   // Recoil 기반 상태 관리
   const { logs, progress, clearLogs } = useLog()
@@ -307,6 +309,44 @@ const Sourcing: React.FC = () => {
           style={{ marginBottom: '20px' }}
         />
       )}
+
+      <Collapse
+        activeKey={videoCollapsed ? [] : ['video']}
+        onChange={(keys) => setVideoCollapsed(!keys.includes('video'))}
+        items={[
+          {
+            key: 'video',
+            label: '사용 방법',
+            children: (
+              <div
+                style={{
+                  position: 'relative',
+                  paddingBottom: '56.25%', // 16:9 비율
+                  height: 0,
+                  overflow: 'hidden',
+                  maxWidth: '100%',
+                  borderRadius: '8px',
+                }}
+              >
+                <iframe
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    height: '100%',
+                    border: 0,
+                  }}
+                  src="https://www.youtube.com/embed/vJAv-a1xxEs"
+                  title="소싱 페이지 사용 방법"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                />
+              </div>
+            ),
+          },
+        ]}
+      />
 
       <Card
         title="검색"
