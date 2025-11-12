@@ -59,8 +59,55 @@ export class S2BManagement extends S2BBase {
 
     await waitForListReady()
 
-    let hasNextPage = true
-    while (hasNextPage) {
+    const itemsPerPage =
+      (await this.page!.evaluate(() => {
+        const select = document.querySelector('#rowCount') as HTMLSelectElement | null
+        if (!select) return 0
+        const selected =
+          select.value ||
+          (select.options[select.selectedIndex] ? select.options[select.selectedIndex].value : undefined)
+        const parsed = selected ? parseInt(selected, 10) : NaN
+        return Number.isFinite(parsed) && parsed > 0 ? parsed : 0
+      })) || 100
+
+    const totalResults =
+      (await this.page!.evaluate(() => {
+        const totalSpan = Array.from(document.querySelectorAll('h1 span.t_r')).find(span =>
+          (span.textContent ?? '').includes('총'),
+        )
+        if (!totalSpan?.textContent) return 0
+        const match = totalSpan.textContent.replace(/,/g, '').match(/총\s*([\d]+)/)
+        return match ? parseInt(match[1], 10) : 0
+      })) ?? 0
+
+    const totalPages = Math.max(1, Math.ceil(totalResults / itemsPerPage))
+
+    for (let pageIndex = 0; pageIndex < totalPages; pageIndex++) {
+      if (pageIndex > 0) {
+        const offset = pageIndex * itemsPerPage
+        await Promise.all([
+          this.page!.waitForNavigation({ waitUntil: 'domcontentloaded' }),
+          this.page!.evaluate(offsetValue => {
+            const movePageFn = (window as any).movePage
+            if (typeof movePageFn === 'function') {
+              movePageFn(String(offsetValue))
+              return true
+            }
+            const fallback = Array.from(document.querySelectorAll('.paginate2 a')).find(anchor => {
+              if (!(anchor instanceof HTMLAnchorElement)) return false
+              const href = anchor.getAttribute('href') ?? ''
+              return href.includes(`movePage('${offsetValue}')`)
+            }) as HTMLElement | undefined
+            if (!fallback) {
+              throw new Error('movePage 함수를 찾을 수 없습니다.')
+            }
+            fallback.click()
+            return true
+          }, offset),
+        ])
+        await waitForListReady()
+      }
+
       const pageProducts = await this.page!.$$eval('#listTable tr', rows => {
         return Array.from(rows)
           .map(row => {
@@ -74,88 +121,6 @@ export class S2BManagement extends S2BBase {
           .filter(Boolean)
       })
       products.push(...(pageProducts as any[]))
-
-      await delay(3000)
-
-      const nextAction = await this.page!.evaluate(() => {
-        const paginate = document.querySelector('.paginate2')
-        if (!paginate)
-          return {
-            action: 'none',
-          } as const
-        const current = paginate.querySelector('strong')
-        if (!current)
-          return {
-            action: 'none',
-          } as const
-        const currentPage = parseInt(current.textContent!.trim(), 10)
-
-        const resolveAnchor = (anchor: HTMLAnchorElement | null) => {
-          if (!anchor) return null
-          const rawHref = anchor.getAttribute('href') ?? ''
-          if (rawHref.startsWith('javascript:movePage(')) {
-            const match = rawHref.match(/javascript:movePage\('(\d+)'\)/)
-            if (match) {
-              return {
-                action: 'movePage',
-                page: match[1],
-              } as const
-            }
-          }
-          if (anchor.href) {
-            return {
-              action: 'goto',
-              url: anchor.href,
-            } as const
-          }
-          return null
-        }
-
-        if (currentPage % 10 === 0) {
-          const nextButton = paginate.querySelector('a.next') as HTMLAnchorElement | null
-          const resolved = resolveAnchor(nextButton)
-          if (resolved) {
-            return resolved
-          }
-        }
-        const pageLinks = Array.from(paginate.querySelectorAll('a')) as HTMLAnchorElement[]
-        const nextLink = pageLinks.find(a => {
-          const num = parseInt(a.textContent!.trim(), 10)
-          return !isNaN(num) && num > currentPage && !!a.href
-        })
-        const resolved = resolveAnchor(nextLink ?? null)
-        if (resolved) {
-          return resolved
-        }
-        return {
-          action: 'none',
-        } as const
-      })
-
-      hasNextPage = nextAction.action !== 'none'
-      if (!hasNextPage) continue
-
-      if (nextAction.action === 'goto') {
-        await this.page!.goto(nextAction.url, { waitUntil: 'domcontentloaded' })
-      } else if (nextAction.action === 'movePage') {
-        await Promise.all([
-          this.page!.waitForNavigation({ waitUntil: 'domcontentloaded' }),
-          this.page!.evaluate(pageNo => {
-            const globalMovePage = (window as any).movePage
-            if (typeof globalMovePage === 'function') {
-              globalMovePage(pageNo)
-              return
-            }
-            const target = Array.from(document.querySelectorAll('.paginate2 a')).find(anchor => {
-              if (!(anchor instanceof HTMLAnchorElement)) return false
-              const href = anchor.getAttribute('href') ?? ''
-              return href.includes(`movePage('${pageNo}')`)
-            }) as HTMLElement | undefined
-            target?.click()
-          }, nextAction.page),
-        ])
-      }
-      await waitForListReady()
     }
     return products
   }
