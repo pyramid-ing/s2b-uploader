@@ -61,9 +61,10 @@ const Management: React.FC = () => {
                     height: '100%',
                     border: 0,
                   }}
-                  src="https://www.youtube.com/embed/dkLT_swmnio"
+                  src="https://www.youtube.com/embed/dkLT_swmnio?si=E_gLnmW52ClwwpbT"
                   title="최종관리일 사용 방법"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                  referrerPolicy="strict-origin-when-cross-origin"
                   allowFullScreen
                 />
               </div>

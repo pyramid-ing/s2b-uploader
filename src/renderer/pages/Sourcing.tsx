@@ -1,6 +1,20 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react'
 import { useRecoilState } from 'recoil'
-import { Alert, Button, Card, Collapse, Divider, Form, Input, message, Modal, Select, Space, Table, Typography } from 'antd'
+import {
+  Alert,
+  Button,
+  Card,
+  Collapse,
+  Divider,
+  Form,
+  Input,
+  message,
+  Modal,
+  Select,
+  Space,
+  Table,
+  Typography,
+} from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import {
   DeleteOutlined,
@@ -312,7 +326,7 @@ const Sourcing: React.FC = () => {
 
       <Collapse
         activeKey={videoCollapsed ? [] : ['video']}
-        onChange={(keys) => setVideoCollapsed(!keys.includes('video'))}
+        onChange={keys => setVideoCollapsed(!keys.includes('video'))}
         items={[
           {
             key: 'video',
@@ -337,9 +351,10 @@ const Sourcing: React.FC = () => {
                     height: '100%',
                     border: 0,
                   }}
-                  src="https://www.youtube.com/embed/vJAv-a1xxEs"
+                  src="https://www.youtube.com/embed/vJAv-a1xxEs?si=N3ctiCzTS57Qaluy"
                   title="소싱 페이지 사용 방법"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                  referrerPolicy="strict-origin-when-cross-origin"
                   allowFullScreen
                 />
               </div>
