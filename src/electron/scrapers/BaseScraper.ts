@@ -117,6 +117,7 @@ export abstract class BaseScraper implements Scraper {
    * 세로로 매우 긴 영역을 여러 구간으로 나눠 캡처한 뒤 하나의 이미지로 이어붙이는 헬퍼 함수
    * - 크롬/크로미움의 단일 스크린샷 높이 제한(약 16k px)을 우회하기 위한 용도
    * - locator가 가리키는 영역 전체를 세로 방향으로 이어붙인 이미지를 outPath에 저장
+   * - 페이지 전체 기준 좌표계(page top-left 기준)로 clip을 계산
    */
   protected async screenshotLongElement(
     page: Page,
@@ -124,17 +125,45 @@ export abstract class BaseScraper implements Scraper {
     outPath: string,
     segmentHeight: number = 4000,
   ): Promise<string> {
-    const box = await locator.boundingBox()
-    if (!box) {
+    const elementHandle = await locator.elementHandle()
+    if (!elementHandle) {
       // fallback: 일반 스크린샷
       await locator.screenshot({ path: outPath })
       return outPath
     }
 
-    const totalHeight = box.height
-    const width = Math.ceil(box.width)
-    const startY = Math.max(box.y, 0)
-    const startX = Math.max(box.x, 0)
+    // 페이지 최상단 기준 좌표계로 요소 박스 계산
+    const box = await page.evaluate(el => {
+      const rect = (el as HTMLElement).getBoundingClientRect()
+      const scrollX = window.scrollX
+      const scrollY = window.scrollY
+      return {
+        x: rect.left + scrollX,
+        y: rect.top + scrollY,
+        width: rect.width,
+        height: rect.height,
+      }
+    }, elementHandle)
+
+    if (!box || box.width <= 0 || box.height <= 0) {
+      await locator.screenshot({ path: outPath })
+      return outPath
+    }
+
+    // 페이지 전체 크기 (scrollWidth/scrollHeight 기준)
+    const pageSize = await page.evaluate(() => {
+      const doc = document.documentElement
+      return {
+        width: doc.scrollWidth,
+        height: doc.scrollHeight,
+      }
+    })
+
+    const startX = Math.max(0, Math.floor(box.x))
+    const startY = Math.max(0, Math.floor(box.y))
+    const maxWidth = pageSize.width - startX
+    const totalHeight = Math.min(box.height, pageSize.height - startY)
+    const width = Math.min(Math.floor(box.width), Math.max(1, maxWidth))
 
     const buffers: Buffer[] = []
     let capturedHeight = 0
@@ -142,10 +171,11 @@ export abstract class BaseScraper implements Scraper {
     while (capturedHeight < totalHeight) {
       const remaining = totalHeight - capturedHeight
       const currentHeight = Math.min(segmentHeight, remaining)
+      if (currentHeight <= 0) break
 
       try {
         const buffer = (await page.screenshot({
-          fullPage: true,
+          fullPage: true, // 페이지 전체 렌더링 기준으로 clip 적용
           clip: {
             x: startX,
             y: startY + capturedHeight,

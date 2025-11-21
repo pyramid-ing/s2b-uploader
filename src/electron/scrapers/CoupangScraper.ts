@@ -211,21 +211,16 @@ export class CoupangScraper extends BaseScraper {
       if (!fsSync.existsSync(targetDir)) fsSync.mkdirSync(targetDir, { recursive: true })
 
       const outPath = path.join(targetDir, `상세이미지.jpg`)
-      // 상품 상세 내용이 담긴 주요 영역(.product-detail-content-inside)을 우선 캡처,
-      // 없으면 body 전체를 폴백으로 사용
+
+      // 상품 상세 내용이 담긴 주요 영역(.product-detail-content-inside)을 그대로 캡처 (텍스트+이미지 포함)
       const contentLocator = page.locator('.product-detail-content-inside')
-      let locatorToCapture = contentLocator
-      try {
-        const count = await contentLocator.count()
-        if (!count) {
-          locatorToCapture = page.locator('body')
-        }
-      } catch {
-        locatorToCapture = page.locator('body')
+      const count = await contentLocator.count()
+      if (!count) {
+        return null
       }
 
-      // 매우 긴 상세 영역을 여러 구간으로 나눠 캡처 후 하나로 합친다
-      await this.screenshotLongElement(page, locatorToCapture.first(), outPath, 4000)
+      // 공통 헬퍼를 사용해 .product-detail-content-inside 영역만 여러 구간으로 나눠 캡처 후 하나로 합친다
+      await this.screenshotLongElement(page, contentLocator.first(), outPath, 4000)
       return outPath
     } catch {
       return null
