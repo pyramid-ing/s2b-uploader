@@ -1,5 +1,6 @@
 import type { Page } from 'patchright'
-import type { VendorConfig, VendorKey } from '../sourcing-config'
+import type { VendorConfig } from '../sourcing-config'
+import { VendorKey } from '../sourcing-config'
 import axios from 'axios'
 import sharp from 'sharp'
 
@@ -39,6 +40,13 @@ export interface Scraper {
   collectAdditionalInfo(page: Page, vendor: VendorConfig): Promise<{ label: string; value: string }[] | undefined>
 
   checkLoginRequired(page: Page): Promise<boolean>
+
+  /**
+   * 상세 이미지 캡처 전에 호출되는 공통 훅
+   * - 기본 구현: 쿠팡일 때만 네트워크 아이들 상태까지 대기
+   * - 필요 시 각 Scraper에서 override 가능
+   */
+  waitBeforeCapture(page: Page): Promise<void>
 }
 
 export abstract class BaseScraper implements Scraper {
@@ -61,6 +69,13 @@ export abstract class BaseScraper implements Scraper {
   ): Promise<{ label: string; value: string }[] | undefined>
 
   abstract checkLoginRequired(page: Page): Promise<boolean>
+
+  public async waitBeforeCapture(page: Page): Promise<void> {
+    // 기본 동작: 쿠팡 상세 페이지일 때만 네트워크 아이들까지 대기
+    if (this.vendorKey === VendorKey.쿠팡) {
+      await page.waitForLoadState('networkidle')
+    }
+  }
 
   protected async downloadToBuffer(url: string): Promise<Buffer | null> {
     try {

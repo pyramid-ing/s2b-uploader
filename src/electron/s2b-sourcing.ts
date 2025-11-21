@@ -55,7 +55,7 @@ export class S2BSourcing extends S2BBase {
 
   public async openUrl(url: string): Promise<void> {
     if (!this.page) throw new Error('Browser page not initialized')
-    await this.page.goto(url, { waitUntil: 'networkidle' })
+    await this.page.goto(url, { waitUntil: 'domcontentloaded' })
   }
 
   public async collectListFromUrl(
@@ -67,7 +67,7 @@ export class S2BSourcing extends S2BBase {
     const vendor: VendorConfig = VENDOR_CONFIG[vendorKey]
     const scraper = this._getScraper(vendorKey)
     if (!scraper) throw new Error('지원하지 않는 사이트 입니다.')
-    await this.page.goto(targetUrl, { waitUntil: 'networkidle' })
+    await this.page.goto(targetUrl, { waitUntil: 'domcontentloaded' })
     return await scraper.collectList(this.page, vendor)
   }
 
@@ -87,6 +87,8 @@ export class S2BSourcing extends S2BBase {
       if (!scraper || !vendorKey || !vendor) {
         throw new Error('지원하지 않는 사이트 입니다.')
       }
+
+      await scraper.waitBeforeCapture(this.page)
       const basicInfo = await scraper.extractBasicInfo(this.page, vendorKey, vendor)
       if (!basicInfo.name || !basicInfo.name.trim()) {
         throw new Error('크롤링 실패: 상품명(name) 추출에 실패했습니다.')
@@ -171,7 +173,7 @@ export class S2BSourcing extends S2BBase {
 
   private async _navigateToUrl(url: string): Promise<void> {
     if (!this.page) throw new Error('Browser page not initialized')
-    await this.page.goto(url, { waitUntil: 'networkidle' })
+    await this.page.goto(url, { waitUntil: 'domcontentloaded' })
   }
 
   private _sanitizeFileName(name: string): string {
