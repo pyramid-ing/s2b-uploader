@@ -132,6 +132,12 @@ export abstract class BaseScraper implements Scraper {
       return outPath
     }
 
+    // 0) 페이지를 최상단으로 스크롤 (sticky 헤더/바 등이 최소 상태일 때 기준 좌표 계산)
+    await page.evaluate(() => {
+      window.scrollTo(0, 0)
+    })
+    await page.waitForTimeout(500)
+
     // 페이지 최상단 기준 좌표계로 요소 박스 계산
     const box = await page.evaluate(el => {
       const rect = (el as HTMLElement).getBoundingClientRect()
@@ -173,23 +179,18 @@ export abstract class BaseScraper implements Scraper {
       const currentHeight = Math.min(segmentHeight, remaining)
       if (currentHeight <= 0) break
 
-      try {
-        const buffer = (await page.screenshot({
-          fullPage: true, // 페이지 전체 렌더링 기준으로 clip 적용
-          clip: {
-            x: startX,
-            y: startY + capturedHeight,
-            width,
-            height: currentHeight,
-          },
-        })) as Buffer
+      const buffer = (await page.screenshot({
+        fullPage: true, // 페이지 전체 렌더링 기준으로 clip 적용
+        clip: {
+          x: startX,
+          y: startY + capturedHeight,
+          width,
+          height: currentHeight,
+        },
+      })) as Buffer
 
-        buffers.push(buffer)
-        capturedHeight += currentHeight
-      } catch (error) {
-        console.error(error)
-        break
-      }
+      buffers.push(buffer)
+      capturedHeight += currentHeight
     }
 
     // 세그먼트들을 하나의 긴 이미지로 합치기
