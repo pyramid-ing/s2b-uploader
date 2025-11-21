@@ -126,11 +126,6 @@ export abstract class BaseScraper implements Scraper {
     segmentHeight: number = 4000,
   ): Promise<string> {
     const elementHandle = await locator.elementHandle()
-    if (!elementHandle) {
-      // fallback: 일반 스크린샷
-      await locator.screenshot({ path: outPath })
-      return outPath
-    }
 
     // 0) 페이지를 최상단으로 스크롤 (sticky 헤더/바 등이 최소 상태일 때 기준 좌표 계산)
     await page.evaluate(() => {
