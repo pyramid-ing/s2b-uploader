@@ -392,11 +392,17 @@ function setupIpcHandlers() {
   ipcMain.handle('sourcing-open-site', async (_, { vendor }: { vendor: string }) => {
     try {
       const settings = store.get('settings')
+      const configSets = (store.get('configSets') || []) as ConfigSet[]
+      const activeConfigSetId = store.get('activeConfigSetId')
+      const activeConfigSet = configSets.find(cs => cs.id === activeConfigSetId) || configSets.find(cs => cs.isActive)
 
       // 공통 S2BSourcing 사용 (도매꾹/도매의신/쿠팡)
       if (!sourcing) {
-        sourcing = new S2BSourcing(settings.fileDir, sendLogToRenderer, settings.headless, settings)
+        sourcing = new S2BSourcing(settings.fileDir, sendLogToRenderer, settings.headless, settings, activeConfigSet)
       }
+
+      // 항상 최신 active 설정값 세트를 반영
+      sourcing.setConfigSet(activeConfigSet)
 
       await sourcing.launch()
 
@@ -440,11 +446,17 @@ function setupIpcHandlers() {
   ipcMain.handle('sourcing-collect-list', async (_, { url }: { url: string }) => {
     try {
       const settings = store.get('settings')
+      const configSets = (store.get('configSets') || []) as ConfigSet[]
+      const activeConfigSetId = store.get('activeConfigSetId')
+      const activeConfigSet = configSets.find(cs => cs.id === activeConfigSetId) || configSets.find(cs => cs.isActive)
 
       // 기존 sourcing 인스턴스가 없으면 새로 생성
       if (!sourcing) {
-        sourcing = new S2BSourcing(settings.fileDir, sendLogToRenderer, settings.headless, settings)
+        sourcing = new S2BSourcing(settings.fileDir, sendLogToRenderer, settings.headless, settings, activeConfigSet)
       }
+
+      // 항상 최신 active 설정값 세트를 반영
+      sourcing.setConfigSet(activeConfigSet)
 
       await sourcing.launch()
       const list = await sourcing.collectListFromUrl(url)
@@ -462,12 +474,18 @@ function setupIpcHandlers() {
   ipcMain.handle('sourcing-collect-single-detail', async (_, { url }: { url: string }) => {
     try {
       const settings = store.get('settings')
+      const configSets = (store.get('configSets') || []) as ConfigSet[]
+      const activeConfigSetId = store.get('activeConfigSetId')
+      const activeConfigSet = configSets.find(cs => cs.id === activeConfigSetId) || configSets.find(cs => cs.isActive)
 
       // 모든 벤더(도매꾹/도매의신/쿠팡)를 공통 S2BSourcing 로직으로 처리
       if (!sourcing) {
-        sourcing = new S2BSourcing(settings.fileDir, sendLogToRenderer, settings.headless, settings)
+        sourcing = new S2BSourcing(settings.fileDir, sendLogToRenderer, settings.headless, settings, activeConfigSet)
         await sourcing.launch()
       }
+
+      // 항상 최신 active 설정값 세트를 반영
+      sourcing.setConfigSet(activeConfigSet)
 
       const details = await sourcing.collectNormalizedDetailForUrls([url])
       if (details.length === 0) {
@@ -485,10 +503,16 @@ function setupIpcHandlers() {
   ipcMain.handle('sourcing-collect-details', async (_, { urls }: { urls: string[] }) => {
     try {
       const settings = store.get('settings')
+      const configSets = (store.get('configSets') || []) as ConfigSet[]
+      const activeConfigSetId = store.get('activeConfigSetId')
+      const activeConfigSet = configSets.find(cs => cs.id === activeConfigSetId) || configSets.find(cs => cs.isActive)
 
       if (!sourcing) {
-        sourcing = new S2BSourcing(settings.fileDir, sendLogToRenderer, settings.headless, settings)
+        sourcing = new S2BSourcing(settings.fileDir, sendLogToRenderer, settings.headless, settings, activeConfigSet)
       }
+
+      // 항상 최신 active 설정값 세트를 반영
+      sourcing.setConfigSet(activeConfigSet)
 
       await sourcing.launch()
       const details = await sourcing.collectNormalizedDetailForUrls(urls)

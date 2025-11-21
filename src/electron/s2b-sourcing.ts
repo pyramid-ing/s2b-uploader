@@ -11,7 +11,7 @@ import type { Scraper } from './scrapers/BaseScraper'
 import { S2BBase } from './s2b-base'
 import { validateKcByCertNum, KcValidationError } from './kc-validator'
 import { envConfig } from './envConfig'
-import { ExcelRegistrationData } from './types/excel'
+import { ConfigSet, ExcelRegistrationData } from './types/excel'
 
 interface SourcingCrawlData {
   url: string
@@ -37,16 +37,23 @@ interface SourcingCrawlData {
 export class S2BSourcing extends S2BBase {
   private baseFilePath: string
   private settings: any
+  private configSet?: ConfigSet
 
   constructor(
     baseImagePath: string,
     logCallback: (message: string, level?: 'info' | 'warning' | 'error') => void,
     headless: boolean = false,
     settings?: any,
+    configSet?: ConfigSet,
   ) {
     super(logCallback, headless)
     this.baseFilePath = baseImagePath
     this.settings = settings
+    this.configSet = configSet
+  }
+
+  public setConfigSet(configSet?: ConfigSet): void {
+    this.configSet = configSet
   }
 
   public async launch(): Promise<void> {
@@ -124,7 +131,13 @@ export class S2BSourcing extends S2BBase {
         basicInfo.categories && basicInfo.categories.length >= 3
           ? await this._mapCategories(vendorKey || '', basicInfo.categories)
           : {}
-      const excelMapped = this._mapToExcelFormat(crawlData, aiRefined, categoryMapped, this.settings, kcResolved)
+      const excelMapped = this._mapToExcelFormat(
+        crawlData,
+        aiRefined,
+        categoryMapped,
+        this.configSet?.config,
+        kcResolved,
+      )
       this._log(`데이터 정제 완료: ${basicInfo.name}`, 'info')
       outputs.push({ ...crawlData, excelMapped })
     }
@@ -369,7 +382,7 @@ export class S2BSourcing extends S2BBase {
     rawData: SourcingCrawlData,
     aiRefined: AiRefinedPayload,
     categoryMapped: any,
-    settings?: any,
+    config?: ConfigSet['config'],
     kcResolved?: {
       kids?: { type: 'Y' | 'F' | 'N'; certNum?: string }
       elec?: { type: 'Y' | 'F' | 'N'; certNum?: string }
@@ -380,7 +393,41 @@ export class S2BSourcing extends S2BBase {
     },
   ): ExcelRegistrationData[] {
     const originalPrice = rawData.price || 0
-    const marginRate = settings?.marginRate || 20
+
+    const deliveryOption: Record<string, string> = {
+      ZD000001: '3일',
+      ZD000002: '5일',
+      ZD000003: '7일',
+      ZD000004: '15일',
+      ZD000005: '30일',
+      ZD000006: '45일',
+    }
+
+    const quoteOption: Record<string, string> = {
+      ZD000001: '7일',
+      ZD000002: '10일',
+      ZD000003: '15일',
+      ZD000004: '30일',
+    }
+
+    const shippingTypeMap: Record<'free' | 'fixed' | 'conditional', '무료' | '유료' | '조건부무료'> = {
+      free: '무료',
+      fixed: '유료',
+      conditional: '조건부무료',
+    }
+    const effectiveConfig: ConfigSet['config'] = config || {
+      deliveryPeriod: 'ZD000001', // 3일
+      quoteValidityPeriod: 'ZD000001', // 7일
+      shippingFeeType: 'fixed',
+      shippingFee: 3000,
+      returnShippingFee: 3500,
+      bundleShipping: true,
+      jejuShipping: true,
+      jejuAdditionalFee: 5000,
+      detailHtmlTemplate: '<p>상세설명을 입력하세요.</p>',
+      marginRate: 20,
+    }
+    const marginRate = effectiveConfig.marginRate ?? 20
 
     // 기본 상품 정보
     const baseProduct: ExcelRegistrationData = {
@@ -409,15 +456,15 @@ export class S2BSourcing extends S2BBase {
       '소재/재질': aiRefined['소재/재질'] || '상세설명참고',
       판매단위: '개',
       보증기간: '1년',
-      납품가능기간: '7일',
-      '견적서 유효기간': '',
-      배송비종류: '유료',
-      배송비: 3000,
-      반품배송비: 3500,
-      묶음배송여부: 'Y',
-      제주배송여부: 'Y',
-      제주추가배송비: 5000,
-      상세설명HTML: settings?.detailHtmlTemplate || '<p>상세설명을 입력하세요.</p>',
+      납품가능기간: (deliveryOption[effectiveConfig.deliveryPeriod] || '3일') as any,
+      '견적서 유효기간': quoteOption[effectiveConfig.quoteValidityPeriod] || '',
+      배송비종류: shippingTypeMap[effectiveConfig.shippingFeeType] || '유료',
+      배송비: effectiveConfig.shippingFee,
+      반품배송비: effectiveConfig.returnShippingFee,
+      묶음배송여부: effectiveConfig.bundleShipping ? 'Y' : 'N',
+      제주배송여부: effectiveConfig.jejuShipping ? 'Y' : 'N',
+      제주추가배송비: effectiveConfig.jejuAdditionalFee,
+      상세설명HTML: effectiveConfig.detailHtmlTemplate,
       기본이미지1: rawData.mainImages?.[0] || '',
       기본이미지2: rawData.mainImages?.[1] || '',
       추가이미지1: rawData.mainImages?.[2] || '',
