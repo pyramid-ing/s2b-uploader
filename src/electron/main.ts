@@ -11,6 +11,7 @@ import axios from 'axios'
 import dayjs from 'dayjs'
 import { autoUpdater } from 'electron-updater'
 import { ExcelRegistrationData, ConfigSet } from './types/excel'
+import { envConfig } from './envConfig'
 
 /**
  * 계정 유효성 확인 함수
@@ -392,14 +393,24 @@ function setupIpcHandlers() {
     try {
       const settings = store.get('settings')
 
-      // 기존 sourcing 인스턴스가 없으면 새로 생성
+      // 공통 S2BSourcing 사용 (도매꾹/도매의신/쿠팡)
       if (!sourcing) {
         sourcing = new S2BSourcing(settings.fileDir, sendLogToRenderer, settings.headless, settings)
       }
 
       await sourcing.launch()
 
-      const baseUrl = vendor === 'domeggook' ? 'https://www.domeggook.com/' : 'https://www.domesin.com/'
+      const baseUrlMap: Record<string, string> = {
+        domeggook: 'https://www.domeggook.com/',
+        domeosin: 'https://www.domesin.com/',
+        coupang: 'https://www.coupang.com/',
+      }
+
+      const baseUrl = baseUrlMap[vendor]
+      if (!baseUrl) {
+        throw new Error(`지원하지 않는 벤더입니다: ${vendor}`)
+      }
+
       await sourcing.openUrl(baseUrl)
       return { success: true, url: sourcing.getCurrentUrl() }
     } catch (error) {
@@ -452,7 +463,7 @@ function setupIpcHandlers() {
     try {
       const settings = store.get('settings')
 
-      // 기존 sourcing 인스턴스가 없으면 새로 생성
+      // 모든 벤더(도매꾹/도매의신/쿠팡)를 공통 S2BSourcing 로직으로 처리
       if (!sourcing) {
         sourcing = new S2BSourcing(settings.fileDir, sendLogToRenderer, settings.headless, settings)
         await sourcing.launch()
@@ -475,7 +486,6 @@ function setupIpcHandlers() {
     try {
       const settings = store.get('settings')
 
-      // 기존 sourcing 인스턴스가 없으면 새로 생성
       if (!sourcing) {
         sourcing = new S2BSourcing(settings.fileDir, sendLogToRenderer, settings.headless, settings)
       }
@@ -483,6 +493,7 @@ function setupIpcHandlers() {
       await sourcing.launch()
       const details = await sourcing.collectNormalizedDetailForUrls(urls)
       await sourcing.close()
+
       return { success: true, items: details }
     } catch (error) {
       console.error('Error collecting details:', error)
@@ -934,8 +945,8 @@ function setupIpcHandlers() {
   )
 }
 
-async function clearTempFiles(fileDir: string): Promise<void> {
-  const tempDir = path.join(fileDir, 'temp')
+async function clearTempFiles(): Promise<void> {
+  const tempDir = envConfig.tempDir
 
   try {
     if (!fsSync.existsSync(tempDir)) {
@@ -960,10 +971,8 @@ async function clearTempFiles(fileDir: string): Promise<void> {
 }
 
 app.whenReady().then(() => {
-  const settings = store.get('settings')
-
   // temp 디렉토리 정리
-  clearTempFiles(settings.fileDir).catch(error => console.error(error))
+  clearTempFiles().catch(error => console.error(error))
 
   createWindow()
   setupIpcHandlers()

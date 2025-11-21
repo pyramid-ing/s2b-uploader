@@ -6,6 +6,7 @@ import { type AiRefinedPayload, fetchAiRefined } from './lib/ai-client'
 import { VENDOR_CONFIG, VendorConfig, VendorKey } from './sourcing-config'
 import DomeggookScraper from './scrapers/DomeggookScraper'
 import DomesinScraper from './scrapers/DomesinScraper'
+import CoupangScraper from './scrapers/CoupangScraper'
 import type { Scraper } from './scrapers/BaseScraper'
 import { S2BBase } from './s2b-base'
 import { validateKcByCertNum, KcValidationError } from './kc-validator'
@@ -54,7 +55,7 @@ export class S2BSourcing extends S2BBase {
 
   public async openUrl(url: string): Promise<void> {
     if (!this.page) throw new Error('Browser page not initialized')
-    await this.page.goto(url, { waitUntil: 'domcontentloaded' })
+    await this.page.goto(url, { waitUntil: 'networkidle' })
   }
 
   public async collectListFromUrl(
@@ -66,7 +67,7 @@ export class S2BSourcing extends S2BBase {
     const vendor: VendorConfig = VENDOR_CONFIG[vendorKey]
     const scraper = this._getScraper(vendorKey)
     if (!scraper) throw new Error('지원하지 않는 사이트 입니다.')
-    await this.page.goto(targetUrl, { waitUntil: 'domcontentloaded' })
+    await this.page.goto(targetUrl, { waitUntil: 'networkidle' })
     return await scraper.collectList(this.page, vendor)
   }
 
@@ -141,6 +142,7 @@ export class S2BSourcing extends S2BBase {
       const host = new URL(targetUrl).hostname
       if (host.includes('domeggook')) return VendorKey.도매꾹
       if (host.includes('domesin')) return VendorKey.도매의신
+      if (host.includes('coupang')) return VendorKey.쿠팡
       return null
     } catch {
       return null
@@ -160,6 +162,8 @@ export class S2BSourcing extends S2BBase {
         return new DomeggookScraper()
       case VendorKey.도매의신:
         return new DomesinScraper()
+      case VendorKey.쿠팡:
+        return new CoupangScraper()
       default:
         return null
     }
@@ -167,7 +171,7 @@ export class S2BSourcing extends S2BBase {
 
   private async _navigateToUrl(url: string): Promise<void> {
     if (!this.page) throw new Error('Browser page not initialized')
-    await this.page.goto(url, { waitUntil: 'domcontentloaded' })
+    await this.page.goto(url, { waitUntil: 'networkidle' })
   }
 
   private _sanitizeFileName(name: string): string {

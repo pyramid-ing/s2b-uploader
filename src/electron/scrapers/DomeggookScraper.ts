@@ -1,4 +1,4 @@
-import type { Page } from 'playwright-core'
+import type { Page } from 'patchright'
 import path from 'node:path'
 import * as fsSync from 'fs'
 import dayjs from 'dayjs'

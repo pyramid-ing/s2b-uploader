@@ -1,4 +1,4 @@
-import { chromium, type Browser, type BrowserContext, type Page } from 'playwright-core'
+import { chromium, type Browser, type BrowserContext, type Page } from 'patchright'
 import * as fsSync from 'fs'
 
 export abstract class S2BBase {

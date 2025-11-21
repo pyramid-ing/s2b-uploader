@@ -1,6 +1,7 @@
 export enum VendorKey {
   도매꾹 = '도매꾹',
   도매의신 = '도매의신',
+  쿠팡 = '쿠팡',
 }
 
 export interface VendorConfig {
@@ -186,6 +187,16 @@ export const VENDOR_CONFIG: Record<VendorKey, VendorConfig> = {
     custom_url_prefix: 'https://www.domesin.com',
     prefix: 'DOM_',
   },
+  // 쿠팡은 XPath 기반이 아니라 CSS 셀렉터 기반으로 처리하므로,
+  // Scraper 구현에서 대부분의 필드는 사용하지 않는다.
+  [VendorKey.쿠팡]: {
+    product_list_xpath: '',
+    product_name_list_xpath: '',
+    product_name_xpath: '',
+    url_mode: 'absolute',
+    custom_url_prefix: null,
+    prefix: 'CPG_',
+  } as VendorConfig,
 }
 
 export function normalizeUrl(url: string, vendor: VendorConfig): string {
