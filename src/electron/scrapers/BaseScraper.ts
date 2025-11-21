@@ -112,4 +112,81 @@ export abstract class BaseScraper implements Scraper {
     // 캡처 실행
     await locator.screenshot(screenshotOptions)
   }
+
+  /**
+   * 세로로 매우 긴 영역을 여러 구간으로 나눠 캡처한 뒤 하나의 이미지로 이어붙이는 헬퍼 함수
+   * - 크롬/크로미움의 단일 스크린샷 높이 제한(약 16k px)을 우회하기 위한 용도
+   * - locator가 가리키는 영역 전체를 세로 방향으로 이어붙인 이미지를 outPath에 저장
+   */
+  protected async screenshotLongElement(
+    page: Page,
+    locator: any,
+    outPath: string,
+    segmentHeight: number = 4000,
+  ): Promise<string> {
+    const box = await locator.boundingBox()
+    if (!box) {
+      // fallback: 일반 스크린샷
+      await locator.screenshot({ path: outPath })
+      return outPath
+    }
+
+    const totalHeight = box.height
+    const width = Math.ceil(box.width)
+    const startY = Math.max(box.y, 0)
+    const startX = Math.max(box.x, 0)
+
+    const buffers: Buffer[] = []
+    let capturedHeight = 0
+
+    while (capturedHeight < totalHeight) {
+      const remaining = totalHeight - capturedHeight
+      const currentHeight = Math.min(segmentHeight, remaining)
+
+      try {
+        const buffer = (await page.screenshot({
+          fullPage: true,
+          clip: {
+            x: startX,
+            y: startY + capturedHeight,
+            width,
+            height: currentHeight,
+          },
+        })) as Buffer
+
+        buffers.push(buffer)
+        capturedHeight += currentHeight
+      } catch (error) {
+        console.error(error)
+        break
+      }
+    }
+
+    // 세그먼트들을 하나의 긴 이미지로 합치기
+    let offsetTop = 0
+    const composites: { input: Buffer; top: number; left: number }[] = []
+
+    for (const buf of buffers) {
+      const meta = await sharp(buf).metadata()
+      const h = meta.height ?? segmentHeight
+      composites.push({ input: buf, top: Math.round(offsetTop), left: 0 })
+      offsetTop += h
+    }
+
+    const totalOutHeight = Math.round(offsetTop) || Math.ceil(totalHeight)
+
+    await sharp({
+      create: {
+        width,
+        height: totalOutHeight,
+        channels: 3,
+        background: '#ffffff',
+      },
+    })
+      .composite(composites)
+      .jpeg({ quality: 90 })
+      .toFile(outPath)
+
+    return outPath
+  }
 }

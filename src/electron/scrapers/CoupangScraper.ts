@@ -201,9 +201,7 @@ export class CoupangScraper extends BaseScraper {
       // 2) 상세이미지 추출 준비:
       //    .product-detail-content 내부에서 자신의 텍스트(text())에 "상품정보 더보기"를 직접 포함한
       //    가장 가까운(직접 텍스트를 가진) 엘리먼트만 선택해서 클릭
-      const seeMoreBtn = await page.$(
-        'xpath=//div[contains(@class,"product-detail-content")]//*[contains(normalize-space(text()),"상품정보 더보기")]',
-      )
+      const seeMoreBtn = await page.$('xpath=//main//*[contains(normalize-space(text()),"상품정보 더보기")]')
       if (seeMoreBtn) {
         await seeMoreBtn.click()
         await page.waitForTimeout(1500) // 상세 내용 로딩 대기
@@ -226,7 +224,8 @@ export class CoupangScraper extends BaseScraper {
         locatorToCapture = page.locator('body')
       }
 
-      await this.screenshotWithHiddenFixedElements(page, locatorToCapture.first(), { path: outPath })
+      // 매우 긴 상세 영역을 여러 구간으로 나눠 캡처 후 하나로 합친다
+      await this.screenshotLongElement(page, locatorToCapture.first(), outPath, 4000)
       return outPath
     } catch {
       return null
