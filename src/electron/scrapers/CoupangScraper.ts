@@ -6,6 +6,7 @@ import { VendorConfig, VendorKey } from '../sourcing-config'
 import type { ExtractedBasicInfo } from './BaseScraper'
 import { BaseScraper } from './BaseScraper'
 import { envConfig } from '../envConfig'
+import sharp from 'sharp'
 
 /**
  * 쿠팡용 Scraper
@@ -221,6 +222,26 @@ export class CoupangScraper extends BaseScraper {
 
       // 공통 헬퍼를 사용해 .product-detail-content-inside 영역만 여러 구간으로 나눠 캡처 후 하나로 합친다
       await this.screenshotLongElement(page, contentLocator.first(), outPath, 4000)
+
+      // 쿠팡일 경우: 생성된 이미지를 중앙 기준 780px 폭으로 한 번 더 크롭하여 좌우 여백 제거
+      const meta = await sharp(outPath).metadata()
+      const width = meta.width || 0
+      const height = meta.height || 0
+      const targetWidth = 780
+
+      if (width > targetWidth && height > 0) {
+        // 쿠팡 상세 구조상 좌측에 약간의 여백(약 8px)이 더 생기는 것을 보정
+        const marginAdjust = 8
+        let left = Math.floor((width - targetWidth) / 2 + marginAdjust)
+        left = Math.max(0, Math.min(left, width - targetWidth))
+
+        await sharp(outPath)
+          .extract({ left, top: 0, width: targetWidth, height })
+          .toFile(outPath + '.tmp')
+        // 원본을 교체
+        fsSync.renameSync(outPath + '.tmp', outPath)
+      }
+
       return outPath
     } catch {
       return null
