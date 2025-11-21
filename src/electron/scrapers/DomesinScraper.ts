@@ -270,8 +270,8 @@ export class DomesinScraper extends BaseScraper {
       const outPath = path.join(targetDir, `상세이미지.jpg`)
       const locator = page.locator(`xpath=${vendor.detail_image_xpath}`)
 
-      // 공통 함수를 사용하여 fixed 요소들을 숨기고 캡처
-      await this.screenshotWithHiddenFixedElements(page, locator.first(), { path: outPath })
+      // 공통 긴 캡처 헬퍼를 사용하여 상세 영역 전체를 여러 구간으로 나눠 캡처 후 하나로 합침
+      await this.screenshotLongElement(page, locator.first(), outPath, 4000)
       return outPath
     } catch {
       return null
