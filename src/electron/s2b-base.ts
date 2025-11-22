@@ -40,7 +40,34 @@ export abstract class S2BBase {
   }
 
   public async launch(): Promise<void> {
-    if (this.browser) return
+    // 이미 브라우저 인스턴스가 있는 경우, 실제로 연결/사용 가능한 상태인지 한번 더 점검한다.
+    if (this.browser) {
+      const isBrowserConnected = (this.browser as any)?.isConnected?.() !== false // isConnected 가 없으면 true 로 간주
+
+      // 브라우저 연결이 살아 있고, 페이지가 아직 열려 있다면 그대로 재사용
+      const isPageClosed = (this.page as any)?.isClosed?.() === true
+      if (isBrowserConnected && this.context && this.page && !isPageClosed) {
+        return
+      }
+
+      // 여기까지 왔다는 것은
+      // - 브라우저가 끊겼거나(disconnected)
+      // - 페이지/컨텍스트가 유효하지 않은 상태
+      // 이므로 안전하게 정리 후 새로 띄운다.
+      try {
+        await this.page?.close()
+      } catch {}
+      try {
+        await this.context?.close()
+      } catch {}
+      try {
+        await this.browser?.close()
+      } catch {}
+
+      this.browser = null
+      this.context = null
+      this.page = null
+    }
 
     const commonArgs = [
       '--no-sandbox',
