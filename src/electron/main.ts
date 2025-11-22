@@ -471,34 +471,37 @@ function setupIpcHandlers() {
 
   // 선택된 항목에 대해 상세정보 수집
   // 단일 상품 상세 수집 핸들러
-  ipcMain.handle('sourcing-collect-single-detail', async (_, { url }: { url: string }) => {
-    try {
-      const settings = store.get('settings')
-      const configSets = (store.get('configSets') || []) as ConfigSet[]
-      const activeConfigSetId = store.get('activeConfigSetId')
-      const activeConfigSet = configSets.find(cs => cs.id === activeConfigSetId) || configSets.find(cs => cs.isActive)
+  ipcMain.handle(
+    'sourcing-collect-single-detail',
+    async (_, { url, optionHandling }: { url: string; optionHandling?: 'split' | 'single' }) => {
+      try {
+        const settings = store.get('settings')
+        const configSets = (store.get('configSets') || []) as ConfigSet[]
+        const activeConfigSetId = store.get('activeConfigSetId')
+        const activeConfigSet = configSets.find(cs => cs.id === activeConfigSetId) || configSets.find(cs => cs.isActive)
 
-      // 모든 벤더(도매꾹/도매의신/쿠팡)를 공통 S2BSourcing 로직으로 처리
-      if (!sourcing) {
-        sourcing = new S2BSourcing(settings.fileDir, sendLogToRenderer, settings.headless, settings, activeConfigSet)
-        await sourcing.launch()
+        // 모든 벤더(도매꾹/도매의신/쿠팡)를 공통 S2BSourcing 로직으로 처리
+        if (!sourcing) {
+          sourcing = new S2BSourcing(settings.fileDir, sendLogToRenderer, settings.headless, settings, activeConfigSet)
+          await sourcing.launch()
+        }
+
+        // 항상 최신 active 설정값 세트를 반영
+        sourcing.setConfigSet(activeConfigSet)
+
+        const details = await sourcing.collectNormalizedDetailForUrls([url], optionHandling)
+        if (details.length === 0) {
+          throw new Error('상품 정보를 가져올 수 없습니다.')
+        }
+
+        return { success: true, item: details[0] }
+      } catch (error: any) {
+        console.error('Error collecting single detail:', error)
+        sendLogToRenderer(`상세 수집 실패: ${error?.message || '알 수 없는 오류'}`, 'error')
+        return { success: false, error: error?.message || '상세 수집 실패' }
       }
-
-      // 항상 최신 active 설정값 세트를 반영
-      sourcing.setConfigSet(activeConfigSet)
-
-      const details = await sourcing.collectNormalizedDetailForUrls([url])
-      if (details.length === 0) {
-        throw new Error('상품 정보를 가져올 수 없습니다.')
-      }
-
-      return { success: true, item: details[0] }
-    } catch (error) {
-      console.error('Error collecting single detail:', error)
-      sendLogToRenderer(`상세 수집 실패: ${error.message || '알 수 없는 오류'}`, 'error')
-      return { success: false, error: error.message || '상세 수집 실패' }
-    }
-  })
+    },
+  )
 
   ipcMain.handle('sourcing-collect-details', async (_, { urls }: { urls: string[] }) => {
     try {
@@ -649,6 +652,7 @@ function setupIpcHandlers() {
         '제주추가배송비(원)': configSet.config.jejuAdditionalFee,
         상세설명HTML: configSet.config.detailHtmlTemplate,
         '마진율(%)': configSet.config.marginRate,
+        옵션처리방법: configSet.config.optionHandling === 'single' ? '옵션 묶어서 1개 상품' : '옵션별로 여러 개 상품',
       }
 
       // 헤더 행 추가
@@ -735,6 +739,7 @@ function setupIpcHandlers() {
         '제주추가배송비(원)': 'jejuAdditionalFee',
         상세설명HTML: 'detailHtmlTemplate',
         '마진율(%)': 'marginRate',
+        옵션처리방법: 'optionHandling',
       }
 
       const configData: any = {}
@@ -759,6 +764,17 @@ function setupIpcHandlers() {
             if (value === '무료') value = 'free'
             else if (value === '유료') value = 'fixed'
             else if (value === '조건부무료') value = 'conditional'
+          } else if (mappedKey === 'optionHandling') {
+            if (typeof value === 'string') {
+              const text = value.trim()
+              if (text.includes('묶어서') || text.includes('1개')) {
+                value = 'single'
+              } else {
+                value = 'split'
+              }
+            } else {
+              value = 'split'
+            }
           }
 
           configData[mappedKey] = value
@@ -791,6 +807,7 @@ function setupIpcHandlers() {
           detailHtmlTemplate:
             configData.detailHtmlTemplate || existingSettings.detailHtmlTemplate || '<p>상세설명을 입력하세요.</p>',
           marginRate: configData.marginRate || existingSettings.marginRate || 20, // 마진율
+          optionHandling: (configData.optionHandling as 'split' | 'single') || 'split',
         },
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),

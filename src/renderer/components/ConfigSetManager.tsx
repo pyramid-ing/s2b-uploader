@@ -14,8 +14,16 @@ import {
   Popconfirm,
   Upload,
   Divider,
+  Tooltip,
 } from 'antd'
-import { PlusOutlined, EditOutlined, DeleteOutlined, DownloadOutlined, UploadOutlined } from '@ant-design/icons'
+import {
+  PlusOutlined,
+  EditOutlined,
+  DeleteOutlined,
+  DownloadOutlined,
+  UploadOutlined,
+  InfoCircleOutlined,
+} from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import { useRecoilState, useRecoilCallback } from 'recoil'
 import { sourcingConfigSetsState, activeConfigSetIdState, SourcingConfigSet } from '../stores/sourcingStore'
@@ -110,6 +118,7 @@ const ConfigSetManager: React.FC = () => {
             jejuAdditionalFee: 5000, // 제주추가배송비 5000원
             detailHtmlTemplate: '<p>상세설명을 입력하세요.</p>',
             marginRate: 20, // 마진율 20%
+            optionHandling: 'split', // 기본값: 옵션별 개별 상품
           },
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
@@ -242,6 +251,7 @@ const ConfigSetManager: React.FC = () => {
       jejuAdditionalFee: configSet.config.jejuAdditionalFee,
       marginRate: configSet.config.marginRate,
       detailHtmlTemplate: configSet.config.detailHtmlTemplate,
+      optionHandling: configSet.config.optionHandling || 'split',
     })
     setIsModalVisible(true)
   }
@@ -298,6 +308,7 @@ const ConfigSetManager: React.FC = () => {
           jejuAdditionalFee: values.jejuAdditionalFee,
           detailHtmlTemplate: values.detailHtmlTemplate,
           marginRate: values.marginRate || 20,
+          optionHandling: values.optionHandling || 'split',
         },
         createdAt: editingConfigSet?.createdAt || now,
         updatedAt: now,
@@ -379,6 +390,27 @@ const ConfigSetManager: React.FC = () => {
         <Form form={form} layout="vertical">
           <Form.Item name="name" label="설정값 세트 이름" rules={[{ required: true, message: '이름을 입력하세요.' }]}>
             <Input placeholder="설정값 세트 이름을 입력하세요" />
+          </Form.Item>
+
+          <Divider>옵션 처리</Divider>
+
+          <Form.Item
+            name="optionHandling"
+            label={
+              <span>
+                옵션 처리 방법
+                <Tooltip title="옵션 묶기(single) 선택 시, 옵션별 가격이 다르면 가장 비싼 옵션 기준으로 제시금액이 계산됩니다. 색상/사이즈처럼 가격 차이가 크지 않은 옵션에만 사용을 권장하며, 학교장터는 옵션 컬럼이 없어 이렇게 단일 상품으로 등록됩니다.">
+                  <InfoCircleOutlined style={{ marginLeft: 4 }} />
+                </Tooltip>
+              </span>
+            }
+            rules={[{ required: true, message: '옵션 처리방법을 선택하세요.' }]}
+            initialValue="split"
+          >
+            <Select>
+              <Option value="split">옵션별로 풀어서 여러 개 상품 생성</Option>
+              <Option value="single">옵션을 묶어서 1개 상품 생성</Option>
+            </Select>
           </Form.Item>
 
           <Divider>배송 설정</Divider>

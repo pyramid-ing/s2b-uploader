@@ -37,6 +37,12 @@ export interface SourcingConfigSet {
     jejuAdditionalFee: number // 제주추가배송비
     detailHtmlTemplate: string // 상세설명HTML
     marginRate: number // 마진율
+    /**
+     * 옵션 처리 방법
+     * - 'split': 옵션별로 풀어서 각각 개별 상품으로 생성 (기본값)
+     * - 'single': 옵션이 있는 상품을 하나의 상품으로 묶어서 생성
+     */
+    optionHandling: 'split' | 'single'
   }
   createdAt: string
   updatedAt: string

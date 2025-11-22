@@ -80,7 +80,7 @@ export class S2BSourcing extends S2BBase {
     return await scraper.collectList(this.page, vendor)
   }
 
-  public async collectNormalizedDetailForUrls(urls: string[]) {
+  public async collectNormalizedDetailForUrls(urls: string[], optionHandling?: 'split' | 'single') {
     if (!this.page) throw new Error('Browser page not initialized')
     const outputs: (SourcingCrawlData & { excelMapped?: ExcelRegistrationData[] })[] = []
     for (const url of urls) {
@@ -137,7 +137,12 @@ export class S2BSourcing extends S2BBase {
         crawlData,
         aiRefined,
         categoryMapped,
-        this.configSet?.config,
+        this.configSet?.config
+          ? {
+              ...this.configSet.config,
+              optionHandling: optionHandling || this.configSet.config.optionHandling || 'split',
+            }
+          : undefined,
         kcResolved,
       )
       this._log(`데이터 정제 완료: ${basicInfo.name}`, 'info')
@@ -431,6 +436,7 @@ export class S2BSourcing extends S2BBase {
       issuesText?: string
     },
   ): ExcelRegistrationData[] {
+    const optionHandling: 'split' | 'single' = config?.optionHandling || 'split'
     const originalPrice = rawData.price || 0
 
     const deliveryOption: Record<string, string> = {
@@ -465,6 +471,7 @@ export class S2BSourcing extends S2BBase {
       jejuAdditionalFee: 5000,
       detailHtmlTemplate: '<p>상세설명을 입력하세요.</p>',
       marginRate: 20,
+      optionHandling: 'split',
     }
     const marginRate = effectiveConfig.marginRate ?? 20
 
@@ -549,18 +556,48 @@ export class S2BSourcing extends S2BBase {
       방송통신KC인증번호: kcResolved?.broadcasting?.certNum || '',
       방송통신KC성적서: '',
     }
-    // 옵션이 있는 경우 옵션별로 상품 생성
+    // 옵션 처리 방법에 따른 분기
     if (aiRefined.options && aiRefined.options.length > 0) {
-      return aiRefined.options.map(
-        (option: any) =>
-          ({
-            ...baseProduct,
-            물품명: baseProduct.물품명,
-            규격: `${option.name}, ${baseProduct.규격}`,
-            제시금액: Math.ceil(((originalPrice + (option.price || 0)) * (1 + marginRate / 100)) / 100) * 100,
-            재고수량: Math.min(option.qty || 9999, 9999),
-          }) as ExcelRegistrationData,
-      )
+      switch (optionHandling) {
+        case 'single': {
+          // 여러 옵션 중 "가장 비싼 옵션"을 기준으로 가격 산정
+          const maxOptionExtraPrice = Math.max(...aiRefined.options.map((o: any) => Number(o?.price) || 0), 0)
+          const singleBasePrice = originalPrice + maxOptionExtraPrice
+
+          const optionNames = aiRefined.options.map((o: any) => o?.name).filter(Boolean)
+          const optionText = optionNames.length > 0 ? optionNames.join(', ') : ''
+
+          const mergedSpec = (() => {
+            if (baseProduct.규격 && optionText) return `${baseProduct.규격}, 옵션: ${optionText}`
+            if (baseProduct.규격) return baseProduct.규격
+            if (optionText) return `옵션: ${optionText}`
+            return ''
+          })()
+
+          return [
+            {
+              ...baseProduct,
+              규격: mergedSpec,
+              제시금액: Math.ceil((singleBasePrice * (1 + marginRate / 100)) / 100) * 100,
+              재고수량: 9999,
+            } as ExcelRegistrationData,
+          ]
+        }
+        case 'split':
+        default: {
+          // 방어 로직: 알 수 없는 값이면 기본 split 방식 사용
+          return aiRefined.options.map(
+            (option: any) =>
+              ({
+                ...baseProduct,
+                물품명: baseProduct.물품명,
+                규격: `${option.name}, ${baseProduct.규격}`,
+                제시금액: Math.ceil(((originalPrice + (option.price || 0)) * (1 + marginRate / 100)) / 100) * 100,
+                재고수량: Math.min(option.qty || 9999, 9999),
+              }) as ExcelRegistrationData,
+          )
+        }
+      }
     }
 
     // 옵션이 없는 경우 기본 상품 1개 반환

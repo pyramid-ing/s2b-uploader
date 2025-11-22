@@ -27,7 +27,13 @@ import {
 import { useLog } from '../hooks/useLog'
 import { useSourcing } from '../hooks/useSourcing'
 import { usePermission } from '../hooks/usePermission'
-import { SourcingItem, videoCollapsedState } from '../stores/sourcingStore'
+import {
+  SourcingItem,
+  videoCollapsedState,
+  sourcingConfigSetsState,
+  activeConfigSetIdState,
+  SourcingConfigSet,
+} from '../stores/sourcingStore'
 import { fetchCredits } from '../api/creditsApi'
 import ConfigSetManager from '../components/ConfigSetManager'
 
@@ -49,6 +55,9 @@ const Sourcing: React.FC = () => {
   const [credits, setCredits] = useState<number | null>(null)
   const [creditsLoading, setCreditsLoading] = useState(false)
   const [videoCollapsed, setVideoCollapsed] = useRecoilState(videoCollapsedState)
+  const [optionHandling, setOptionHandling] = useState<'split' | 'single'>('split')
+  const [configSets] = useRecoilState(sourcingConfigSetsState)
+  const [activeConfigSetId] = useRecoilState(activeConfigSetIdState)
 
   // Recoil 기반 상태 관리
   const { logs, progress, clearLogs } = useLog()
@@ -99,6 +108,15 @@ const Sourcing: React.FC = () => {
     loadSettings()
     checkPermission()
   }, [loadSettings, checkPermission])
+
+  // 활성화된 설정값 세트 기준으로 기본 옵션 처리 방법 설정
+  useEffect(() => {
+    const activeConfigSet: SourcingConfigSet | undefined =
+      configSets.find(cs => cs.id === activeConfigSetId) || configSets.find(cs => cs.isActive)
+    if (activeConfigSet?.config?.optionHandling) {
+      setOptionHandling(activeConfigSet.config.optionHandling)
+    }
+  }, [configSets, activeConfigSetId])
 
   const handleFetchCredits = async () => {
     try {
@@ -285,7 +303,7 @@ const Sourcing: React.FC = () => {
 
     try {
       setLoading(true)
-      await requestRegister(keys)
+      await requestRegister(keys, optionHandling)
     } finally {
       setLoading(false)
     }
@@ -418,6 +436,15 @@ const Sourcing: React.FC = () => {
         <div>
           {hasSelection && (
             <Space>
+              <Select
+                size="small"
+                style={{ width: 260 }}
+                value={optionHandling}
+                onChange={value => setOptionHandling(value)}
+              >
+                <Select.Option value="split">옵션별로 풀어서 여러 개 상품 생성</Select.Option>
+                <Select.Option value="single">옵션을 묶어서 1개 상품 생성</Select.Option>
+              </Select>
               <Button
                 type="primary"
                 icon={<SendOutlined />}

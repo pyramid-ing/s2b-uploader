@@ -160,7 +160,7 @@ export const useSourcing = () => {
   // 등록 요청 (상세 수집)
   const requestRegister = useRecoilCallback(
     ({ set, snapshot }) =>
-      async (keys?: React.Key[]) => {
+      async (keys?: React.Key[], optionHandling?: 'split' | 'single') => {
         const currentSelectedKeys = await snapshot.getPromise(selectedSourcingKeysState)
         const currentItems = await snapshot.getPromise(sourcingItemsState)
 
@@ -187,6 +187,7 @@ export const useSourcing = () => {
               // 단일 상품 수집
               const result = await ipcRenderer.invoke('sourcing-collect-single-detail', {
                 url: item.url,
+                optionHandling,
               })
 
               if (result?.success) {
