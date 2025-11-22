@@ -69,6 +69,7 @@ export class S2BSourcing extends S2BBase {
 
   public async collectListFromUrl(
     targetUrl: string,
+    options?: { skipGoto?: boolean },
   ): Promise<{ name: string; url: string; price?: number; listThumbnail?: string; vendor?: string }[]> {
     if (!this.page) throw new Error('Browser page not initialized')
     const vendorKey = this._detectVendorByUrl(targetUrl)
@@ -76,7 +77,11 @@ export class S2BSourcing extends S2BBase {
     const vendor: VendorConfig = VENDOR_CONFIG[vendorKey]
     const scraper = this._getScraper(vendorKey)
     if (!scraper) throw new Error('지원하지 않는 사이트 입니다.')
-    await this.page.goto(targetUrl, { waitUntil: 'domcontentloaded' })
+    // 기본적으로는 targetUrl 로 이동하지만,
+    // 이미 해당 페이지에 있는 경우(현재페이지 목록 수집 등)에는 이동을 생략할 수 있다.
+    if (!options?.skipGoto) {
+      await this.page.goto(targetUrl, { waitUntil: 'domcontentloaded' })
+    }
     return await scraper.collectList(this.page, vendor)
   }
 
@@ -126,7 +131,6 @@ export class S2BSourcing extends S2BBase {
         downloadDir: productDir,
         특성,
       }
-      this._log(`AI 데이터 정제 시작: ${basicInfo.name}`, 'info')
       const aiRefined = await this._refineCrawlWithAI(crawlData)
       const kcResolved = await this._determineKcFromAI(aiRefined)
       const categoryMapped =
@@ -145,7 +149,6 @@ export class S2BSourcing extends S2BBase {
           : undefined,
         kcResolved,
       )
-      this._log(`데이터 정제 완료: ${basicInfo.name}`, 'info')
       outputs.push({ ...crawlData, excelMapped })
     }
     return outputs
@@ -245,13 +248,23 @@ export class S2BSourcing extends S2BBase {
     ])
 
     const s2bId = this.settings?.loginId
-    const ocrText = await this._runDetailImageOcr(data.detailImages?.[0])
 
-    return await fetchAiRefined({
+    // 1) OCR 시작
+    this._log('OCR 시작', 'info')
+    const ocrText = await this._runDetailImageOcr(data.detailImages?.[0])
+    // 2) OCR 완료 (성공/실패 여부와 관계없이, 시도 자체는 끝난 시점)
+    this._log('OCR 완료', 'info')
+
+    // 3) AI 정제 시작
+    this._log(`AI 정제 시작: ${data.name ?? ''}`, 'info')
+    const aiRefined = await fetchAiRefined({
       ...payload,
       s2b_id: s2bId,
       ocr_text: ocrText,
     })
+    // 4) AI 정제 완료
+    this._log(`AI 정제 완료: ${data.name ?? ''}`, 'info')
+    return aiRefined
   }
 
   private async _runDetailImageOcr(detailImagePath?: string): Promise<string | undefined> {
@@ -281,7 +294,7 @@ export class S2BSourcing extends S2BBase {
         return undefined
       }
 
-      this._log('OCR 처리 완료', 'info')
+      this._log('OCR 완료', 'info')
       return text
     } catch (error: any) {
       this._log(`OCR 처리 중 오류: ${error?.message || String(error)}`, 'warning')
