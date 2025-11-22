@@ -14,6 +14,7 @@ import {
   Space,
   Table,
   Typography,
+  Spin,
 } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import {
@@ -52,6 +53,7 @@ const Sourcing: React.FC = () => {
   const [vendor, setVendor] = useState<string>(VENDORS[0].value)
   const [urlInput, setUrlInput] = useState<string>('')
   const [loading, setLoading] = useState(false)
+  const [listLoading, setListLoading] = useState(false)
   const [credits, setCredits] = useState<number | null>(null)
   const [creditsLoading, setCreditsLoading] = useState(false)
   const [videoCollapsed, setVideoCollapsed] = useRecoilState(videoCollapsedState)
@@ -209,7 +211,12 @@ const Sourcing: React.FC = () => {
         width: 120,
         render: (_, record) => {
           if (record.loading) {
-            return <span style={{ color: '#1890ff' }}>수집 중...</span>
+            return (
+              <Space>
+                <Spin size="small" />
+                <span style={{ color: '#1890ff' }}>수집 중...</span>
+              </Space>
+            )
           }
           if (record.result) {
             return <span style={{ color: record.result === '성공' ? '#52c41a' : '#ff4d4f' }}>{record.result}</span>
@@ -258,10 +265,10 @@ const Sourcing: React.FC = () => {
 
   const handleFetchCurrentPage = async () => {
     try {
-      setLoading(true)
+      setListLoading(true)
       await fetchCurrentPage()
     } finally {
-      setLoading(false)
+      setListLoading(false)
     }
   }
 
@@ -288,8 +295,9 @@ const Sourcing: React.FC = () => {
     deleteItem(key)
   }
 
-  const handleRequestRegister = async (keys?: React.Key[]) => {
-    const count = keys && keys.length > 0 ? keys.length : selectedRowKeys.length
+  const handleRequestRegister = (keys?: React.Key[]) => {
+    const targetKeys = keys && keys.length > 0 ? keys : selectedRowKeys
+    const count = targetKeys.length
     if (count === 0) {
       message.warning('수집할 품목을 선택하세요.')
       return
@@ -301,12 +309,21 @@ const Sourcing: React.FC = () => {
       return
     }
 
-    try {
-      setLoading(true)
-      await requestRegister(keys, optionHandling)
-    } finally {
-      setLoading(false)
-    }
+    const targetItems = items.filter(item => targetKeys.includes(item.key))
+    const firstItemName = targetItems[0]?.name || ''
+
+    const content = count === 1 ? `${firstItemName}을 수집하겠습니까?` : `${count}개의 상품을 수집하겠습니까?`
+
+    Modal.confirm({
+      title: '수집 시 정말로 수집하겠습니까?',
+      content,
+      okText: '예',
+      cancelText: '아니오',
+      onOk: () => {
+        // 팝업은 바로 닫히고, 수집은 백그라운드에서 진행되도록 Promise를 반환하지 않는다.
+        requestRegister(targetKeys, optionHandling)
+      },
+    })
   }
 
   const handleBulkDelete = () => {
@@ -407,7 +424,7 @@ const Sourcing: React.FC = () => {
               </Button>
             </Form.Item>
             <Form.Item>
-              <Button onClick={handleFetchCurrentPage} loading={loading}>
+              <Button onClick={handleFetchCurrentPage} loading={listLoading}>
                 현재페이지 제품 가져오기 (자동)
               </Button>
             </Form.Item>
@@ -477,15 +494,17 @@ const Sourcing: React.FC = () => {
         </div>
       </div>
 
-      <Card>
-        <Table<SourcingItem>
-          rowKey="key"
-          columns={columns}
-          dataSource={items}
-          rowSelection={{ selectedRowKeys, onChange: setSelectedRowKeys }}
-          pagination={{ defaultPageSize: 50, showSizeChanger: true, pageSizeOptions: [10, 20, 50, 100, 200, 500] }}
-        />
-      </Card>
+      <Spin spinning={listLoading} tip="목록을 수집 중입니다...">
+        <Card>
+          <Table<SourcingItem>
+            rowKey="key"
+            columns={columns}
+            dataSource={items}
+            rowSelection={{ selectedRowKeys, onChange: setSelectedRowKeys }}
+            pagination={{ defaultPageSize: 50, showSizeChanger: true, pageSizeOptions: [10, 20, 50, 100, 200, 500] }}
+          />
+        </Card>
+      </Spin>
 
       <Card
         title="진행 정보"
