@@ -93,6 +93,18 @@ export class CoupangScraper extends BaseScraper {
    * 기본 정보 수집
    */
   async extractBasicInfo(page: Page, _vendorKey: VendorKey, _vendor: VendorConfig): Promise<ExtractedBasicInfo> {
+    // 모델명/품번 (상품코드로 활용)
+    let productCode: string | null = null
+    try {
+      const modelHandle = await page.$(
+        'xpath=//div[contains(@class,"option-picker-container")]//span[contains(normalize-space(.),"모델명/품번")]/following-sibling::span[1]',
+      )
+      const modelText = (await modelHandle?.textContent())?.trim()
+      if (modelText) productCode = modelText
+    } catch {
+      productCode = null
+    }
+
     // 제목
     let name: string | null = null
     try {
@@ -115,6 +127,17 @@ export class CoupangScraper extends BaseScraper {
       price = null
     }
 
+    // 배송비 (예: 무료배송 / 일반배송 3,000원 등)
+    let shippingFee: string | null = null
+    try {
+      const shippingHandle = await page.$('.delivery-container .regular-shipping-fee-container .shipping-fee-desc')
+      const shippingText = (await shippingHandle?.textContent()) || ''
+      const cleaned = shippingText.replace(/\s+/g, ' ').trim()
+      if (cleaned) shippingFee = cleaned
+    } catch {
+      shippingFee = null
+    }
+
     // 카테고리 (상단 네비게이션 기반, 없으면 빈 배열)
     const categories: string[] = await page
       .$$eval('.breadcrumb a, .breadcrumb span', nodes =>
@@ -124,18 +147,64 @@ export class CoupangScraper extends BaseScraper {
       )
       .catch(() => [])
 
+    // 옵션 목록 (단일/다중 옵션 드롭다운 기준)
+    let options: { name: string; price?: number; qty?: number }[][] | undefined
+    try {
+      const rawOptions = await page.$$eval(
+        '.option-picker-container .option-picker-select ul.custom-scrollbar',
+        uls => {
+          const levels: { name: string; price?: number; qty?: number }[][] = []
+          for (const ul of Array.from(uls)) {
+            const items: { name: string; price?: number; qty?: number }[] = []
+            const optionEls = ul.querySelectorAll('li .select-item')
+            for (const el of Array.from(optionEls)) {
+              const nameEl = (el as HTMLElement).querySelector('.twc-font-bold') as HTMLElement | null
+              let name = (nameEl?.textContent || '').trim()
+              name = name.replace(/\s+/g, ' ').trim()
+              if (!name || /선택|옵션|선택하세요|옵션선택/i.test(name)) continue
+
+              // 옵션 가격 (예: 20,900원) 추출
+              const priceEl = (el as HTMLElement).querySelector('.price-text') as HTMLElement | null
+              let price: number | undefined
+              if (priceEl) {
+                const priceText = (priceEl.textContent || '').trim()
+                const match = priceText.match(/([0-9][0-9,]*)/)
+                if (match) {
+                  const digits = match[1].replace(/[^\d]/g, '')
+                  if (digits) {
+                    price = Number(digits)
+                  }
+                }
+              }
+
+              items.push({ name, price, qty: 9999 })
+            }
+            if (items.length > 0) {
+              levels.push(items)
+            }
+          }
+          return levels
+        },
+      )
+      if (rawOptions && rawOptions.length > 0) {
+        options = rawOptions
+      }
+    } catch {
+      options = undefined
+    }
+
     return {
       name,
-      productCode: null,
+      productCode,
       price,
-      shippingFee: null,
+      shippingFee,
       minPurchase: undefined,
       imageUsage: undefined,
       certifications: undefined,
       origin: null,
       manufacturer: null,
       categories,
-      options: undefined,
+      options,
     }
   }
 
@@ -245,13 +314,37 @@ export class CoupangScraper extends BaseScraper {
   }
 
   /**
-   * 추가 정보 (현재는 미수집)
+   * 추가 정보 (쿠팡 상품설명 bullet 영역)
    */
   async collectAdditionalInfo(
-    _page: Page,
+    page: Page,
     _vendor: VendorConfig,
   ): Promise<{ label: string; value: string }[] | undefined> {
-    return undefined
+    try {
+      const items = await page.$$eval('.product-description ul li', nodes =>
+        Array.from(nodes)
+          .map(li => {
+            const text = (li.textContent || '').trim()
+            if (!text) return null
+
+            const [labelPart, ...rest] = text.split(':')
+            const label = (labelPart || '').trim()
+            const value = rest.join(':').trim()
+
+            if (label && value) {
+              return { label, value }
+            }
+
+            // 콜론이 없는 경우 전체를 value 로 보고 label 은 비워둔다.
+            return { label: '', value: text }
+          })
+          .filter((v): v is { label: string; value: string } => !!v),
+      )
+
+      return items.length > 0 ? items : undefined
+    } catch {
+      return undefined
+    }
   }
 
   /**
