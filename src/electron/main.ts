@@ -433,7 +433,8 @@ function setupIpcHandlers() {
 
       const currentUrl = sourcing.getCurrentUrl()
       if (!currentUrl) throw new Error('현재 URL을 확인할 수 없습니다.')
-      const list = await sourcing.collectListFromUrl(currentUrl)
+      // 이미 해당 페이지를 보고 있으므로, 다시 goto 호출로 페이지를 새로 여는 것은 생략한다.
+      const list = await sourcing.collectListFromUrl(currentUrl, { skipGoto: true })
       return { success: true, items: list }
     } catch (error) {
       console.error('Error collecting list from current page:', error)
@@ -459,6 +460,7 @@ function setupIpcHandlers() {
       sourcing.setConfigSet(activeConfigSet)
 
       await sourcing.launch()
+      // 특정 URL 기반 목록 수집은 별도의 브라우저 세션에서 해당 URL로 이동한 후 수집한다.
       const list = await sourcing.collectListFromUrl(url)
       await sourcing.close()
       return { success: true, items: list }
