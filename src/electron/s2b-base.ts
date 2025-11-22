@@ -42,7 +42,12 @@ export abstract class S2BBase {
   public async launch(): Promise<void> {
     if (this.browser) return
 
-    const commonArgs = ['--no-sandbox', '--disable-setuid-sandbox']
+    const commonArgs = [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      // 브라우저 레벨에서 DPR을 1로 고정하여 CSS px와 실제 캡처 px를 일치시킴
+      '--force-device-scale-factor=1',
+    ]
 
     if (!this.executablePath) {
       throw new Error('Chrome 또는 Edge 실행 파일을 찾지 못했습니다. 설치 후 다시 시도하세요.')
