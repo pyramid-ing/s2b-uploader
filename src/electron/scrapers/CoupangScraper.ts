@@ -193,6 +193,28 @@ export class CoupangScraper extends BaseScraper {
       options = undefined
     }
 
+    // 옵션 price에서 기본 가격을 제거하여 "추가 금액"만 남기기
+    if (options && typeof price === 'number' && price > 0) {
+      options = options.map(level =>
+        level.map(opt => {
+          const originalOptionPrice = opt.price ?? 0
+          let extraPrice = originalOptionPrice
+
+          // 쿠팡 옵션 가격이 기본가를 포함한 "총 가격"인 경우를 대비해 기본 가격을 차감
+          if (originalOptionPrice >= price) {
+            extraPrice = originalOptionPrice - price
+          }
+
+          if (extraPrice < 0) extraPrice = 0
+
+          return {
+            ...opt,
+            price: extraPrice || undefined,
+          }
+        }),
+      )
+    }
+
     return {
       name,
       productCode,
