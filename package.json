@@ -1,6 +1,6 @@
 {
   "name": "s2b-uploader",
-  "version": "2.1.8",
+  "version": "2.1.9",
   "description": "",
   "main": "dist/electron/main.js",
   "build": {
