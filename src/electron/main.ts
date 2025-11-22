@@ -481,15 +481,17 @@ function setupIpcHandlers() {
         const configSets = (store.get('configSets') || []) as ConfigSet[]
         const activeConfigSetId = store.get('activeConfigSetId')
         const activeConfigSet = configSets.find(cs => cs.id === activeConfigSetId) || configSets.find(cs => cs.isActive)
-
         // 모든 벤더(도매꾹/도매의신/쿠팡)를 공통 S2BSourcing 로직으로 처리
         if (!sourcing) {
           sourcing = new S2BSourcing(settings.fileDir, sendLogToRenderer, settings.headless, settings, activeConfigSet)
-          await sourcing.launch()
         }
 
         // 항상 최신 active 설정값 세트를 반영
         sourcing.setConfigSet(activeConfigSet)
+
+        // 브라우저/페이지가 닫혀 있거나 초기화되지 않은 경우를 포함해
+        // 항상 launch 를 호출하여 사용 가능한 상태를 보장한다.
+        await sourcing.launch()
 
         const details = await sourcing.collectNormalizedDetailForUrls([url], optionHandling)
         if (details.length === 0) {
