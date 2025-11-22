@@ -68,7 +68,7 @@ const config = {
       publicPath: '/',
     },
     port: 8080,
-    hot: true,
+    hot: false,
     compress: true,
     historyApiFallback: true,
     open: false,
