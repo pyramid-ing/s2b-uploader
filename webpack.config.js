@@ -69,6 +69,7 @@ const config = {
     },
     port: 8080,
     hot: false,
+    liveReload: false,
     compress: true,
     historyApiFallback: true,
     open: false,
