@@ -578,13 +578,22 @@ export class S2BSourcing extends S2BBase {
           const singleBasePrice = originalPrice + maxOptionExtraPrice
 
           const optionNames = aiRefined.options.map((o: any) => o?.name).filter(Boolean)
-          const optionText = optionNames.length > 0 ? optionNames.join(', ') : ''
+          const optionCount = optionNames.length
+          const optionText = optionCount > 0 ? optionNames.join(', ') : ''
 
           const mergedSpec = (() => {
-            if (baseProduct.규격 && optionText) return `${baseProduct.규격}, 옵션: ${optionText}`
-            if (baseProduct.규격) return baseProduct.규격
-            if (optionText) return `옵션: ${optionText}`
-            return ''
+            // 옵션이 없으면 기존 규격만 사용
+            if (!optionText) return baseProduct.규격 || ''
+
+            // 옵션이 2개 이상일 때만 "옵션: xxx" 형식으로 붙이기
+            if (optionCount >= 2) {
+              if (baseProduct.규격) return `${baseProduct.규격}, 옵션: ${optionText}`
+              return `옵션: ${optionText}`
+            }
+
+            // 옵션이 1개일 때는 "옵션:" 접두어 없이 이름만 규격에 병합
+            if (baseProduct.규격) return `${baseProduct.규격}, ${optionText}`
+            return optionText
           })()
 
           return [
