@@ -1,5 +1,7 @@
 import path from 'node:path'
 import * as fsSync from 'fs'
+import fs from 'node:fs/promises'
+import axios from 'axios'
 import dayjs from 'dayjs'
 import { pick } from 'lodash'
 import { type AiRefinedPayload, fetchAiRefined } from './lib/ai-client'
@@ -238,11 +240,48 @@ export class S2BSourcing extends S2BBase {
     ])
 
     const s2bId = this.settings?.loginId
+    const ocrText = await this._runDetailImageOcr(data.detailImages?.[0])
 
     return await fetchAiRefined({
       ...payload,
       s2b_id: s2bId,
+      ocr_text: ocrText,
     })
+  }
+
+  private async _runDetailImageOcr(detailImagePath?: string): Promise<string | undefined> {
+    try {
+      const fileBuffer = await fs.readFile(detailImagePath)
+      const g: any = globalThis as any
+      if (!g.FormData || !g.Blob) {
+        this._log('현재 런타임에서 FormData/Blob 을 지원하지 않아 OCR을 건너뜁니다.', 'warning')
+        return undefined
+      }
+
+      const formData = new g.FormData()
+      const blob = new g.Blob([fileBuffer])
+      formData.append('image', blob, path.basename(detailImagePath))
+
+      const response = await axios.post<{ text?: string }>('https://n8n.pyramid-ing.com/webhook/s2b-ocr', formData)
+
+      if (!response || response.status < 200 || response.status >= 300) {
+        this._log(`OCR 요청 실패: ${response?.status} ${response?.statusText}`, 'warning')
+        return undefined
+      }
+
+      const result = response.data as { ocrText?: string }
+      const text = result?.ocrText?.trim()
+      if (!text) {
+        this._log('OCR 결과가 비어 있습니다.', 'warning')
+        return undefined
+      }
+
+      this._log('OCR 처리 완료', 'info')
+      return text
+    } catch (error: any) {
+      this._log(`OCR 처리 중 오류: ${error?.message || String(error)}`, 'warning')
+      return undefined
+    }
   }
 
   private async _determineKcFromAI(aiRefined: AiRefinedPayload): Promise<{
