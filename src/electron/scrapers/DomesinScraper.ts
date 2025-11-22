@@ -263,19 +263,15 @@ export class DomesinScraper extends BaseScraper {
   async collectDetailImage(page: Page, vendor: VendorConfig, productDir?: string): Promise<string | null> {
     if (!vendor.detail_image_xpath) return null
 
-    try {
-      const targetDir = productDir || path.join(envConfig.downloadsPath, dayjs().format('YYYYMMDD'))
-      if (!fsSync.existsSync(targetDir)) fsSync.mkdirSync(targetDir, { recursive: true })
+    const targetDir = productDir || path.join(envConfig.downloadsPath, dayjs().format('YYYYMMDD'))
+    if (!fsSync.existsSync(targetDir)) fsSync.mkdirSync(targetDir, { recursive: true })
 
-      const outPath = path.join(targetDir, `상세이미지.jpg`)
-      const locator = page.locator(`xpath=${vendor.detail_image_xpath}`)
+    const outPath = path.join(targetDir, `상세이미지.jpg`)
+    const locator = page.locator(`xpath=${vendor.detail_image_xpath}`)
 
-      // 공통 긴 캡처 헬퍼를 사용하여 상세 영역 전체를 여러 구간으로 나눠 캡처 후 하나로 합침
-      await this.screenshotLongElement(page, locator.first(), outPath, 4000)
-      return outPath
-    } catch {
-      return null
-    }
+    // 공통 긴 캡처 헬퍼를 사용하여 상세 영역 전체를 여러 구간으로 나눠 캡처 후 하나로 합침
+    await this.screenshotLongElement(page, locator.first(), outPath, 4000)
+    return outPath
   }
 
   async collectAdditionalInfo(

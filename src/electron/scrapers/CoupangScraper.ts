@@ -187,65 +187,61 @@ export class CoupangScraper extends BaseScraper {
    * 상세 이미지(페이지 캡처) 저장
    */
   async collectDetailImage(page: Page, _vendor: VendorConfig, productDir?: string): Promise<string | null> {
+    // 1) 상세 영역(.product-detail-content)까지 먼저 스크롤
     try {
-      // 1) 상세 영역(.product-detail-content)까지 먼저 스크롤
-      try {
-        await page.evaluate(() => {
-          const detailContent = document.querySelector('.product-detail-content')
-          if (detailContent) {
-            detailContent.scrollIntoView({ behavior: 'smooth', block: 'start' })
-          }
-        })
-        await page.waitForTimeout(800)
-      } catch {}
+      await page.evaluate(() => {
+        const detailContent = document.querySelector('.product-detail-content')
+        if (detailContent) {
+          detailContent.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        }
+      })
+      await page.waitForTimeout(800)
+    } catch {}
 
-      // 2) 상세이미지 추출 준비:
-      //    .product-detail-content 내부에서 자신의 텍스트(text())에 "상품정보 더보기"를 직접 포함한
-      //    가장 가까운(직접 텍스트를 가진) 엘리먼트만 선택해서 클릭
-      const seeMoreBtn = await page.$('xpath=//main//*[contains(normalize-space(text()),"상품정보 더보기")]')
-      if (seeMoreBtn) {
-        await seeMoreBtn.click()
-        await page.waitForTimeout(1500) // 상세 내용 로딩 대기
-      }
+    // 2) 상세이미지 추출 준비:
+    //    .product-detail-content 내부에서 자신의 텍스트(text())에 "상품정보 더보기"를 직접 포함한
+    //    가장 가까운(직접 텍스트를 가진) 엘리먼트만 선택해서 클릭
+    const seeMoreBtn = await page.$('xpath=//main//*[contains(normalize-space(text()),"상품정보 더보기")]')
+    if (seeMoreBtn) {
+      await seeMoreBtn.click()
+      await page.waitForTimeout(1500) // 상세 내용 로딩 대기
+    }
 
-      const targetDir = productDir || path.join(envConfig.downloadsPath, dayjs().format('YYYYMMDD'))
-      if (!fsSync.existsSync(targetDir)) fsSync.mkdirSync(targetDir, { recursive: true })
+    const targetDir = productDir || path.join(envConfig.downloadsPath, dayjs().format('YYYYMMDD'))
+    if (!fsSync.existsSync(targetDir)) fsSync.mkdirSync(targetDir, { recursive: true })
 
-      const outPath = path.join(targetDir, `상세이미지.jpg`)
+    const outPath = path.join(targetDir, `상세이미지.jpg`)
 
-      // 상품 상세 내용이 담긴 주요 영역(.product-detail-content-inside)을 그대로 캡처 (텍스트+이미지 포함)
-      const contentLocator = page.locator('.product-detail-content-inside')
-      const count = await contentLocator.count()
-      if (!count) {
-        return null
-      }
-
-      // 공통 헬퍼를 사용해 .product-detail-content-inside 영역만 여러 구간으로 나눠 캡처 후 하나로 합친다
-      await this.screenshotLongElement(page, contentLocator.first(), outPath, 4000)
-
-      // 쿠팡일 경우: 생성된 이미지를 중앙 기준 780px 폭으로 한 번 더 크롭하여 좌우 여백 제거
-      const meta = await sharp(outPath).metadata()
-      const width = meta.width || 0
-      const height = meta.height || 0
-      const targetWidth = 780
-
-      if (width > targetWidth && height > 0) {
-        // 쿠팡 상세 구조상 좌측에 약간의 여백(약 8px)이 더 생기는 것을 보정
-        const marginAdjust = 8
-        let left = Math.floor((width - targetWidth) / 2 + marginAdjust)
-        left = Math.max(0, Math.min(left, width - targetWidth))
-
-        await sharp(outPath)
-          .extract({ left, top: 0, width: targetWidth, height })
-          .toFile(outPath + '.tmp')
-        // 원본을 교체
-        fsSync.renameSync(outPath + '.tmp', outPath)
-      }
-
-      return outPath
-    } catch {
+    // 상품 상세 내용이 담긴 주요 영역(.product-detail-content-inside)을 그대로 캡처 (텍스트+이미지 포함)
+    const contentLocator = page.locator('.product-detail-content-inside')
+    const count = await contentLocator.count()
+    if (!count) {
       return null
     }
+
+    // 공통 헬퍼를 사용해 .product-detail-content-inside 영역만 여러 구간으로 나눠 캡처 후 하나로 합친다
+    await this.screenshotLongElement(page, contentLocator.first(), outPath, 4000)
+
+    // 쿠팡일 경우: 생성된 이미지를 중앙 기준 780px 폭으로 한 번 더 크롭하여 좌우 여백 제거
+    const meta = await sharp(outPath).metadata()
+    const width = meta.width || 0
+    const height = meta.height || 0
+    const targetWidth = 780
+
+    if (width > targetWidth && height > 0) {
+      // 쿠팡 상세 구조상 좌측에 약간의 여백(약 8px)이 더 생기는 것을 보정
+      const marginAdjust = 8
+      let left = Math.floor((width - targetWidth) / 2 + marginAdjust)
+      left = Math.max(0, Math.min(left, width - targetWidth))
+
+      await sharp(outPath)
+        .extract({ left, top: 0, width: targetWidth, height })
+        .toFile(outPath + '.tmp')
+      // 원본을 교체
+      fsSync.renameSync(outPath + '.tmp', outPath)
+    }
+
+    return outPath
   }
 
   /**
