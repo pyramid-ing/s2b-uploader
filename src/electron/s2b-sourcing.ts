@@ -578,17 +578,22 @@ export class S2BSourcing extends S2BBase {
 
           const optionNames = aiRefined.options.map((o: any) => o?.name).filter(Boolean)
           const optionText = optionNames.length > 0 ? optionNames.join(', ') : ''
+          const 특성Text = baseProduct.규격 || ''
 
+          // 한 줄 옵션 표기 규격: "옵션: ${options} / ${특성}"
           const mergedSpec = (() => {
-            if (baseProduct.규격 && optionText) return `${baseProduct.규격}, 옵션: ${optionText}`
-            if (baseProduct.규격) return baseProduct.규격
+            if (optionText && 특성Text) return `옵션: ${optionText} / ${특성Text}`
             if (optionText) return `옵션: ${optionText}`
-            return ''
+            return 특성Text
           })()
+
+          // 한 줄 옵션 표기 시 물품명 끝에 "(옵션택1)" 추가
+          const singleProductName = `${baseProduct.물품명} (옵션택1)`
 
           return [
             {
               ...baseProduct,
+              물품명: singleProductName,
               규격: mergedSpec,
               제시금액: Math.ceil((singleBasePrice * (1 + marginRate / 100)) / 100) * 100,
               재고수량: 9999,
@@ -620,5 +625,5 @@ export class S2BSourcing extends S2BBase {
         재고수량: 9999,
       } as ExcelRegistrationData,
     ]
-  }
 }
+  }
