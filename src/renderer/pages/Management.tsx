@@ -112,6 +112,9 @@ const Management: React.FC = () => {
               ))}
             </Radio.Group>
           </Space>
+          <div style={{ fontSize: '12px', color: '#888' }}>
+            해당 프로그램에 등록하지 않은 제품도 모두 최종관리일 연장이 가능합니다.
+          </div>
           <Button
             type="primary"
             onClick={extendManagementDate}
