@@ -449,6 +449,7 @@ export class S2BSourcing extends S2BBase {
     },
   ): ExcelRegistrationData[] {
     const optionHandling: 'split' | 'single' = config?.optionHandling || 'split'
+    const MAX_SPEC_LEN = 50
     const originalPrice = rawData.price || 0
 
     const deliveryOption: Record<string, string> = {
@@ -487,7 +488,39 @@ export class S2BSourcing extends S2BBase {
     }
     const marginRate = effectiveConfig.marginRate ?? 20
 
-    // 기본 상품 정보
+    // 공통: aiRefined['특성']과 최소구매수량을 기반으로 규격 문자열을 만드는 함수
+    // - prefix: 규격 앞에 붙는 문자열 (길이 계산에 포함)
+    // - maxLen: 최대 길이 (없으면 제한 없음)
+    const buildFeatureSpec = (prefix: string, maxLen?: number): string => {
+      const limit = typeof maxLen === 'number' ? maxLen : Number.POSITIVE_INFINITY
+
+      const features = Array.isArray(aiRefined['특성'])
+        ? aiRefined['특성'].map((info: any) => (info ?? '').toString().trim()).filter((v: string) => v.length > 0)
+        : []
+
+      let featurePart = ''
+      for (const feature of features) {
+        const nextFeaturePart = featurePart ? `${featurePart}, ${feature}` : feature
+        const candidateFull = prefix ? `${prefix}${nextFeaturePart}` : nextFeaturePart
+        if (candidateFull.length > limit) break
+        featurePart = nextFeaturePart
+      }
+
+      const minPurchase = rawData.minPurchase || 1
+      if (minPurchase > 1) {
+        const minText = featurePart
+          ? `${featurePart}, 최소구매수량: ${minPurchase}개`
+          : `최소구매수량: ${minPurchase}개`
+        const candidateFull = prefix ? `${prefix}${minText}` : minText
+        if (candidateFull.length <= limit) {
+          featurePart = minText
+        }
+      }
+
+      return featurePart
+    }
+
+    // 기본 상품 정보 (규격은 기존 로직을 buildFeatureSpec 으로 통합)
     const baseProduct: ExcelRegistrationData = {
       KC문제: kcResolved?.issuesText || '',
       이미지사용여부: aiRefined.이미지사용여부 || '', // 참고용
@@ -501,14 +534,7 @@ export class S2BSourcing extends S2BBase {
       카테고리3: categoryMapped.targetCategory3 || '',
       등록구분: '물품',
       물품명: aiRefined.물품명 || rawData.name || '',
-      규격: (() => {
-        const baseSpec = aiRefined['특성']?.map((info: any) => info).join(', ') || ''
-        const minPurchase = rawData.minPurchase || 1
-        if (minPurchase > 1) {
-          return baseSpec ? `${baseSpec}, 최소구매수량: ${minPurchase}개` : `최소구매수량: ${minPurchase}개`
-        }
-        return baseSpec
-      })(),
+      규격: buildFeatureSpec(''),
       모델명: aiRefined.모델명 || '상세설명참고',
       제조사: rawData.manufacturer || '상세설명참고',
       '소재/재질': aiRefined['소재/재질'] || '상세설명참고',
@@ -569,7 +595,8 @@ export class S2BSourcing extends S2BBase {
       방송통신KC성적서: '',
     }
     // 옵션 처리 방법에 따른 분기
-    if (aiRefined.options && aiRefined.options.length > 0) {
+    // - 옵션이 1개뿐인 경우는 "옵션이 없는 상품"과 동일하게 처리한다.
+    if (aiRefined.options && aiRefined.options.length > 1) {
       switch (optionHandling) {
         case 'single': {
           // 여러 옵션 중 "가장 비싼 옵션"을 기준으로 가격 산정
@@ -578,13 +605,16 @@ export class S2BSourcing extends S2BBase {
 
           const optionNames = aiRefined.options.map((o: any) => o?.name).filter(Boolean)
           const optionText = optionNames.length > 0 ? optionNames.join(', ') : ''
-          const 특성Text = baseProduct.규격 || ''
-
-          // 한 줄 옵션 표기 규격: "옵션: ${options} / ${특성}"
           const mergedSpec = (() => {
-            if (optionText && 특성Text) return `옵션: ${optionText} / ${특성Text}`
-            if (optionText) return `옵션: ${optionText}`
-            return 특성Text
+            const optionPart = optionText ? `옵션: ${optionText}` : ''
+            const prefixForFeature = optionPart ? `${optionPart} / ` : ''
+
+            const featurePart = buildFeatureSpec(prefixForFeature, MAX_SPEC_LEN)
+
+            if (optionPart && featurePart) return `${optionPart} / ${featurePart}`
+            if (optionPart && optionPart.length <= MAX_SPEC_LEN) return optionPart
+            if (featurePart) return featurePart
+            return ''
           })()
 
           // 한 줄 옵션 표기 시 물품명 끝에 "(옵션택1)" 추가
@@ -603,21 +633,31 @@ export class S2BSourcing extends S2BBase {
         case 'split':
         default: {
           // 방어 로직: 알 수 없는 값이면 기본 split 방식 사용
-          return aiRefined.options.map(
-            (option: any) =>
-              ({
-                ...baseProduct,
-                물품명: baseProduct.물품명,
-                규격: `${option.name}, ${baseProduct.규격}`,
-                제시금액: Math.ceil(((originalPrice + (option.price || 0)) * (1 + marginRate / 100)) / 100) * 100,
-                재고수량: Math.min(option.qty || 9999, 9999),
-              }) as ExcelRegistrationData,
-          )
+          return aiRefined.options.map((option: any) => {
+            const optionName = (option?.name ?? '').toString()
+            const prefixForFeature = optionName ? `${optionName}, ` : ''
+            const featurePart = buildFeatureSpec(prefixForFeature, MAX_SPEC_LEN)
+
+            let specText = ''
+
+            if (optionName && featurePart) specText = `${optionName}, ${featurePart}`
+            else if (optionName && optionName.length <= MAX_SPEC_LEN) specText = optionName
+            else if (featurePart) specText = featurePart
+            else specText = ''
+
+            return {
+              ...baseProduct,
+              물품명: baseProduct.물품명,
+              규격: specText,
+              제시금액: Math.ceil(((originalPrice + (option.price || 0)) * (1 + marginRate / 100)) / 100) * 100,
+              재고수량: Math.min(option.qty || 9999, 9999),
+            } as ExcelRegistrationData
+          })
         }
       }
     }
 
-    // 옵션이 없는 경우 기본 상품 1개 반환
+    // 옵션이 없는 경우: 기존 규격 그대로 사용
     return [
       {
         ...baseProduct,
@@ -625,5 +665,5 @@ export class S2BSourcing extends S2BBase {
         재고수량: 9999,
       } as ExcelRegistrationData,
     ]
-}
   }
+}
