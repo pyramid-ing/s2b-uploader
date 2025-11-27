@@ -36,6 +36,18 @@ interface SourcingCrawlData {
   downloadDir?: string
 }
 
+interface CoupangToS2BCategorySingleResult {
+  G2B: boolean
+  s2bCategory1: string
+  s2bCategory2: string
+  s2bCategory3: string
+  matchType: 'exact' | 'partial' | 'fallback' | 'none'
+}
+
+interface CoupangToS2BCategorySingleResponse {
+  output: CoupangToS2BCategorySingleResult
+}
+
 export class S2BSourcing extends S2BBase {
   private baseFilePath: string
   private settings: any
@@ -380,6 +392,12 @@ export class S2BSourcing extends S2BBase {
     categories: string[],
   ): Promise<{ targetCategory1?: string; targetCategory2?: string; targetCategory3?: string; g2bCode?: string }> {
     try {
+      // 쿠팡은 별도의 API 기반 매핑 함수 사용
+      if (vendor === VendorKey.쿠팡) {
+        return await this._mapCoupangCategories(categories)
+      }
+
+      // 그 외 공급처는 기존 엑셀 기반 매핑 로직 사용
       const excelPath = path.join(envConfig.filesPath, 'S2B_Sourcing_category_mapper.xlsx')
       if (!fsSync.existsSync(excelPath)) {
         this._log('카테고리 매핑 엑셀 파일을 찾을 수 없습니다.', 'warning')
@@ -430,6 +448,47 @@ export class S2BSourcing extends S2BBase {
       return {}
     } catch (error: any) {
       this._log(`카테고리 매핑 실패: ${error.message}`, 'error')
+      return {}
+    }
+  }
+
+  private async _mapCoupangCategories(
+    categories: string[],
+  ): Promise<{ targetCategory1?: string; targetCategory2?: string; targetCategory3?: string; g2bCode?: string }> {
+    const categoryPath = (categories || []).filter(Boolean).join('>')
+    if (!categoryPath) {
+      this._log('쿠팡 카테고리 경로가 비어 있어 매핑을 건너뜁니다.', 'warning')
+      return {}
+    }
+
+    try {
+      const response = await axios.post<CoupangToS2BCategorySingleResponse>(
+        'https://n8n.pyramid-ing.com/webhook/s2b/find-category',
+        {
+          categoryPath,
+        },
+      )
+
+      if (!response || response.status < 200 || response.status >= 300) {
+        this._log(`쿠팡 카테고리 매핑 API 호출 실패: ${response?.status} ${response?.statusText}`, 'warning')
+        return {}
+      }
+
+      const data = response.data?.output
+      if (!data || data.matchType === 'none') {
+        this._log(`쿠팡 카테고리 매핑 결과 없음: ${categoryPath}`, 'warning')
+        return {}
+      }
+
+      return {
+        targetCategory1: data.s2bCategory1,
+        targetCategory2: data.s2bCategory2,
+        targetCategory3: data.s2bCategory3,
+        // G2B 여부만 내려오기 때문에, true 인 경우 '!!' 로 표시하여 G2B 물품으로만 구분한다.
+        g2bCode: data.G2B ? '!!' : undefined,
+      }
+    } catch (error: any) {
+      this._log(`쿠팡 카테고리 매핑 API 오류: ${error?.message || String(error)}`, 'error')
       return {}
     }
   }
