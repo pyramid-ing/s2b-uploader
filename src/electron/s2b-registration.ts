@@ -267,7 +267,7 @@ export class S2BRegistration extends S2BBase {
           await dialog.accept()
           // 그외 로깅후 무시
         } else {
-          this._log(`Alert 메시지: ${message}`, 'info')
+          this._log(`Alert 메시지: ${message}`, 'warning')
           await dialog.accept()
         }
         break
@@ -715,11 +715,41 @@ export class S2BRegistration extends S2BBase {
   }
 
   private async _submitRegistration(): Promise<void> {
+    const SUCCESS_BASE_URL = 'https://www.s2b.kr/S2BNVendor/rema100.do'
+
     const isChecked = await this.page!.isChecked('#uprightContract')
     if (!isChecked) await this.page!.check('#uprightContract')
+
+    // 등록 버튼 클릭 후 5초 대기 후 결과 URL 확인
     await this.page!.click('a[href="javascript:register(\'1\');"]')
-    await new Promise(r => setTimeout(r, 5000))
-    if (this.dialogErrorMessage) throw new Error(this.dialogErrorMessage)
+    await new Promise(resolve => setTimeout(resolve, 5000))
+
+    if (this.dialogErrorMessage) {
+      // 다이얼로그에서 이미 에러 메시지를 받은 경우 즉시 실패 처리
+      throw new Error(this.dialogErrorMessage)
+    }
+
+    const currentUrl = this.page!.url()
+    let isSuccess = false
+
+    try {
+      const url = new URL(currentUrl)
+      const base = `${url.origin}${url.pathname}`
+      const forwardName = url.searchParams.get('forwardName')
+
+      // 등록 성공 시: rema100.do 로 이동하되, 최초 등록화면인 forwardName=goRegistView 가 아닌 경우
+      isSuccess = base === SUCCESS_BASE_URL && forwardName !== 'goRegistView'
+    } catch {
+      // URL 파싱 실패 시에도 확실한 성공 신호가 아니므로 실패로 간주
+      isSuccess = false
+    }
+
+    if (!isSuccess) {
+      const message = `등록 성공 페이지(${SUCCESS_BASE_URL})로 이동하지 않았습니다. 현재 URL: ${currentUrl}`
+      throw new Error(message)
+    }
+
+    this._log(`✅ 등록 성공 페이지 이동 확인: ${currentUrl}`, 'info')
   }
 
   private async _readExcelStream(stream: fs.ReadStream): Promise<ExcelRawData[]> {
