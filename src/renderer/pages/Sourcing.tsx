@@ -220,6 +220,18 @@ const Sourcing: React.FC = () => {
         ),
       },
       {
+        title: '금액',
+        dataIndex: 'price',
+        key: 'price',
+        width: 120,
+        align: 'right',
+        render: (value: number) => {
+          const n = Number(value)
+          if (!Number.isFinite(n) || n <= 0) return '-'
+          return `${currency(n)}원`
+        },
+      },
+      {
         title: '상태',
         key: 'status',
         width: 120,
