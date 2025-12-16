@@ -13,8 +13,8 @@ import { envConfig } from '../envConfig'
  * - 상세 페이지: 제공된 DOM 구조(상품명/카테고리/제조사/원산지/배송비/상세 탭 등) 기반으로 추출
  *
  * 주의:
- * - 목록에서 상세 이동은 `javascript:goViewPage('상품ID')` 형태가 많아,
- *   목록 수집 시 URL을 "검색페이지#goodsId=..." 형태로 만들어 `S2BSourcing._navigateToUrl`에서 처리한다.
+ * - 상세 진입은 "실제 URL 이동"이 아니라,
+ *   검색페이지에서 "S2B물품번호"로 물품번호 검색 후 첫 결과를 클릭하는 흐름으로 처리한다.
  */
 export class S2BSchoolScraper extends BaseScraper {
   public vendorKey: VendorKey = VendorKey.학교장터
@@ -22,6 +22,111 @@ export class S2BSchoolScraper extends BaseScraper {
   private static readonly ORIGIN = 'https://www.s2b.kr'
   private static readonly SEARCH_URL =
     'https://www.s2b.kr/S2BNCustomer/S2B/scrweb/remu/rema/searchengine/s2bCustomerSearch.jsp'
+
+  public async navigateToDetail(page: Page, _vendor: VendorConfig, urlOrId: string): Promise<void> {
+    const goodsId = this._extractGoodsId(urlOrId)
+    if (!goodsId) throw new Error('학교장터 물품번호를 찾을 수 없습니다.')
+
+    await page.goto(S2BSchoolScraper.SEARCH_URL, { waitUntil: 'domcontentloaded' })
+    await this._openFirstResultByGoodsId(page, goodsId)
+  }
+
+  public async collectFilteredList(
+    page: Page,
+    vendor: VendorConfig,
+    params: {
+      keyword: string
+      minPrice?: number
+      maxPrice?: number
+      maxCount?: number
+      sortCode?: 'RANK' | 'PCAC' | 'CERT' | 'TRUST' | 'DATE' | 'PCDC' | 'REVIEW_COUNT'
+      viewCount?: 10 | 20 | 30 | 40 | 50
+      pageDelayMs?: number
+    },
+    log?: (message: string, level?: 'info' | 'warning' | 'error') => void,
+  ): Promise<{ name: string; url: string; price?: number; listThumbnail?: string; vendor?: string }[]> {
+    const _log = (m: string, lv: 'info' | 'warning' | 'error' = 'info') => {
+      try {
+        log?.(m, lv)
+      } catch {}
+    }
+
+    const maxCount = Math.max(1, Math.min(Number(params.maxCount || 100), 5000))
+    const minPrice = typeof params.minPrice === 'number' ? params.minPrice : undefined
+    const maxPrice = typeof params.maxPrice === 'number' ? params.maxPrice : undefined
+    const pageDelayMs = Math.max(0, Math.min(Number(params.pageDelayMs ?? 1000), 60_000))
+
+    const keyword = (params.keyword || '').toString().trim()
+    if (!keyword) throw new Error('학교장터 검색어는 필수입니다.')
+
+    // 0) 검색페이지로 이동
+    if (!page.url().includes('/S2B/scrweb/remu/rema/searchengine/s2bCustomerSearch.jsp')) {
+      await page.goto(S2BSchoolScraper.SEARCH_URL, { waitUntil: 'domcontentloaded' })
+    }
+
+    _log(`학교장터 필터검색 시작: "${keyword}"`, 'info')
+    await this._runSearch(page, keyword)
+
+    // 페이지당(기본 50)
+    await this._setViewCount(page, params.viewCount || 50)
+
+    // 정렬(기본 정확도순)
+    await this._applySort(page, params.sortCode || 'RANK')
+
+    // meta
+    const { itemsPerPage, totalResults } = await this._readPagingMeta(page)
+    const totalPages = Math.max(1, Math.ceil(totalResults / itemsPerPage))
+    _log(`학교장터 검색결과: 총 ${totalResults.toLocaleString('ko-KR')}건, 페이지당 ${itemsPerPage}개`, 'info')
+
+    const collected: { name: string; url: string; price?: number; listThumbnail?: string; vendor?: string }[] = []
+    const seen = new Set<string>()
+
+    const inRange = (price?: number): boolean => {
+      if (typeof price !== 'number' || !Number.isFinite(price)) return false
+      if (typeof minPrice === 'number' && price < minPrice) return false
+      if (typeof maxPrice === 'number' && price > maxPrice) return false
+      return true
+    }
+
+    for (let pageIndex = 0; pageIndex < totalPages; pageIndex++) {
+      if (collected.length >= maxCount) break
+
+      if (pageIndex > 0) {
+        const offset = pageIndex * itemsPerPage
+        await this._movePage(page, offset)
+      }
+
+      const list = await this.collectList(page, vendor)
+      const pageMinPrice = list.map(v => v.price).find(v => typeof v === 'number' && Number.isFinite(v)) as
+        | number
+        | undefined
+
+      for (const it of list) {
+        if (!it?.url || seen.has(it.url)) continue
+        if (!inRange(it.price)) continue
+        seen.add(it.url)
+        collected.push(it)
+        if (collected.length >= maxCount) break
+      }
+
+      if (typeof maxPrice === 'number' && typeof pageMinPrice === 'number' && pageMinPrice > maxPrice) {
+        _log(`학교장터 필터검색 조기 종료: 페이지 최저가(${pageMinPrice})가 maxPrice(${maxPrice}) 초과`, 'info')
+        break
+      }
+
+      _log(
+        `학교장터 필터검색 진행: ${pageIndex + 1}/${totalPages}페이지, 조건 일치 ${collected.length}/${maxCount}개`,
+        'info',
+      )
+
+      if (pageDelayMs > 0 && pageIndex < totalPages - 1 && collected.length < maxCount) {
+        await page.waitForTimeout(pageDelayMs)
+      }
+    }
+
+    _log(`학교장터 필터검색 완료: ${collected.length}개 수집`, 'info')
+    return collected
+  }
 
   private _normalizeS2bUrl(url: string): string {
     if (!url) return url
@@ -32,6 +137,296 @@ export class S2BSchoolScraper extends BaseScraper {
 
   private _buildItemUrl(goodsId: string): string {
     return `${S2BSchoolScraper.SEARCH_URL}#goodsId=${encodeURIComponent(goodsId)}`
+  }
+
+  private _extractGoodsId(urlOrId: string): string | null {
+    const raw = (urlOrId || '').toString().trim()
+    if (!raw) return null
+    const js = raw.match(/goViewPage\(\s*'([^']+)'\s*\)/i)
+    if (js?.[1]) return js[1].trim()
+    try {
+      const u = new URL(raw)
+      const hash = (u.hash || '').replace(/^#/, '')
+      const params = new URLSearchParams(hash)
+      const goodsId = params.get('goodsId')
+      if (goodsId) return goodsId.trim()
+      const q = u.searchParams.get('goodsId')
+      if (q) return q.trim()
+    } catch {
+      // ignore
+    }
+    if (/^\d{8,}$/.test(raw)) return raw
+    return null
+  }
+
+  private async _ensureSearchTypeS2BGoodsId(page: Page): Promise<void> {
+    await page.waitForLoadState('domcontentloaded')
+    const current = await page
+      .evaluate(() => (document.querySelector('#selectName') as HTMLElement | null)?.textContent || '')
+      .catch(() => '')
+    if ((current || '').replace(/\s+/g, ' ').trim() === 'S2B물품번호') return
+
+    await page.evaluate(() => {
+      const box = document.querySelector('#selectName') as HTMLElement | null
+      box?.click()
+    })
+
+    await page
+      .waitForFunction(
+        () => {
+          const container = document.querySelector('#fieldSelector') as HTMLElement | null
+          const visible = !!container && container.style.display !== 'none'
+          const opt = document.querySelector('#fieldSelector a#GOODS_CODE') as HTMLAnchorElement | null
+          return visible && !!opt
+        },
+        { timeout: 8000 },
+      )
+      .catch(() => undefined)
+
+    await page.evaluate(() => {
+      const opt = document.querySelector('#fieldSelector a#GOODS_CODE') as HTMLAnchorElement | null
+      opt?.click()
+    })
+    await page.waitForTimeout(200)
+  }
+
+  private async _openFirstResultByGoodsId(page: Page, goodsId: string): Promise<void> {
+    const id = (goodsId || '').trim()
+    if (!id) throw new Error('학교장터 물품번호가 비어있습니다.')
+
+    await this._ensureSearchTypeS2BGoodsId(page)
+
+    const didSearch = await page
+      .evaluate((q: string) => {
+        const setValue = (input: HTMLInputElement, v: string) => {
+          input.value = v
+          input.dispatchEvent(new Event('input', { bubbles: true }))
+          input.dispatchEvent(new Event('change', { bubbles: true }))
+        }
+        const input = document.querySelector('#searchQuery') as HTMLInputElement | null
+        if (!input) return false
+        setValue(input, q)
+        const mainBtn = document.querySelector('#mainSearchButton') as HTMLElement | null
+        if (mainBtn) mainBtn.click()
+        else input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+        return true
+      }, id)
+      .catch(() => false)
+
+    if (!didSearch) throw new Error('학교장터 검색 입력 요소(#searchQuery)를 찾을 수 없습니다.')
+
+    await page
+      .waitForFunction(
+        () => {
+          const a = document.querySelector('.nutresult table tbody tr ul.obj_name li.l01 a') as HTMLAnchorElement | null
+          return !!a
+        },
+        { timeout: 20000 },
+      )
+      .catch(() => undefined)
+
+    await Promise.all([
+      page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 20000 }).catch(() => undefined),
+      page.evaluate(() => {
+        const first =
+          (document.querySelector('.nutresult table tbody tr ul.obj_name li.l01 a') as HTMLAnchorElement | null) ||
+          (document.querySelector('.nutresult table tbody tr a[href*="goViewPage"]') as HTMLAnchorElement | null)
+        if (!first) throw new Error('학교장터 검색 결과(첫번째 항목)를 찾을 수 없습니다.')
+        first.click()
+      }),
+    ])
+  }
+
+  private async _runSearch(page: Page, keyword: string): Promise<void> {
+    await page.waitForLoadState('domcontentloaded')
+    const ok = await page
+      .evaluate((q: string) => {
+        const setValue = (input: HTMLInputElement) => {
+          input.value = q
+          input.dispatchEvent(new Event('input', { bubbles: true }))
+          input.dispatchEvent(new Event('change', { bubbles: true }))
+        }
+        const mainInput = document.querySelector('#searchQuery') as HTMLInputElement | null
+        if (mainInput) {
+          setValue(mainInput)
+          const mainBtn = document.querySelector('#mainSearchButton') as HTMLElement | null
+          if (mainBtn) mainBtn.click()
+          else mainInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+          return true
+        }
+        const input = document.querySelector('#searchRequery') as HTMLInputElement | null
+        const btn = document.querySelector('#requeryButton') as HTMLElement | null
+        if (input && btn) {
+          setValue(input)
+          btn.click()
+          return true
+        }
+        return false
+      }, keyword)
+      .catch(() => false)
+
+    if (!ok) throw new Error('학교장터 검색 입력 요소를 찾을 수 없습니다. 검색 결과 페이지에서 다시 시도하세요.')
+    await page.waitForTimeout(800)
+  }
+
+  private async _applySort(
+    page: Page,
+    sortCode: 'RANK' | 'PCAC' | 'CERT' | 'TRUST' | 'DATE' | 'PCDC' | 'REVIEW_COUNT',
+  ): Promise<void> {
+    await page.waitForLoadState('domcontentloaded')
+    const prevFirst = await page
+      .evaluate(() => (document.querySelector('input[name="checkFlag"]') as HTMLInputElement | null)?.value || '')
+      .catch(() => '')
+
+    await Promise.all([
+      page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 8000 }).catch(() => undefined),
+      page.evaluate((code: string) => {
+        const w = window as any
+        if (typeof w.sorting === 'function') {
+          try {
+            w.sorting(code)
+            return true
+          } catch {}
+        }
+        const anchors = Array.from(document.querySelectorAll('.sort_area .sort_list a')) as HTMLAnchorElement[]
+        const found = anchors.find(a => (a.getAttribute('onclick') || '').includes(`sorting('${code}')`))
+        found?.click()
+        return true
+      }, sortCode),
+    ])
+
+    if (prevFirst) {
+      await page
+        .waitForFunction(
+          (prev: string) => {
+            const cur = (document.querySelector('input[name="checkFlag"]') as HTMLInputElement | null)?.value || ''
+            return !!cur && cur !== prev
+          },
+          prevFirst,
+          { timeout: 8000 },
+        )
+        .catch(() => undefined)
+    } else {
+      await page.waitForTimeout(600)
+    }
+  }
+
+  private async _readPagingMeta(page: Page): Promise<{ itemsPerPage: number; totalResults: number }> {
+    const meta = await page.evaluate(() => {
+      const clean = (s: string) =>
+        (s || '')
+          .replace(/\u00A0/g, ' ')
+          .replace(/\s+/g, ' ')
+          .trim()
+      const parseNum = (s: string) => {
+        const digits = (s || '').replace(/[^\d]/g, '')
+        const n = digits ? Number(digits) : 0
+        return Number.isFinite(n) ? n : 0
+      }
+
+      let itemsPerPage = 50
+      const perPageSelect = document.querySelector('#viewCountSelector') as HTMLSelectElement | null
+      if (perPageSelect) {
+        const selected = perPageSelect.options[perPageSelect.selectedIndex]
+        const txt = clean(selected?.textContent || selected?.value || '')
+        const m = txt.match(/(\d+)\s*개씩보기/)
+        if (m?.[1]) itemsPerPage = parseNum(m[1]) || itemsPerPage
+      }
+
+      let totalResults = 0
+      const h1 = document.querySelector('.srchrst_area h1') as HTMLElement | null
+      const h1Text = clean(h1?.textContent || '')
+      const m = h1Text.match(/총\s*([0-9,]+)\s*건/)
+      if (m?.[1]) totalResults = parseNum(m[1])
+
+      return { itemsPerPage, totalResults }
+    })
+
+    return {
+      itemsPerPage: Math.max(1, Math.min(meta.itemsPerPage || 50, 200)),
+      totalResults: Math.max(0, meta.totalResults || 0),
+    }
+  }
+
+  private async _movePage(page: Page, offset: number): Promise<void> {
+    const prevFirst = await page
+      .evaluate(() => (document.querySelector('input[name="checkFlag"]') as HTMLInputElement | null)?.value || '')
+      .catch(() => '')
+
+    await Promise.all([
+      page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 8000 }).catch(() => undefined),
+      page.evaluate((off: number) => {
+        const w = window as any
+        if (typeof w.movePage === 'function') {
+          try {
+            w.movePage('delivery', String(off))
+            return true
+          } catch {}
+        }
+        const anchors = Array.from(document.querySelectorAll('.paginate2 a')) as HTMLAnchorElement[]
+        const found = anchors.find(a => {
+          const href = a.getAttribute('href') || ''
+          return href.includes('movePage') && href.includes('delivery') && href.includes(String(off))
+        })
+        found?.click()
+        return true
+      }, offset),
+    ])
+
+    if (prevFirst) {
+      await page
+        .waitForFunction(
+          (prev: string) => {
+            const cur = (document.querySelector('input[name="checkFlag"]') as HTMLInputElement | null)?.value || ''
+            return !!cur && cur !== prev
+          },
+          prevFirst,
+          { timeout: 8000 },
+        )
+        .catch(() => undefined)
+    } else {
+      await page.waitForTimeout(600)
+    }
+  }
+
+  private async _setViewCount(page: Page, viewCount: 10 | 20 | 30 | 40 | 50): Promise<void> {
+    await page.waitForLoadState('domcontentloaded')
+    const prevFirst = await page
+      .evaluate(() => (document.querySelector('input[name="checkFlag"]') as HTMLInputElement | null)?.value || '')
+      .catch(() => '')
+
+    await Promise.all([
+      page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 8000 }).catch(() => undefined),
+      page.evaluate((count: number) => {
+        const sel = document.querySelector('#viewCountSelector') as HTMLSelectElement | null
+        if (!sel) return false
+        sel.value = String(count)
+        sel.dispatchEvent(new Event('change', { bubbles: true }))
+        const w = window as any
+        const fnCandidates = ['setRowCount', 'setRowCount2', 'changeViewCount', 'viewCountChange']
+        for (const name of fnCandidates) {
+          try {
+            if (typeof w[name] === 'function') w[name]()
+          } catch {}
+        }
+        return true
+      }, viewCount),
+    ])
+
+    if (prevFirst) {
+      await page
+        .waitForFunction(
+          (prev: string) => {
+            const cur = (document.querySelector('input[name="checkFlag"]') as HTMLInputElement | null)?.value || ''
+            return !!cur && cur !== prev
+          },
+          prevFirst,
+          { timeout: 8000 },
+        )
+        .catch(() => undefined)
+    } else {
+      await page.waitForTimeout(600)
+    }
   }
 
   async collectList(

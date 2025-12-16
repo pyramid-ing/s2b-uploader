@@ -31,6 +31,31 @@ export interface Scraper {
     vendor: VendorConfig,
   ): Promise<{ name: string; url: string; price?: number; listThumbnail?: string }[]>
 
+  /**
+   * (Optional) Vendor-specific navigation for detail pages.
+   * Some vendors (e.g. S2B) don't have a real detail URL and require in-page search/click flows.
+   */
+  navigateToDetail?: (page: Page, vendor: VendorConfig, urlOrId: string) => Promise<void>
+
+  /**
+   * (Optional) Vendor-specific "filtered list" collection.
+   * Used by School Jangteo (S2B) for keyword/sort/pagination/price-range filters.
+   */
+  collectFilteredList?: (
+    page: Page,
+    vendor: VendorConfig,
+    params: {
+      keyword: string
+      minPrice?: number
+      maxPrice?: number
+      maxCount?: number
+      sortCode?: 'RANK' | 'PCAC' | 'CERT' | 'TRUST' | 'DATE' | 'PCDC' | 'REVIEW_COUNT'
+      viewCount?: 10 | 20 | 30 | 40 | 50
+      pageDelayMs?: number
+    },
+    log?: (message: string, level?: 'info' | 'warning' | 'error') => void,
+  ) => Promise<{ name: string; url: string; price?: number; listThumbnail?: string; vendor?: string }[]>
+
   extractBasicInfo(page: Page, vendorKey: VendorKey, vendor: VendorConfig): Promise<ExtractedBasicInfo>
 
   collectThumbnails(page: Page, vendor: VendorConfig, productDir?: string): Promise<string[]>
