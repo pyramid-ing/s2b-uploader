@@ -444,6 +444,62 @@ function setupIpcHandlers() {
     }
   })
 
+  // 소싱(학교장터): 키워드 + 금액 범위 + 최대 갯수로 자동 페이지네이션하며 목록 수집
+  ipcMain.handle(
+    'sourcing-s2b-filter-search',
+    async (
+      _,
+      {
+        keyword,
+        minPrice,
+        maxPrice,
+        maxCount,
+        sortCode,
+        viewCount,
+      }: {
+        keyword: string
+        minPrice?: number
+        maxPrice?: number
+        maxCount?: number
+        sortCode?: 'RANK' | 'PCAC' | 'CERT' | 'TRUST' | 'DATE' | 'PCDC' | 'REVIEW_COUNT'
+        viewCount?: 10 | 20 | 30 | 40 | 50
+      },
+    ) => {
+      try {
+        const settings = store.get('settings')
+        const configSets = (store.get('configSets') || []) as ConfigSet[]
+        const activeConfigSetId = store.get('activeConfigSetId')
+        const activeConfigSet = configSets.find(cs => cs.id === activeConfigSetId) || configSets.find(cs => cs.isActive)
+
+        if (!sourcing) {
+          sourcing = new S2BSourcing(settings.fileDir, sendLogToRenderer, settings.headless, settings, activeConfigSet)
+        }
+        sourcing.setConfigSet(activeConfigSet)
+        await sourcing.launch()
+
+        // 학교장터 검색 페이지로 이동(필요 시)
+        const s2bSearchUrl = 'https://www.s2b.kr/S2BNCustomer/S2B/scrweb/remu/rema/searchengine/s2bCustomerSearch.jsp'
+        if (!sourcing.getCurrentUrl().includes('/S2B/scrweb/remu/rema/searchengine/s2bCustomerSearch.jsp')) {
+          await sourcing.openUrl(s2bSearchUrl)
+        }
+
+        const items = await sourcing.collectS2BFilteredList({
+          keyword,
+          minPrice,
+          maxPrice,
+          maxCount,
+          sortCode,
+          viewCount,
+        })
+        return { success: true, items }
+      } catch (error: any) {
+        console.error('Error s2b filter search:', error)
+        sendLogToRenderer(`학교장터 필터검색 실패: ${error?.message || '알 수 없는 오류'}`, 'error')
+        return { success: false, error: error?.message || '학교장터 필터검색 실패' }
+      }
+    },
+  )
+
   // 현재 브라우저 탭에서 보이는 목록 수집 (특정 URL 전달)
   ipcMain.handle('sourcing-collect-list', async (_, { url }: { url: string }) => {
     try {

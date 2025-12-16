@@ -103,6 +103,51 @@ export const useSourcing = () => {
     [],
   )
 
+  // 학교장터: 키워드 + 금액범위 + 최대갯수로 자동 페이지네이션 수집
+  const fetchS2BFilteredSearch = useRecoilCallback(
+    ({ set, snapshot }) =>
+      async (params: {
+        keyword: string
+        minPrice?: number
+        maxPrice?: number
+        maxCount?: number
+        sortCode?: 'RANK' | 'PCAC' | 'CERT' | 'TRUST' | 'DATE' | 'PCDC' | 'REVIEW_COUNT'
+        viewCount?: 10 | 20 | 30 | 40 | 50
+      }) => {
+        try {
+          const currentItems = await snapshot.getPromise(sourcingItemsState)
+          const res = await ipcRenderer.invoke('sourcing-s2b-filter-search', params)
+          if (!res?.success) throw new Error(res?.error || '필터검색 실패')
+
+          const mapped: SourcingItem[] = (res.items || []).map((it: any, idx: number) => ({
+            key: `${Date.now()}-${idx}`,
+            name: it.name,
+            url: it.url,
+            vendor: it.vendor,
+            price: it.price || 0,
+            listThumbnail: it.listThumbnail,
+          }))
+
+          set(sourcingItemsState, prev => {
+            const existingUrls = new Set(prev.map(item => item.url))
+            const newItems = mapped.filter(item => !existingUrls.has(item.url))
+
+            if (newItems.length === 0) {
+              message.info('조건에 맞는 새로운 제품이 없습니다.')
+              return prev
+            }
+
+            // 필터검색은 새로 뽑은 결과를 위에 쌓는 쪽이 UX가 좋음
+            message.success(`학교장터 필터검색: ${newItems.length}개 제품을 가져왔습니다.`)
+            return [...newItems, ...prev]
+          })
+        } catch (e: any) {
+          message.error(e?.message || '학교장터 필터검색 중 오류가 발생했습니다.')
+        }
+      },
+    [],
+  )
+
   // URL로 1개 제품 가져오기
   const fetchOneByUrl = useRecoilCallback(
     ({ set, snapshot }) =>
@@ -326,6 +371,7 @@ export const useSourcing = () => {
     loadSettings,
     saveSettings,
     fetchCurrentPage,
+    fetchS2BFilteredSearch,
     fetchOneByUrl,
     deleteItem,
     requestRegister,

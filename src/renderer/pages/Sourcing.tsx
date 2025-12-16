@@ -8,6 +8,7 @@ import {
   Divider,
   Form,
   Input,
+  InputNumber,
   message,
   Modal,
   Select,
@@ -48,11 +49,20 @@ const VENDORS = [
 ]
 
 const currency = (value: number) => value.toLocaleString('ko-KR')
+const S2B_DEFAULT_MAX_PRICE = 999_999_999
 
 const Sourcing: React.FC = () => {
   const [form] = Form.useForm()
   const [vendor, setVendor] = useState<string>(VENDORS[0].value)
   const [urlInput, setUrlInput] = useState<string>('')
+  const [s2bKeyword, setS2bKeyword] = useState<string>('')
+  const [s2bKeywordInvalid, setS2bKeywordInvalid] = useState<boolean>(false)
+  const [s2bMinPrice, setS2bMinPrice] = useState<number | null>(null)
+  const [s2bMaxPrice, setS2bMaxPrice] = useState<number | null>(S2B_DEFAULT_MAX_PRICE)
+  const [s2bMaxCount, setS2bMaxCount] = useState<number>(50)
+  const [s2bSortCode, setS2bSortCode] = useState<'PCAC' | 'RANK' | 'CERT' | 'TRUST' | 'DATE' | 'PCDC' | 'REVIEW_COUNT'>(
+    'RANK',
+  )
   const [loading, setLoading] = useState(false)
   const [listLoading, setListLoading] = useState(false)
   const [credits, setCredits] = useState<number | null>(null)
@@ -74,6 +84,7 @@ const Sourcing: React.FC = () => {
     loadSettings,
     saveSettings,
     fetchCurrentPage,
+    fetchS2BFilteredSearch,
     fetchOneByUrl,
     deleteItem,
     requestRegister,
@@ -273,6 +284,29 @@ const Sourcing: React.FC = () => {
     }
   }
 
+  const handleS2BFilterSearch = async () => {
+    const keyword = (s2bKeyword || '').trim()
+    if (!keyword) {
+      setS2bKeywordInvalid(true)
+      message.warning('학교장터 검색어는 필수입니다.')
+      return
+    }
+    setS2bKeywordInvalid(false)
+    try {
+      setListLoading(true)
+      await fetchS2BFilteredSearch({
+        keyword,
+        minPrice: typeof s2bMinPrice === 'number' ? s2bMinPrice : undefined,
+        maxPrice: typeof s2bMaxPrice === 'number' ? s2bMaxPrice : undefined,
+        maxCount: s2bMaxCount,
+        sortCode: s2bSortCode,
+        viewCount: 50,
+      })
+    } finally {
+      setListLoading(false)
+    }
+  }
+
   const handleOpenVendorSite = async () => {
     try {
       setLoading(true)
@@ -429,6 +463,91 @@ const Sourcing: React.FC = () => {
                 현재페이지 제품 가져오기 (자동)
               </Button>
             </Form.Item>
+            {vendor === 's2b' && (
+              <>
+                <div
+                  style={{
+                    width: '100%',
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    gap: 12,
+                    alignItems: 'end',
+                    marginTop: 8,
+                    paddingTop: 8,
+                    borderTop: '1px solid #f0f0f0',
+                  }}
+                >
+                  <Form.Item label="학교장터 키워드" style={{ marginBottom: 0 }}>
+                    <Input
+                      placeholder="예: 노트북"
+                      style={{ width: 220 }}
+                      value={s2bKeyword}
+                      onChange={e => {
+                        const v = e.target.value
+                        setS2bKeyword(v)
+                        if (s2bKeywordInvalid && v.trim().length > 0) setS2bKeywordInvalid(false)
+                      }}
+                      onPressEnter={handleS2BFilterSearch}
+                      status={s2bKeywordInvalid && (s2bKeyword || '').trim().length === 0 ? 'error' : undefined}
+                    />
+                  </Form.Item>
+                  <Form.Item label="금액(최소)" style={{ marginBottom: 0 }}>
+                    <InputNumber
+                      style={{ width: 140 }}
+                      min={0}
+                      max={S2B_DEFAULT_MAX_PRICE}
+                      value={s2bMinPrice}
+                      onChange={v => setS2bMinPrice(typeof v === 'number' ? v : null)}
+                      placeholder="0"
+                    />
+                  </Form.Item>
+                  <Form.Item label="금액(최대)" style={{ marginBottom: 0 }}>
+                    <InputNumber
+                      style={{ width: 160 }}
+                      min={0}
+                      max={S2B_DEFAULT_MAX_PRICE}
+                      value={s2bMaxPrice}
+                      onChange={v => setS2bMaxPrice(typeof v === 'number' ? v : S2B_DEFAULT_MAX_PRICE)}
+                    />
+                  </Form.Item>
+                  <Form.Item label="최대갯수" style={{ marginBottom: 0 }}>
+                    <InputNumber
+                      style={{ width: 120 }}
+                      min={1}
+                      max={5000}
+                      value={s2bMaxCount}
+                      onChange={v => setS2bMaxCount(typeof v === 'number' ? v : 50)}
+                    />
+                  </Form.Item>
+                  <Form.Item label="정렬" style={{ marginBottom: 0 }}>
+                    <Select
+                      style={{ width: 160 }}
+                      value={s2bSortCode}
+                      onChange={v => setS2bSortCode(v)}
+                      options={[
+                        { label: '낮은 금액순', value: 'PCAC' },
+                        { label: '정확도순', value: 'RANK' },
+                        { label: '인증 많은순', value: 'CERT' },
+                        { label: '계약이행신뢰도순', value: 'TRUST' },
+                        { label: '등록순', value: 'DATE' },
+                        { label: '높은 금액순', value: 'PCDC' },
+                        { label: '후기 많은순', value: 'REVIEW_COUNT' },
+                      ]}
+                    />
+                  </Form.Item>
+                  <Form.Item style={{ marginBottom: 0 }}>
+                    <Button
+                      type="primary"
+                      onClick={handleS2BFilterSearch}
+                      loading={listLoading}
+                      disabled={(s2bKeyword || '').trim().length === 0}
+                    >
+                      필터 검색 (자동)
+                    </Button>
+                  </Form.Item>
+                </div>
+              </>
+            )}
             <Divider />
             <Form.Item label="URL">
               <Input

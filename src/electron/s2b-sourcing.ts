@@ -41,6 +41,8 @@ export class S2BSourcing extends S2BBase {
   private baseFilePath: string
   private settings: any
   private configSet?: ConfigSet
+  private static readonly S2B_SEARCH_URL =
+    'https://www.s2b.kr/S2BNCustomer/S2B/scrweb/remu/rema/searchengine/s2bCustomerSearch.jsp'
 
   constructor(
     baseImagePath: string,
@@ -84,6 +86,91 @@ export class S2BSourcing extends S2BBase {
       await this.page.goto(targetUrl, { waitUntil: 'domcontentloaded' })
     }
     return await scraper.collectList(this.page, vendor)
+  }
+
+  public async collectS2BFilteredList(params: {
+    keyword: string
+    minPrice?: number
+    maxPrice?: number
+    maxCount?: number
+    sortCode?: 'RANK' | 'PCAC' | 'CERT' | 'TRUST' | 'DATE' | 'PCDC' | 'REVIEW_COUNT'
+    viewCount?: 10 | 20 | 30 | 40 | 50
+  }): Promise<{ name: string; url: string; price?: number; listThumbnail?: string; vendor?: string }[]> {
+    if (!this.page) throw new Error('Browser page not initialized')
+
+    const maxCount = Math.max(1, Math.min(Number(params.maxCount || 100), 5000))
+    const minPrice = typeof params.minPrice === 'number' ? params.minPrice : undefined
+    const maxPrice = typeof params.maxPrice === 'number' ? params.maxPrice : undefined
+
+    // 1) 검색 페이지에서 키워드 검색 실행 (#searchQuery 우선)
+    const keyword = (params.keyword || '').toString().trim()
+    if (!keyword) throw new Error('학교장터 검색어는 필수입니다.')
+    this._log(`학교장터 필터검색 시작: "${keyword}"`, 'info')
+    await this._s2bRunSearch(keyword)
+
+    // 2) 보기 개수: 페이지당은 UI에서 노출하지 않고 "50개 고정"으로 동작한다.
+    // (혹시 외부에서 viewCount를 넘겨도 무시하지 않고, 값이 없으면 50으로 처리)
+    await this._s2bSetViewCount(params.viewCount || 50)
+
+    // 3) 정렬 적용 (기본: 정확도순 RANK)
+    await this._s2bApplySort(params.sortCode || 'RANK')
+
+    // 4) 페이지당 개수/총 건수 추출
+    const { itemsPerPage, totalResults } = await this._s2bReadPagingMeta()
+    const totalPages = Math.max(1, Math.ceil(totalResults / itemsPerPage))
+    this._log(`학교장터 검색결과: 총 ${totalResults.toLocaleString('ko-KR')}건, 페이지당 ${itemsPerPage}개`, 'info')
+
+    // 5) 페이지네이션 하면서 목록 수집 + 가격 필터링
+    const vendorKey = VendorKey.학교장터
+    const vendor = VENDOR_CONFIG[vendorKey]
+    const scraper = this._getScraper(vendorKey)
+    if (!scraper) throw new Error('학교장터 스크래퍼를 찾을 수 없습니다.')
+
+    const collected: { name: string; url: string; price?: number; listThumbnail?: string; vendor?: string }[] = []
+    const seen = new Set<string>()
+
+    const inRange = (price?: number): boolean => {
+      if (typeof price !== 'number' || !Number.isFinite(price)) return false
+      if (typeof minPrice === 'number' && price < minPrice) return false
+      if (typeof maxPrice === 'number' && price > maxPrice) return false
+      return true
+    }
+
+    for (let pageIndex = 0; pageIndex < totalPages; pageIndex++) {
+      if (collected.length >= maxCount) break
+
+      if (pageIndex > 0) {
+        const offset = pageIndex * itemsPerPage
+        await this._s2bMovePage(offset)
+      }
+
+      const list = await scraper.collectList(this.page, vendor)
+      const pageMinPrice = list.map(v => v.price).find(v => typeof v === 'number' && Number.isFinite(v)) as
+        | number
+        | undefined
+
+      for (const it of list) {
+        if (!it?.url || seen.has(it.url)) continue
+        if (!inRange(it.price)) continue
+        seen.add(it.url)
+        collected.push(it)
+        if (collected.length >= maxCount) break
+      }
+
+      // 낮은 금액순 정렬 상태에서, 페이지 최저가가 maxPrice를 넘으면 이후 페이지도 모두 범위 밖일 가능성이 높다.
+      if (typeof maxPrice === 'number' && typeof pageMinPrice === 'number' && pageMinPrice > maxPrice) {
+        this._log(`학교장터 필터검색 조기 종료: 페이지 최저가(${pageMinPrice})가 maxPrice(${maxPrice}) 초과`, 'info')
+        break
+      }
+
+      this._log(
+        `학교장터 필터검색 진행: ${pageIndex + 1}/${totalPages}페이지, 조건 일치 ${collected.length}/${maxCount}개`,
+        'info',
+      )
+    }
+
+    this._log(`학교장터 필터검색 완료: ${collected.length}개 수집`, 'info')
+    return collected
   }
 
   public async collectNormalizedDetailForUrls(urls: string[], optionHandling?: 'split' | 'single') {
@@ -213,50 +300,383 @@ export class S2BSourcing extends S2BBase {
   private async _navigateToUrl(url: string, vendorKey: VendorKey | null): Promise<void> {
     if (!this.page) throw new Error('Browser page not initialized')
 
-    // 학교장터(S2B): 목록에서 JS 링크(goViewPage)로 상세 이동하는 경우가 많아,
-    // "해시로 상품ID를 전달"하는 내부 URL을 지원한다.
-    // 예) https://www.s2b.kr/.../s2bCustomerSearch.jsp#goodsId=202312187751728
     if (vendorKey === VendorKey.학교장터) {
-      try {
-        const u = new URL(url)
-        const hash = (u.hash || '').replace(/^#/, '')
-        const params = new URLSearchParams(hash)
-        const goodsId = params.get('goodsId')
-        if (goodsId) {
-          const searchBase = `${u.origin}/S2BNCustomer/S2B/scrweb/remu/rema/searchengine/s2bCustomerSearch.jsp`
+      const goodsId = this._extractS2BGoodsId(url)
+      if (goodsId) {
+        await this.page.goto(S2BSourcing.S2B_SEARCH_URL, { waitUntil: 'domcontentloaded' })
 
-          // 검색 페이지로 이동(또는 유지)
-          if (!this.page.url().includes('/S2B/scrweb/remu/rema/searchengine/s2bCustomerSearch.jsp')) {
-            await this.page.goto(searchBase, { waitUntil: 'domcontentloaded' })
-          }
+        // S2B 상세 진입은 "S2B물품번호"로 검색한 뒤, 결과의 첫번째 항목을 클릭하는 방식으로 수행한다.
+        // (goViewPage 직접 호출 방식은 window 컨텍스트/로드 타이밍 문제로 실패할 수 있음)
+        await this._s2bOpenFirstResultByGoodsId(goodsId)
 
-          // 페이지 내 goViewPage 호출로 상세 이동
-          await Promise.all([
-            this.page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 20000 }).catch(() => undefined),
-            this.page.evaluate((id: string) => {
-              const w = window as any
-              if (typeof w.goViewPage === 'function') {
-                w.goViewPage(id)
-                return
-              }
-
-              // 폴백: 링크 클릭 시도
-              const escaped = id.replace(/'/g, "\\'")
-              const a =
-                document.querySelector(`a[href="javascript:goViewPage('${escaped}')"]`) ||
-                document.querySelector(`a[href*="goViewPage('${escaped}')"]`)
-              ;(a as HTMLElement | null)?.click()
-            }, goodsId),
-          ])
-
-          return
-        }
-      } catch {
-        // fallthrough
+        return
       }
     }
 
     await this.page.goto(url, { waitUntil: 'domcontentloaded' })
+  }
+
+  private async _s2bOpenFirstResultByGoodsId(goodsId: string): Promise<void> {
+    if (!this.page) throw new Error('Browser page not initialized')
+    const id = (goodsId || '').trim()
+    if (!id) throw new Error('학교장터 물품번호가 비어있습니다.')
+
+    // 0) 검색 타입을 "S2B물품번호"로 설정 (1) 박스 클릭 -> (2) 옵션 클릭
+    await this._s2bEnsureSearchTypeS2BGoodsId()
+
+    // 1) 검색 타입을 "S2B물품번호"로 맞추고, 검색창에 물품번호 입력 후 검색 실행
+    const didSearch = await this.page
+      .evaluate((q: string) => {
+        const clean = (s: string) =>
+          (s || '')
+            .replace(/\u00A0/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim()
+        const setValue = (input: HTMLInputElement, v: string) => {
+          input.value = v
+          input.dispatchEvent(new Event('input', { bubbles: true }))
+          input.dispatchEvent(new Event('change', { bubbles: true }))
+        }
+
+        const input = document.querySelector('#searchQuery') as HTMLInputElement | null
+        if (!input) return false
+        setValue(input, q)
+
+        // 검색 버튼 클릭: #mainSearchButton (요청사항)
+        const mainBtn = document.querySelector('#mainSearchButton') as HTMLElement | null
+        if (mainBtn) {
+          mainBtn.click()
+        } else {
+          // 폴백: 엔터 키 이벤트
+          input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+        }
+        return true
+      }, id)
+      .catch(() => false)
+
+    if (!didSearch) throw new Error('학교장터 검색 입력 요소(#searchQuery)를 찾을 수 없습니다.')
+
+    // 2) 결과가 로딩될 때까지 대기: 목록의 첫 행(상품) 앵커가 나타나면 OK
+    await this.page
+      .waitForFunction(
+        () => {
+          const a = document.querySelector('.nutresult table tbody tr ul.obj_name li.l01 a') as HTMLAnchorElement | null
+          return !!a
+        },
+        { timeout: 20000 },
+      )
+      .catch(() => undefined)
+
+    // 3) 첫번째 결과 클릭 → 상세 진입(페이지 네비게이션 또는 DOM 전환)
+    await Promise.all([
+      this.page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 20000 }).catch(() => undefined),
+      this.page.evaluate(() => {
+        const first =
+          (document.querySelector('.nutresult table tbody tr ul.obj_name li.l01 a') as HTMLAnchorElement | null) ||
+          (document.querySelector('.nutresult table tbody tr a[href*="goViewPage"]') as HTMLAnchorElement | null)
+        if (!first) throw new Error('학교장터 검색 결과(첫번째 항목)를 찾을 수 없습니다.')
+        first.click()
+      }),
+    ])
+  }
+
+  private async _s2bEnsureSearchTypeS2BGoodsId(): Promise<void> {
+    if (!this.page) throw new Error('Browser page not initialized')
+    await this.page.waitForLoadState('domcontentloaded')
+
+    const current = await this.page
+      .evaluate(() => (document.querySelector('#selectName') as HTMLElement | null)?.textContent || '')
+      .catch(() => '')
+    if ((current || '').replace(/\s+/g, ' ').trim() === 'S2B물품번호') return
+
+    // 1) box 클릭 (드롭다운/레이어 오픈)
+    await this.page.evaluate(() => {
+      const box = document.querySelector('#selectName') as HTMLElement | null
+      ;(box as HTMLElement | null)?.click()
+    })
+
+    // 2) 목록 컨테이너(#fieldSelector) 오픈 및 옵션(#GOODS_CODE) 등장 대기
+    await this.page
+      .waitForFunction(
+        () => {
+          const container = document.querySelector('#fieldSelector') as HTMLElement | null
+          const visible = !!container && container.style.display !== 'none'
+          const opt = document.querySelector('#fieldSelector a#GOODS_CODE') as HTMLAnchorElement | null
+          return visible && !!opt
+        },
+        { timeout: 8000 },
+      )
+      .catch(() => undefined)
+
+    // 3) 옵션 클릭: <div id="fieldSelector"> ... <a id="GOODS_CODE">S2B물품번호</a>
+    await this.page.evaluate(() => {
+      const opt = document.querySelector('#fieldSelector a#GOODS_CODE') as HTMLAnchorElement | null
+      opt?.click()
+    })
+
+    // 값 반영 약간 대기 (레이어 기반 UI 대응)
+    await this.page.waitForTimeout(200)
+  }
+
+  private _extractS2BGoodsId(url: string): string | null {
+    const raw = (url || '').toString().trim()
+    if (!raw) return null
+
+    // 1) javascript:goViewPage('202306016498434');
+    const js = raw.match(/goViewPage\(\s*'([^']+)'\s*\)/i)
+    if (js?.[1]) return js[1].trim()
+
+    // 2) SEARCH_URL#goodsId=...
+    try {
+      const u = new URL(raw)
+      const hash = (u.hash || '').replace(/^#/, '')
+      const params = new URLSearchParams(hash)
+      const goodsId = params.get('goodsId')
+      if (goodsId) return goodsId.trim()
+
+      // 3) ?goodsId=... (혹시 모를 케이스)
+      const q = u.searchParams.get('goodsId')
+      if (q) return q.trim()
+    } catch {
+      // ignore
+    }
+
+    // 4) 숫자만 들어온 경우(사용자 입력)
+    if (/^\d{8,}$/.test(raw)) return raw
+
+    return null
+  }
+
+  private async _s2bRunSearch(keyword: string): Promise<void> {
+    if (!this.page) throw new Error('Browser page not initialized')
+
+    // 검색어 입력/검색 실행: 메인 검색창(#searchQuery) 우선 사용
+    await this.page.waitForLoadState('domcontentloaded')
+
+    const ok = await this.page
+      .evaluate((q: string) => {
+        const setValue = (input: HTMLInputElement) => {
+          input.value = q
+          input.dispatchEvent(new Event('input', { bubbles: true }))
+          input.dispatchEvent(new Event('change', { bubbles: true }))
+        }
+
+        // 1) 메인 검색창
+        const mainInput = document.querySelector('#searchQuery') as HTMLInputElement | null
+        if (mainInput) {
+          setValue(mainInput)
+
+          // 검색 실행: 함수 후보 호출 없이, UI 트리거(버튼 클릭/엔터)로만 실행
+          const row = mainInput.closest('tr')
+          const imgBtn = (row?.querySelector('img[style*="cursor"]') || row?.querySelector('img')) as HTMLElement | null
+          imgBtn?.click()
+          // 최후 폴백: 엔터 키 이벤트
+          mainInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+          return true
+        }
+
+        // 2) 결과내 재검색(#searchRequery) 폴백
+        const input = document.querySelector('#searchRequery') as HTMLInputElement | null
+        const btn = document.querySelector('#requeryButton') as HTMLElement | null
+        if (input && btn) {
+          setValue(input)
+          btn.click()
+          return true
+        }
+
+        return false
+      }, keyword)
+      .catch(() => false)
+
+    if (!ok) {
+      throw new Error('학교장터 검색 입력 요소를 찾을 수 없습니다. 검색 결과 페이지에서 다시 시도하세요.')
+    }
+
+    // 검색 결과 반영 대기
+    await this.page.waitForTimeout(800)
+  }
+
+  private async _s2bApplySort(
+    sortCode: 'RANK' | 'PCAC' | 'CERT' | 'TRUST' | 'DATE' | 'PCDC' | 'REVIEW_COUNT',
+  ): Promise<void> {
+    if (!this.page) throw new Error('Browser page not initialized')
+    await this.page.waitForLoadState('domcontentloaded')
+
+    const prevFirst = await this.page
+      .evaluate(() => (document.querySelector('input[name="checkFlag"]') as HTMLInputElement | null)?.value || '')
+      .catch(() => '')
+
+    await Promise.all([
+      this.page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 8000 }).catch(() => undefined),
+      this.page.evaluate((code: string) => {
+        const w = window as any
+        if (typeof w.sorting === 'function') {
+          try {
+            w.sorting(code)
+            return true
+          } catch {}
+        }
+        const anchors = Array.from(document.querySelectorAll('.sort_area .sort_list a')) as HTMLAnchorElement[]
+        const found = anchors.find(a => (a.getAttribute('onclick') || '').includes(`sorting('${code}')`))
+        found?.click()
+        return true
+      }, sortCode),
+    ])
+
+    // DOM 갱신 대기
+    if (prevFirst) {
+      await this.page
+        .waitForFunction(
+          (prev: string) => {
+            const cur = (document.querySelector('input[name="checkFlag"]') as HTMLInputElement | null)?.value || ''
+            return !!cur && cur !== prev
+          },
+          prevFirst,
+          { timeout: 8000 },
+        )
+        .catch(() => undefined)
+    } else {
+      await this.page.waitForTimeout(600)
+    }
+  }
+
+  private async _s2bReadPagingMeta(): Promise<{ itemsPerPage: number; totalResults: number }> {
+    if (!this.page) throw new Error('Browser page not initialized')
+
+    const meta = await this.page.evaluate(() => {
+      const clean = (s: string) =>
+        (s || '')
+          .replace(/\u00A0/g, ' ')
+          .replace(/\s+/g, ' ')
+          .trim()
+      const parseNum = (s: string) => {
+        const digits = (s || '').replace(/[^\d]/g, '')
+        const n = digits ? Number(digits) : 0
+        return Number.isFinite(n) ? n : 0
+      }
+
+      // 페이지당 개수: #viewCountSelector 우선 (없으면 기존 폴백)
+      let itemsPerPage = 50
+      const perPageSelect =
+        (document.querySelector('#viewCountSelector') as HTMLSelectElement | null) ||
+        (() => {
+          const selects = Array.from(document.querySelectorAll('select')) as HTMLSelectElement[]
+          return selects.find(sel =>
+            Array.from(sel.options).some(opt => /\d+개씩보기/.test(clean(opt.textContent || ''))),
+          )
+        })()
+      if (perPageSelect) {
+        const selected = perPageSelect.options[perPageSelect.selectedIndex]
+        const txt = clean(selected?.textContent || selected?.value || '')
+        const m = txt.match(/(\d+)\s*개씩보기/)
+        if (m?.[1]) itemsPerPage = parseNum(m[1]) || itemsPerPage
+      }
+
+      // 총 결과: srchrst_area의 h1 텍스트 "총64,797건"
+      let totalResults = 0
+      const h1 = document.querySelector('.srchrst_area h1') as HTMLElement | null
+      const h1Text = clean(h1?.textContent || '')
+      const m = h1Text.match(/총\s*([0-9,]+)\s*건/)
+      if (m?.[1]) totalResults = parseNum(m[1])
+
+      return { itemsPerPage, totalResults }
+    })
+
+    return {
+      itemsPerPage: Math.max(1, Math.min(meta.itemsPerPage || 50, 200)),
+      totalResults: Math.max(0, meta.totalResults || 0),
+    }
+  }
+
+  private async _s2bMovePage(offset: number): Promise<void> {
+    if (!this.page) throw new Error('Browser page not initialized')
+
+    // 목록 첫번째 ID를 저장해서 페이지 변경을 확인
+    const prevFirst = await this.page
+      .evaluate(() => (document.querySelector('input[name="checkFlag"]') as HTMLInputElement | null)?.value || '')
+      .catch(() => '')
+
+    await Promise.all([
+      // 일부 페이지는 hash/submit으로 갱신되어 navigation 이벤트가 없을 수 있으니, waitForFunction도 병행
+      this.page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 8000 }).catch(() => undefined),
+      this.page.evaluate((off: number) => {
+        const w = window as any
+        // 우선 movePage('delivery', '10') 형태 지원
+        if (typeof w.movePage === 'function') {
+          try {
+            w.movePage('delivery', String(off))
+            return true
+          } catch {}
+        }
+        // 폴백: 페이지네이션 링크 클릭
+        const anchors = Array.from(document.querySelectorAll('.paginate2 a')) as HTMLAnchorElement[]
+        const found = anchors.find(a => {
+          const href = a.getAttribute('href') || ''
+          return href.includes('movePage') && href.includes('delivery') && href.includes(String(off))
+        })
+        found?.click()
+        return true
+      }, offset),
+    ])
+
+    // DOM 갱신 대기 (first goodsId 변경)
+    if (prevFirst) {
+      await this.page
+        .waitForFunction(
+          (prev: string) => {
+            const cur = (document.querySelector('input[name="checkFlag"]') as HTMLInputElement | null)?.value || ''
+            return !!cur && cur !== prev
+          },
+          prevFirst,
+          { timeout: 8000 },
+        )
+        .catch(() => undefined)
+    } else {
+      await this.page.waitForTimeout(600)
+    }
+  }
+
+  private async _s2bSetViewCount(viewCount: 10 | 20 | 30 | 40 | 50): Promise<void> {
+    if (!this.page) throw new Error('Browser page not initialized')
+    await this.page.waitForLoadState('domcontentloaded')
+
+    const prevFirst = await this.page
+      .evaluate(() => (document.querySelector('input[name="checkFlag"]') as HTMLInputElement | null)?.value || '')
+      .catch(() => '')
+
+    await Promise.all([
+      this.page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 8000 }).catch(() => undefined),
+      this.page.evaluate((count: number) => {
+        const sel = document.querySelector('#viewCountSelector') as HTMLSelectElement | null
+        if (!sel) return false
+        sel.value = String(count)
+        sel.dispatchEvent(new Event('change', { bubbles: true }))
+        // 일부 구현은 onchange 핸들러 없이도 서버 submit/스크립트로 동작할 수 있어, window 함수를 시도
+        const w = window as any
+        const fnCandidates = ['setRowCount', 'setRowCount2', 'changeViewCount', 'viewCountChange']
+        for (const name of fnCandidates) {
+          try {
+            if (typeof w[name] === 'function') w[name]()
+          } catch {}
+        }
+        return true
+      }, viewCount),
+    ])
+
+    if (prevFirst) {
+      await this.page
+        .waitForFunction(
+          (prev: string) => {
+            const cur = (document.querySelector('input[name="checkFlag"]') as HTMLInputElement | null)?.value || ''
+            return !!cur && cur !== prev
+          },
+          prevFirst,
+          { timeout: 8000 },
+        )
+        .catch(() => undefined)
+    } else {
+      await this.page.waitForTimeout(600)
+    }
   }
 
   private _sanitizeFileName(name: string): string {
