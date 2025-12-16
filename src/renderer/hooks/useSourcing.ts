@@ -113,6 +113,7 @@ export const useSourcing = () => {
         maxCount?: number
         sortCode?: 'RANK' | 'PCAC' | 'CERT' | 'TRUST' | 'DATE' | 'PCDC' | 'REVIEW_COUNT'
         viewCount?: 10 | 20 | 30 | 40 | 50
+        pageDelayMs?: number
       }) => {
         try {
           const currentItems = await snapshot.getPromise(sourcingItemsState)

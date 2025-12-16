@@ -50,6 +50,7 @@ const VENDORS = [
 
 const currency = (value: number) => value.toLocaleString('ko-KR')
 const S2B_DEFAULT_MAX_PRICE = 999_999_999
+const S2B_DEFAULT_PAGE_DELAY_SEC = 1
 
 const Sourcing: React.FC = () => {
   const [form] = Form.useForm()
@@ -63,6 +64,7 @@ const Sourcing: React.FC = () => {
   const [s2bSortCode, setS2bSortCode] = useState<'PCAC' | 'RANK' | 'CERT' | 'TRUST' | 'DATE' | 'PCDC' | 'REVIEW_COUNT'>(
     'RANK',
   )
+  const [s2bPageDelaySec, setS2bPageDelaySec] = useState<number>(S2B_DEFAULT_PAGE_DELAY_SEC)
   const [loading, setLoading] = useState(false)
   const [listLoading, setListLoading] = useState(false)
   const [credits, setCredits] = useState<number | null>(null)
@@ -301,6 +303,7 @@ const Sourcing: React.FC = () => {
         maxCount: s2bMaxCount,
         sortCode: s2bSortCode,
         viewCount: 50,
+        pageDelayMs: Math.max(0, Math.round((Number(s2bPageDelaySec) || 0) * 1000)),
       })
     } finally {
       setListLoading(false)
@@ -517,6 +520,17 @@ const Sourcing: React.FC = () => {
                       max={5000}
                       value={s2bMaxCount}
                       onChange={v => setS2bMaxCount(typeof v === 'number' ? v : 50)}
+                    />
+                  </Form.Item>
+                  <Form.Item label="페이지 딜레이(초)" style={{ marginBottom: 0 }}>
+                    <InputNumber
+                      style={{ width: 150 }}
+                      min={0}
+                      max={60}
+                      step={1}
+                      precision={0}
+                      value={s2bPageDelaySec}
+                      onChange={v => setS2bPageDelaySec(typeof v === 'number' ? v : S2B_DEFAULT_PAGE_DELAY_SEC)}
                     />
                   </Form.Item>
                   <Form.Item label="정렬" style={{ marginBottom: 0 }}>

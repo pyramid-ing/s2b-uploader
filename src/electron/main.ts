@@ -456,6 +456,7 @@ function setupIpcHandlers() {
         maxCount,
         sortCode,
         viewCount,
+        pageDelayMs,
       }: {
         keyword: string
         minPrice?: number
@@ -463,6 +464,7 @@ function setupIpcHandlers() {
         maxCount?: number
         sortCode?: 'RANK' | 'PCAC' | 'CERT' | 'TRUST' | 'DATE' | 'PCDC' | 'REVIEW_COUNT'
         viewCount?: 10 | 20 | 30 | 40 | 50
+        pageDelayMs?: number
       },
     ) => {
       try {
@@ -490,6 +492,7 @@ function setupIpcHandlers() {
           maxCount,
           sortCode,
           viewCount,
+          pageDelayMs,
         })
         return { success: true, items }
       } catch (error: any) {

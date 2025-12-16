@@ -95,12 +95,14 @@ export class S2BSourcing extends S2BBase {
     maxCount?: number
     sortCode?: 'RANK' | 'PCAC' | 'CERT' | 'TRUST' | 'DATE' | 'PCDC' | 'REVIEW_COUNT'
     viewCount?: 10 | 20 | 30 | 40 | 50
+    pageDelayMs?: number
   }): Promise<{ name: string; url: string; price?: number; listThumbnail?: string; vendor?: string }[]> {
     if (!this.page) throw new Error('Browser page not initialized')
 
     const maxCount = Math.max(1, Math.min(Number(params.maxCount || 100), 5000))
     const minPrice = typeof params.minPrice === 'number' ? params.minPrice : undefined
     const maxPrice = typeof params.maxPrice === 'number' ? params.maxPrice : undefined
+    const pageDelayMs = Math.max(0, Math.min(Number(params.pageDelayMs ?? 1000), 60_000))
 
     // 1) 검색 페이지에서 키워드 검색 실행 (#searchQuery 우선)
     const keyword = (params.keyword || '').toString().trim()
@@ -167,6 +169,11 @@ export class S2BSourcing extends S2BBase {
         `학교장터 필터검색 진행: ${pageIndex + 1}/${totalPages}페이지, 조건 일치 ${collected.length}/${maxCount}개`,
         'info',
       )
+
+      // 페이지당 딜레이(기본 1초): 과도한 요청/DOM 갱신 이슈 방지
+      if (pageDelayMs > 0 && pageIndex < totalPages - 1 && collected.length < maxCount) {
+        await this.page.waitForTimeout(pageDelayMs)
+      }
     }
 
     this._log(`학교장터 필터검색 완료: ${collected.length}개 수집`, 'info')
