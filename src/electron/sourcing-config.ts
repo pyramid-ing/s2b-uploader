@@ -2,6 +2,7 @@ export enum VendorKey {
   도매꾹 = '도매꾹',
   도매의신 = '도매의신',
   쿠팡 = '쿠팡',
+  학교장터 = '학교장터',
 }
 
 export interface VendorConfig {
@@ -196,6 +197,16 @@ export const VENDOR_CONFIG: Record<VendorKey, VendorConfig> = {
     url_mode: 'absolute',
     custom_url_prefix: null,
     prefix: 'CPG_',
+  } as VendorConfig,
+  // 학교장터(S2B)는 JS 네비게이션/혼합된 DOM 구조가 많아 Scraper에서 직접 파싱한다.
+  // 여기 설정값은 prefix 등 최소한만 정의한다.
+  [VendorKey.학교장터]: {
+    product_list_xpath: '',
+    product_name_list_xpath: '',
+    product_name_xpath: '',
+    url_mode: 'absolute',
+    custom_url_prefix: 'https://www.s2b.kr',
+    prefix: 'S2B_',
   } as VendorConfig,
 }
 

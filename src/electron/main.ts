@@ -410,6 +410,7 @@ function setupIpcHandlers() {
         domeggook: 'https://www.domeggook.com/',
         domeosin: 'https://www.domesin.com/',
         coupang: 'https://www.coupang.com/',
+        s2b: 'https://www.s2b.kr/S2BNCustomer/S2B/scrweb/remu/rema/searchengine/s2bCustomerSearch.jsp',
       }
 
       const baseUrl = baseUrlMap[vendor]

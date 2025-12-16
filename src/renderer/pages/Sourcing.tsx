@@ -44,6 +44,7 @@ const VENDORS = [
   { label: '도매꾹', value: 'domeggook' },
   { label: '도매의신', value: 'domeosin' },
   { label: '쿠팡', value: 'coupang' },
+  { label: '학교장터', value: 's2b' },
 ]
 
 const currency = (value: number) => value.toLocaleString('ko-KR')

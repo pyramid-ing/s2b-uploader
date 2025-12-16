@@ -9,11 +9,12 @@ import { VENDOR_CONFIG, VendorConfig, VendorKey } from './sourcing-config'
 import DomeggookScraper from './scrapers/DomeggookScraper'
 import DomesinScraper from './scrapers/DomesinScraper'
 import CoupangScraper from './scrapers/CoupangScraper'
+import S2BSchoolScraper from './scrapers/S2BSchoolScraper'
 import type { Scraper } from './scrapers/BaseScraper'
 import { S2BBase } from './s2b-base'
 import { validateKcByCertNum, KcValidationError } from './kc-validator'
 import { envConfig } from './envConfig'
-import { ConfigSet, ExcelRegistrationData } from './types/excel'
+import { ConfigSet, ExcelRegistrationData, TaxType } from './types/excel'
 
 interface SourcingCrawlData {
   url: string
@@ -91,7 +92,7 @@ export class S2BSourcing extends S2BBase {
     for (const url of urls) {
       this._log(`상품 데이터 수집 시작: ${url}`, 'info')
       const { vendorKey, vendor } = this._getVendor(url)
-      await this._navigateToUrl(url)
+      await this._navigateToUrl(url, vendorKey)
       const scraper = this._getScraper(vendorKey)
       if (scraper && (await scraper.checkLoginRequired(this.page))) {
         throw new Error(
@@ -131,8 +132,20 @@ export class S2BSourcing extends S2BBase {
         downloadDir: productDir,
         특성,
       }
-      const aiRefined = await this._refineCrawlWithAI(crawlData)
-      const kcResolved = await this._determineKcFromAI(aiRefined)
+
+      // 학교장터는 n8n(AI 정제/OCR) 호출 없이 크롤링 데이터 그대로 사용한다.
+      // (요청사항: n8n 서버 요청 금지)
+      const aiRefined =
+        vendorKey === VendorKey.학교장터
+          ? this._buildRefinedPayloadWithoutAI(crawlData)
+          : await this._refineCrawlWithAI(crawlData)
+
+      // 학교장터는 외부 KC 검증 호출 없이, 상세 화면의 "인증정보" 텍스트를 기반으로 KC 정보를 채운다.
+      const kcResolved =
+        vendorKey === VendorKey.학교장터
+          ? this._determineKcFromS2BFeatures(crawlData.특성)
+          : await this._determineKcFromAI(aiRefined)
+
       const categoryMapped =
         basicInfo.categories && basicInfo.categories.length >= 3
           ? await this._mapCategories(vendorKey || '', basicInfo.categories)
@@ -168,6 +181,7 @@ export class S2BSourcing extends S2BBase {
       if (host.includes('domeggook')) return VendorKey.도매꾹
       if (host.includes('domesin')) return VendorKey.도매의신
       if (host.includes('coupang')) return VendorKey.쿠팡
+      if (host.includes('s2b.kr')) return VendorKey.학교장터
       return null
     } catch {
       return null
@@ -189,13 +203,59 @@ export class S2BSourcing extends S2BBase {
         return new DomesinScraper()
       case VendorKey.쿠팡:
         return new CoupangScraper()
+      case VendorKey.학교장터:
+        return new S2BSchoolScraper()
       default:
         return null
     }
   }
 
-  private async _navigateToUrl(url: string): Promise<void> {
+  private async _navigateToUrl(url: string, vendorKey: VendorKey | null): Promise<void> {
     if (!this.page) throw new Error('Browser page not initialized')
+
+    // 학교장터(S2B): 목록에서 JS 링크(goViewPage)로 상세 이동하는 경우가 많아,
+    // "해시로 상품ID를 전달"하는 내부 URL을 지원한다.
+    // 예) https://www.s2b.kr/.../s2bCustomerSearch.jsp#goodsId=202312187751728
+    if (vendorKey === VendorKey.학교장터) {
+      try {
+        const u = new URL(url)
+        const hash = (u.hash || '').replace(/^#/, '')
+        const params = new URLSearchParams(hash)
+        const goodsId = params.get('goodsId')
+        if (goodsId) {
+          const searchBase = `${u.origin}/S2BNCustomer/S2B/scrweb/remu/rema/searchengine/s2bCustomerSearch.jsp`
+
+          // 검색 페이지로 이동(또는 유지)
+          if (!this.page.url().includes('/S2B/scrweb/remu/rema/searchengine/s2bCustomerSearch.jsp')) {
+            await this.page.goto(searchBase, { waitUntil: 'domcontentloaded' })
+          }
+
+          // 페이지 내 goViewPage 호출로 상세 이동
+          await Promise.all([
+            this.page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 20000 }).catch(() => undefined),
+            this.page.evaluate((id: string) => {
+              const w = window as any
+              if (typeof w.goViewPage === 'function') {
+                w.goViewPage(id)
+                return
+              }
+
+              // 폴백: 링크 클릭 시도
+              const escaped = id.replace(/'/g, "\\'")
+              const a =
+                document.querySelector(`a[href="javascript:goViewPage('${escaped}')"]`) ||
+                document.querySelector(`a[href*="goViewPage('${escaped}')"]`)
+              ;(a as HTMLElement | null)?.click()
+            }, goodsId),
+          ])
+
+          return
+        }
+      } catch {
+        // fallthrough
+      }
+    }
+
     await this.page.goto(url, { waitUntil: 'domcontentloaded' })
   }
 
@@ -265,6 +325,138 @@ export class S2BSourcing extends S2BBase {
     // 4) AI 정제 완료
     this._log(`AI 정제 완료: ${data.name ?? ''}`, 'info')
     return aiRefined
+  }
+
+  private _buildRefinedPayloadWithoutAI(data: SourcingCrawlData): AiRefinedPayload {
+    const name = (data.name || '').toString().trim()
+
+    const originText = (data.origin || '').toString().trim()
+    const isDomestic =
+      originText.includes('국내') ||
+      originText.includes('대한민국') ||
+      originText.includes('한국') ||
+      originText.toLowerCase().includes('korea')
+
+    const featurePairs: { label: string; value: string }[] = Array.isArray(data.특성)
+      ? data.특성
+          .map(v => ({ label: (v?.label ?? '').toString().trim(), value: (v?.value ?? '').toString().trim() }))
+          .filter(v => v.label || v.value)
+      : []
+
+    const pickByLabel = (label: string): string | undefined => {
+      const found = featurePairs.find(p => p.label === label)
+      return found?.value?.trim() || undefined
+    }
+
+    // 모델명 / 규격: 요청사항대로 " / " 기준
+    const modelName =
+      pickByLabel('모델명') ||
+      (() => {
+        const raw = pickByLabel('모델명 / 규격')
+        if (!raw) return undefined
+        return raw
+          .split('/')
+          .map(v => v.trim())
+          .filter(Boolean)[0]
+      })() ||
+      '상세설명참고'
+
+    const spec =
+      pickByLabel('규격') ||
+      (() => {
+        const raw = pickByLabel('모델명 / 규격')
+        if (!raw) return undefined
+        const parts = raw
+          .split('/')
+          .map(v => v.trim())
+          .filter(Boolean)
+        if (parts.length <= 1) return undefined
+        return parts.slice(1).join(' / ')
+      })()
+
+    const materialValue = pickByLabel('소재 / 재질') || pickByLabel('소재/재질') || '상세설명참고'
+
+    // 인증번호는 페이지에서 제공되는 KC 표기/인증번호 텍스트에서만 단순 추출 (검증 호출 없음)
+    const textPool = featurePairs.map(p => `${p.label}: ${p.value}`)
+    const certificationNumbers = Array.from(
+      new Set(
+        textPool
+          .flatMap(s => {
+            const matches = s.match(/\b(?:R-[A-Z0-9-]+|R-[A-Z]-[A-Z0-9-]+|MSIP-[A-Z0-9-]+|KCC-[A-Z0-9-]+)\b/gi) || []
+            const bracketed = s.match(/\[([A-Za-z0-9-]{6,})\]/g) || []
+            return [...matches, ...bracketed.map(v => v.replace(/^\[/, '').replace(/\]$/, ''))].map(v => v.trim())
+          })
+          .filter(Boolean),
+      ),
+    )
+
+    // Excel 규격에 들어가야 하므로 spec를 제일 앞에 두고, 너무 길어지지 않게 최소만 넣는다.
+    const features: string[] = []
+    if (spec) features.push(spec)
+    if (materialValue && materialValue !== '상세설명참고') features.push(`소재/재질: ${materialValue}`)
+
+    return {
+      물품명: name || '상품명',
+      모델명: modelName,
+      '소재/재질': materialValue,
+      원산지구분: isDomestic ? '국내' : '국외',
+      국내원산지: isDomestic ? originText : '',
+      해외원산지: isDomestic ? '' : originText,
+      certificationNumbers,
+      이미지사용여부: '모름',
+      options: [],
+      특성: features,
+    }
+  }
+
+  private _determineKcFromS2BFeatures(features?: { label: string; value: string }[]): {
+    kids?: { type: 'Y' | 'F' | 'N'; certNum?: string }
+    elec?: { type: 'Y' | 'F' | 'N'; certNum?: string }
+    daily?: { type: 'Y' | 'F' | 'N'; certNum?: string }
+    broadcasting?: { type: 'Y' | 'F' | 'N'; certNum?: string }
+    issue: boolean
+    issuesText: string
+  } {
+    const defaultBucket: { type: 'Y' | 'F' | 'N'; certNum?: string } = { type: 'N', certNum: '' }
+    const result = {
+      kids: { ...defaultBucket },
+      elec: { ...defaultBucket },
+      daily: { ...defaultBucket },
+      broadcasting: { ...defaultBucket },
+      issue: false,
+      issuesText: '',
+    }
+
+    const pairs = Array.isArray(features) ? features : []
+    const get = (label: string) => (pairs.find(p => p?.label === label)?.value ?? '').toString().trim()
+
+    const parseBucket = (label: string): { type: 'Y' | 'F' | 'N'; certNum?: string } => {
+      const v = get(label)
+      if (!v) return { ...defaultBucket }
+      if (v.includes('비대상')) return { type: 'N', certNum: '' }
+      const bracket = v.match(/\[([A-Za-z0-9-]{6,})\]/)
+      if (bracket?.[1]) return { type: 'Y', certNum: bracket[1] }
+      // 대상인데 번호가 없는 케이스는 Y로 두고 번호는 비움
+      return { type: 'Y', certNum: '' }
+    }
+
+    result.kids = parseBucket('어린이제품 인증정보')
+    result.elec = parseBucket('전기용품 인증정보')
+    result.daily = parseBucket('생활용품 인증정보')
+    // 라벨에 <br>가 포함될 수 있어 "방송통신기자재"로 시작하는 라벨을 찾아서 처리
+    const broadcastingLabel =
+      pairs.find(p => (p?.label ?? '').toString().includes('방송통신기자재'))?.label ||
+      '방송통신기자재 적합성평가인증정보'
+    const broadcastingValue = (pairs.find(p => p?.label === broadcastingLabel)?.value ?? '').toString().trim()
+    if (broadcastingValue) {
+      if (broadcastingValue.includes('비대상')) result.broadcasting = { type: 'N', certNum: '' }
+      else {
+        const bracket = broadcastingValue.match(/\[([A-Za-z0-9-]{6,})\]/)
+        result.broadcasting = bracket?.[1] ? { type: 'Y', certNum: bracket[1] } : { type: 'Y', certNum: '' }
+      }
+    }
+
+    return result
   }
 
   private async _runDetailImageOcr(detailImagePath?: string): Promise<string | undefined> {
@@ -451,6 +643,21 @@ export class S2BSourcing extends S2BBase {
     const optionHandling: 'split' | 'single' = config?.optionHandling || 'split'
     const MAX_SPEC_LEN = 50
     const originalPrice = rawData.price || 0
+    const isSchoolS2b = rawData.vendor === VendorKey.학교장터
+
+    const pickFeatureValue = (label: string): string => {
+      if (!isSchoolS2b) return ''
+      const pairs = rawData.특성 || []
+      const found = Array.isArray(pairs) ? pairs.find(p => p?.label === label) : undefined
+      return (found?.value ?? '').toString().trim()
+    }
+
+    const normalizeTaxType = (raw: string): TaxType => {
+      const t = (raw || '').replace(/\s+/g, '').trim()
+      // 학교장터 상세: "과세(세금계산서)" 그대로 오거나, "면세"로 오는 케이스를 처리
+      if (t.includes('면세')) return '면세'
+      return '과세(세금계산서)'
+    }
 
     const deliveryOption: Record<string, string> = {
       ZD000001: '3일',
@@ -580,7 +787,7 @@ export class S2BSourcing extends S2BBase {
       계약종료일: '',
       전화번호: '',
       '제조사 A/S전화번호': '',
-      과세여부: '과세(세금계산서)',
+      과세여부: isSchoolS2b ? normalizeTaxType(pickFeatureValue('과세유무')) : '과세(세금계산서)',
       어린이제품KC유형: kcResolved?.kids?.type || 'N',
       어린이제품KC인증번호: kcResolved?.kids?.certNum || '',
       어린이제품KC성적서: '',
@@ -593,6 +800,24 @@ export class S2BSourcing extends S2BBase {
       방송통신KC유형: kcResolved?.broadcasting?.type || 'N',
       방송통신KC인증번호: kcResolved?.broadcasting?.certNum || '',
       방송통신KC성적서: '',
+    }
+
+    // 학교장터: 부가정보 탭(group_dtail01) 값을 엑셀 필드에 최대한 매핑
+    if (isSchoolS2b) {
+      const v1 = pickFeatureValue('정격전압/소비전력')
+      if (v1) (baseProduct as any)['정격전압/소비전력'] = v1
+      const v2 = pickFeatureValue('크기 및 무게')
+      if (v2) (baseProduct as any).크기및무게 = v2
+      const v3 = pickFeatureValue('동일모델출시일')
+      if (v3) (baseProduct as any).동일모델출시년월 = v3
+      const v4 = pickFeatureValue('제품구성')
+      if (v4) (baseProduct as any).제품구성 = v4
+      const v5 = pickFeatureValue('안전표시(주의,경고)')
+      if (v5) (baseProduct as any).안전표시 = v5
+      const v6 = pickFeatureValue('용량')
+      if (v6) (baseProduct as any).용량 = v6
+      const v7 = pickFeatureValue('주요사양')
+      if (v7) (baseProduct as any).주요사양 = v7
     }
     // 옵션 처리 방법에 따른 분기
     // - 옵션이 1개뿐인 경우는 "옵션이 없는 상품"과 동일하게 처리한다.
