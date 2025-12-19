@@ -542,7 +542,6 @@ export class S2BSchoolScraper extends BaseScraper {
       const naviImg = document.querySelector('img[src*="icon_navi_view"]') as HTMLImageElement | null
       const naviTd = naviImg?.closest('td') || null
       const naviText = text(naviTd)
-      console.log(naviText)
       const categories = (() => {
         const raw = clean(naviText || '')
         if (!raw) return []
@@ -625,7 +624,7 @@ export class S2BSchoolScraper extends BaseScraper {
       const modelName = msParts.length > 0 ? msParts[0] : null
       const spec = msParts.length > 1 ? clean(msParts.slice(1).join('/')) : null
 
-      // 가격: 상세페이지 내에 확실한 가격 DOM이 없을 수 있어, 목록에서 넘어온 price를 우선 사용(여기서는 null)
+      // 가격은 리스트에서 크롤링된 값을 URL(listPrice)로 전달받아 사용한다. (상세엔 가격이 없는 케이스 존재)
       const price: number | null = null
 
       return {
@@ -664,21 +663,18 @@ export class S2BSchoolScraper extends BaseScraper {
   async collectThumbnails(page: Page, _vendor: VendorConfig, productDir?: string): Promise<string[]> {
     const urls: string[] = await page
       .evaluate(() => {
+        // 요청사항: 상단 큰 이미지(#bigImage)는 중복/오류를 유발하므로 제외하고,
+        // 아래 썸네일 목록에서만 순서대로 추출한다.
         const out: string[] = []
-        const big = document.querySelector('#bigImage') as HTMLImageElement | null
-        if (big?.src) out.push(big.src)
-
         const thumbs = Array.from(document.querySelectorAll('td.detail_img img')) as HTMLImageElement[]
         for (const img of thumbs) {
-          const src = img?.getAttribute('src') || img?.src || ''
+          const src = (img?.getAttribute('src') || img?.src || '').trim()
           if (!src) continue
           // placeholder 제외
           if (src.includes('none_img')) continue
-          out.push(src)
+          if (!out.includes(src)) out.push(src) // 순서 유지 + 중복 제거
         }
-
-        // 중복 제거
-        return Array.from(new Set(out)).filter(Boolean)
+        return out
       })
       .catch(() => [])
 

@@ -233,6 +233,13 @@ export const useSourcing = () => {
               // 단일 상품 수집
               const result = await ipcRenderer.invoke('sourcing-collect-single-detail', {
                 url: item.url,
+                product: {
+                  url: item.url,
+                  name: item.name,
+                  price: item.price,
+                  listThumbnail: item.listThumbnail,
+                  vendor: item.vendor,
+                },
                 optionHandling,
               })
 

@@ -42,6 +42,14 @@ interface SourcingCrawlData {
   downloadDir?: string
 }
 
+interface SourcingListProduct {
+  url: string
+  name?: string
+  price?: number
+  listThumbnail?: string
+  vendor?: string
+}
+
 export class S2BSourcing extends S2BBase {
   private baseFilePath: string
   private settings: any
@@ -109,10 +117,44 @@ export class S2BSourcing extends S2BBase {
   }
 
   public async collectNormalizedDetailForUrls(urls: string[], optionHandling?: 'split' | 'single') {
+    return await this.collectNormalizedDetailForProducts(
+      (urls || []).map(url => ({ url })),
+      optionHandling,
+    )
+  }
+
+  public async collectNormalizedDetailForProducts(
+    products: SourcingListProduct[],
+    optionHandling?: 'split' | 'single',
+  ) {
     if (!this.page) throw new Error('Browser page not initialized')
     const outputs: (SourcingCrawlData & { excelMapped?: ExcelRegistrationData[] })[] = []
-    for (const url of urls) {
+    for (const product of products || []) {
+      const url = product?.url
+      if (!url) continue
+
       this._log(`상품 데이터 수집 시작: ${url}`, 'info')
+
+      // "리스트 products"를 베이스로 사용하고, 디테일에서 얻는 값만 덮어쓴다.
+      // - 학교장터는 상세페이지에 가격이 없으므로 리스트 가격을 그대로 사용한다.
+      const listPrice = typeof product?.price === 'number' && Number.isFinite(product.price) ? product.price : undefined
+
+      // 레거시 호환: url 해시에 listPrice가 있는 경우도 지원
+      const listPriceFromUrl = (() => {
+        try {
+          const u = new URL(url)
+          const hash = (u.hash || '').replace(/^#/, '')
+          const params = new URLSearchParams(hash)
+          const raw = (params.get('listPrice') || '').replace(/[^\d]/g, '')
+          const n = raw ? Number(raw) : NaN
+          return Number.isFinite(n) ? n : null
+        } catch {
+          return null
+        }
+      })()
+
+      const effectiveListPrice = listPrice ?? listPriceFromUrl ?? undefined
+
       const { vendorKey, vendor } = this._getVendor(url)
       const scraper = this._getScraper(vendorKey)
       if (scraper && (await scraper.checkLoginRequired(this.page))) {
@@ -133,10 +175,12 @@ export class S2BSourcing extends S2BBase {
 
       await scraper.waitBeforeCapture(this.page)
       const basicInfo = await scraper.extractBasicInfo(this.page, vendorKey, vendor)
-      if (!basicInfo.name || !basicInfo.name.trim()) {
+
+      const mergedName = (basicInfo.name || product?.name || '').toString()
+      if (!mergedName.trim()) {
         throw new Error('크롤링 실패: 상품명(name) 추출에 실패했습니다.')
       }
-      const baseName = (basicInfo.name || basicInfo.productCode || 'product').toString()
+      const baseName = (mergedName || basicInfo.productCode || 'product').toString()
       const productDir = this._createProductDir(baseName, basicInfo.productCode, vendorKey)
       const savedMainImages = await scraper.collectThumbnails(this.page, vendor, productDir)
       const detailCapturePath = await scraper.collectDetailImage(this.page, vendor, productDir)
@@ -144,11 +188,11 @@ export class S2BSourcing extends S2BBase {
       const crawlData: SourcingCrawlData = {
         url,
         vendor: vendorKey,
-        name: basicInfo.name || undefined,
+        name: mergedName || undefined,
         productCode: basicInfo.productCode || undefined,
         g2bItemNo: basicInfo.g2bItemNo || undefined,
         categories: basicInfo.categories,
-        price: basicInfo.price ?? undefined,
+        price: effectiveListPrice ?? basicInfo.price ?? undefined,
         shippingFee: basicInfo.shippingFee || undefined,
         minPurchase: basicInfo.minPurchase,
         imageUsage: basicInfo.imageUsage,
@@ -158,6 +202,7 @@ export class S2BSourcing extends S2BBase {
         options: basicInfo.options,
         mainImages: savedMainImages,
         detailImages: detailCapturePath ? [detailCapturePath] : [],
+        listThumbnail: product?.listThumbnail,
         downloadDir: productDir,
         특성,
       }

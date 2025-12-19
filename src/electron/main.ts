@@ -535,7 +535,18 @@ function setupIpcHandlers() {
   // 단일 상품 상세 수집 핸들러
   ipcMain.handle(
     'sourcing-collect-single-detail',
-    async (_, { url, optionHandling }: { url: string; optionHandling?: 'split' | 'single' }) => {
+    async (
+      _,
+      {
+        url,
+        product,
+        optionHandling,
+      }: {
+        url: string
+        product?: { url: string; name?: string; price?: number; listThumbnail?: string; vendor?: string }
+        optionHandling?: 'split' | 'single'
+      },
+    ) => {
       try {
         const settings = store.get('settings')
         const configSets = (store.get('configSets') || []) as ConfigSet[]
@@ -553,7 +564,8 @@ function setupIpcHandlers() {
         // 항상 launch 를 호출하여 사용 가능한 상태를 보장한다.
         await sourcing.launch()
 
-        const details = await sourcing.collectNormalizedDetailForUrls([url], optionHandling)
+        const target = product && product.url ? product : { url }
+        const details = await sourcing.collectNormalizedDetailForProducts([target], optionHandling)
         if (details.length === 0) {
           throw new Error('상품 정보를 가져올 수 없습니다.')
         }
@@ -567,7 +579,7 @@ function setupIpcHandlers() {
     },
   )
 
-  ipcMain.handle('sourcing-collect-details', async (_, { urls }: { urls: string[] }) => {
+  ipcMain.handle('sourcing-collect-details', async (_, { urls, products }: { urls?: string[]; products?: any[] }) => {
     try {
       const settings = store.get('settings')
       const configSets = (store.get('configSets') || []) as ConfigSet[]
@@ -582,7 +594,10 @@ function setupIpcHandlers() {
       sourcing.setConfigSet(activeConfigSet)
 
       await sourcing.launch()
-      const details = await sourcing.collectNormalizedDetailForUrls(urls)
+      const details =
+        products && Array.isArray(products) && products.length > 0
+          ? await sourcing.collectNormalizedDetailForProducts(products)
+          : await sourcing.collectNormalizedDetailForUrls(urls || [])
       await sourcing.close()
 
       return { success: true, items: details }
