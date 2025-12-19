@@ -712,12 +712,24 @@ export class S2BSchoolScraper extends BaseScraper {
       await page.waitForTimeout(800)
     } catch {}
 
-    // 상세정보 영역 캡처 (group_dtail02)
-    const locator = page.locator('#group_dtail02 .detail_c01')
-    const count = await locator.count()
-    if (!count) return null
+    // 상세정보 영역의 마지막 img 다운로드 (group_dtail02)
+    const imgUrl = await page
+      .evaluate(() => {
+        const imgs = Array.from(document.querySelectorAll('#group_dtail02 .detail_c01 img')) as HTMLImageElement[]
+        if (imgs.length === 0) return null
+        const lastImg = imgs[imgs.length - 1]
+        const src = (lastImg?.getAttribute('src') || lastImg?.src || '').trim()
+        return src || null
+      })
+      .catch(() => null)
 
-    await this.screenshotLongElement(page, locator.first(), outPath, 4000)
+    if (!imgUrl) return null
+
+    const normalizedUrl = this._normalizeS2bUrl(imgUrl)
+    const buf = await this.downloadToBuffer(normalizedUrl)
+    if (!buf) return null
+
+    await this.saveJpg(buf, outPath, 90)
     return outPath
   }
 
