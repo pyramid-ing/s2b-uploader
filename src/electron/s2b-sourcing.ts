@@ -175,10 +175,24 @@ export class S2BSourcing extends S2BBase {
           ? this._determineKcFromS2BFeatures(crawlData.특성)
           : await this._determineKcFromAI(aiRefined)
 
-      const categoryMapped =
-        basicInfo.categories && basicInfo.categories.length >= 3
-          ? await this._mapCategories(vendorKey || '', basicInfo.categories)
-          : {}
+      let categoryMapped: any = {}
+      switch (vendorKey) {
+        case VendorKey.학교장터: {
+          categoryMapped = {
+            targetCategory1: basicInfo.categories?.[0] || '',
+            targetCategory2: basicInfo.categories?.[1] || '',
+            targetCategory3: basicInfo.categories?.[2] || '',
+          }
+          break
+        }
+        default: {
+          categoryMapped =
+            basicInfo.categories && basicInfo.categories.length >= 3
+              ? await this._mapCategories(vendorKey || '', basicInfo.categories)
+              : {}
+          break
+        }
+      }
       const excelMapped = this._mapToExcelFormat(
         crawlData,
         aiRefined,
@@ -552,35 +566,17 @@ export class S2BSourcing extends S2BBase {
     categories: string[],
   ): Promise<{ targetCategory1?: string; targetCategory2?: string; targetCategory3?: string; g2bCode?: string }> {
     try {
-      const norm = (v: any): string =>
-        (v ?? '')
-          .toString()
-          .replace(/\u00A0/g, ' ')
-          .replace(/\s+/g, ' ')
-          .trim()
-
-      const fallback = () => {
-        if (!Array.isArray(categories) || categories.length < 3) return {}
-        this._log(`카테고리 매핑 생략(크롤링값 사용): ${categories.slice(0, 3).join(' > ')}`, 'info')
-        return {
-          targetCategory1: norm(categories[0]),
-          targetCategory2: norm(categories[1]),
-          targetCategory3: norm(categories[2]),
-        }
-      }
-
       const excelPath = path.join(envConfig.filesPath, 'S2B_Sourcing_category_mapper.xlsx')
       if (!fsSync.existsSync(excelPath)) {
         this._log('카테고리 매핑 엑셀 파일을 찾을 수 없습니다.', 'warning')
-        return fallback()
+        return {}
       }
       const XLSX = await import('xlsx')
       const workbook = XLSX.readFile(excelPath)
       const sheetName = vendor
       if (!workbook.Sheets[sheetName]) {
         this._log(`${vendor} 시트를 찾을 수 없습니다.`, 'warning')
-        // 학교장터처럼 시트가 없는 경우는, 이미 S2B 카테고리이므로 크롤링 값을 그대로 사용한다.
-        return fallback()
+        return {}
       }
       const worksheet = workbook.Sheets[sheetName]
       const data = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[]
@@ -601,24 +597,19 @@ export class S2BSourcing extends S2BBase {
       const category3Index = (headerRow as any[]).indexOf('3차카테고리')
       const g2bIndex = (headerRow as any[]).indexOf('G2B')
 
-      const c1 = norm(categories?.[0])
-      const c2 = norm(categories?.[1])
-      const c3 = norm(categories?.[2])
-      const c4 = norm(categories?.[3])
-
       for (let i = headerIndex + 1; i < data.length; i++) {
         const row = data[i] as any[]
         if (
-          norm(row[crawling1Index]) === c1 &&
-          norm(row[crawling2Index]) === c2 &&
-          norm(row[crawling3Index]) === c3 &&
-          (!c4 || norm(row[crawling4Index]) === c4)
+          row[crawling1Index] === categories[0] &&
+          row[crawling2Index] === categories[1] &&
+          row[crawling3Index] === categories[2] &&
+          (categories.length < 4 || row[crawling4Index] === categories[3])
         ) {
           return {
-            targetCategory1: norm(row[category1Index]),
-            targetCategory2: norm(row[category2Index]),
-            targetCategory3: norm(row[category3Index]),
-            g2bCode: norm(row[g2bIndex]) || undefined,
+            targetCategory1: row[category1Index],
+            targetCategory2: row[category2Index],
+            targetCategory3: row[category3Index],
+            g2bCode: row[g2bIndex],
           }
         }
       }
