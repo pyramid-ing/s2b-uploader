@@ -203,19 +203,23 @@ const Sourcing: React.FC = () => {
         render: (text: string, record: SourcingItem) => (
           <Space>
             {record.isCollected && <CheckCircleOutlined style={{ color: '#52c41a', fontSize: '16px' }} />}
-            <Typography.Link
-              onClick={e => {
-                e.preventDefault()
-                if (!record.url) return
-                try {
-                  shell.openExternal(record.url)
-                } catch (err) {
-                  message.error('링크를 열 수 없습니다.')
-                }
-              }}
-            >
-              {text}
-            </Typography.Link>
+            {record.vendor === '학교장터' ? (
+              <Typography.Text type="secondary">{text}</Typography.Text>
+            ) : (
+              <Typography.Link
+                onClick={e => {
+                  e.preventDefault()
+                  if (!record.url) return
+                  try {
+                    shell.openExternal(record.url)
+                  } catch (err) {
+                    message.error('링크를 열 수 없습니다.')
+                  }
+                }}
+              >
+                {text}
+              </Typography.Link>
+            )}
           </Space>
         ),
       },
