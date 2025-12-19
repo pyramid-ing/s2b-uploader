@@ -7,6 +7,11 @@ import sharp from 'sharp'
 export interface ExtractedBasicInfo {
   name: string | null
   productCode: string | null
+  /**
+   * 학교장터(S2B) 상세 페이지의 "물품목록번호"에서 하이픈 뒤쪽만 사용 (예: 43211503-25370757 -> 25370757)
+   * - 벤더별로 없을 수 있으므로 optional
+   */
+  g2bItemNo?: string | null
   price: number | null
   shippingFee: string | null
   minPurchase?: number

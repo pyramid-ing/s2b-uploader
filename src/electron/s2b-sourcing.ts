@@ -21,6 +21,11 @@ interface SourcingCrawlData {
   vendor: VendorKey | null
   name?: string
   productCode?: string
+  /**
+   * 학교장터(S2B) 상세 페이지의 "물품목록번호"에서 하이픈 뒤쪽만 사용 (G2B 번호)
+   * 예: 43211503-25370757 -> 25370757
+   */
+  g2bItemNo?: string
   categories: string[]
   price?: number
   shippingFee?: string
@@ -141,6 +146,7 @@ export class S2BSourcing extends S2BBase {
         vendor: vendorKey,
         name: basicInfo.name || undefined,
         productCode: basicInfo.productCode || undefined,
+        g2bItemNo: basicInfo.g2bItemNo || undefined,
         categories: basicInfo.categories,
         price: basicInfo.price ?? undefined,
         shippingFee: basicInfo.shippingFee || undefined,
@@ -709,7 +715,7 @@ export class S2BSourcing extends S2BBase {
       최소구매수량: rawData.minPurchase || 1, // 참고용
       구매처: String(rawData.vendor || ''), // 참고용
       구매처URL: rawData.url || '', // 참고용
-      'G2B 물품목록번호': categoryMapped.g2bCode || '',
+      'G2B 물품목록번호': rawData.g2bItemNo || '',
       카테고리1: categoryMapped.targetCategory1 || '',
       카테고리2: categoryMapped.targetCategory2 || '',
       카테고리3: categoryMapped.targetCategory3 || '',

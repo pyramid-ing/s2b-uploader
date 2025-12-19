@@ -575,6 +575,25 @@ export class S2BSchoolScraper extends BaseScraper {
       }
 
       const shippingFee = infoMap['배송비'] || null
+      // 물품목록번호(G2B 번호)
+      // 예시: "43211503-25370757" -> 실제 사용은 뒤쪽 "25370757" 만
+      const rawG2b = infoMap['물품목록번호'] || ''
+      const g2bItemNo = (() => {
+        const v = clean(rawG2b)
+        if (!v) return null
+        // 흔한 형태: 43211503-25370757 (하이픈 앞/뒤 모두 숫자)
+        const m = v.match(/(\d+)\s*-\s*(\d+)/)
+        if (m?.[2]) return m[2]
+        // fallback: 하이픈이 있으면 마지막 세그먼트 사용
+        const parts = v
+          .split('-')
+          .map(s => clean(s))
+          .filter(Boolean)
+        if (parts.length >= 2) return parts[parts.length - 1]
+        // 마지막 fallback: 숫자만 남기기
+        const digits = v.replace(/[^\d]/g, '')
+        return digits || null
+      })()
 
       // 제조사/원산지
       const manuOrigin = infoMap['제조사 / 원산지'] || ''
@@ -601,6 +620,7 @@ export class S2BSchoolScraper extends BaseScraper {
       return {
         name,
         goodsId,
+        g2bItemNo,
         price,
         shippingFee,
         origin,
@@ -617,6 +637,7 @@ export class S2BSchoolScraper extends BaseScraper {
       name: data.name,
       // productCode는 폴더명/참고용으로 상품ID를 유지
       productCode: data.goodsId,
+      g2bItemNo: data.g2bItemNo,
       price: typeof data.price === 'number' ? data.price : null,
       shippingFee: data.shippingFee,
       minPurchase: 1,

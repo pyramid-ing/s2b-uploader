@@ -8,6 +8,11 @@ export interface SourcingItem {
   vendor?: string
   price: number
   productCode?: string
+  /**
+   * 학교장터(S2B) 상세의 물품목록번호(G2B 번호)
+   * 예: 43211503-25370757
+   */
+  g2bItemNo?: string
   listThumbnail?: string
   downloadDir?: string
   additionalInfo?: any
