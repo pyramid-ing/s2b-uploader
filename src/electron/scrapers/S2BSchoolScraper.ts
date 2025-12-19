@@ -542,10 +542,21 @@ export class S2BSchoolScraper extends BaseScraper {
       const naviImg = document.querySelector('img[src*="icon_navi_view"]') as HTMLImageElement | null
       const naviTd = naviImg?.closest('td') || null
       const naviText = text(naviTd)
-      const categories = (naviText || '')
-        .split('>')
-        .map(v => clean(v))
-        .filter(Boolean)
+      console.log(naviText)
+      const categories = (() => {
+        const raw = clean(naviText || '')
+        if (!raw) return []
+
+        // S2B는 화면/브라우저/폰트에 따라 구분자가 달라질 수 있어(>, ›, ＞ 등)
+        // 여러 케이스를 포괄하는 정규식으로 분리한다.
+        const parts = raw
+          .split(/\s*(?:>|›|»|＞)\s*/g)
+          .map(v => clean(v))
+          .filter(Boolean)
+
+        // 혹시 앞쪽에 아이콘/불필요 텍스트가 섞였을 때를 대비해 과도하게 긴 값은 제거
+        return parts.filter(v => v.length <= 100)
+      })()
 
       // 정보노출 테이블(폭 476)에서 3열(label/dot/value) 구조 파싱
       const infoTable = document.querySelector('table[width="476"]') as HTMLTableElement | null
