@@ -14,7 +14,7 @@ import type { Scraper } from './scrapers/BaseScraper'
 import { S2BBase } from './s2b-base'
 import { validateKcByCertNum, KcValidationError } from './kc-validator'
 import { envConfig } from './envConfig'
-import { ConfigSet, ExcelRegistrationData, TaxType } from './types/excel'
+import { ConfigSet, ExcelRegistrationData, TaxType, OriginType } from './types/excel'
 
 interface SourcingCrawlData {
   url: string
@@ -370,11 +370,111 @@ export class S2BSourcing extends S2BBase {
     const name = (data.name || '').toString().trim()
 
     const originText = (data.origin || '').toString().trim()
-    const isDomestic =
-      originText.includes('국내') ||
-      originText.includes('대한민국') ||
-      originText.includes('한국') ||
-      originText.toLowerCase().includes('korea')
+
+    // 해외 국가 목록 (select_home_02)
+    const foreignCountries = [
+      '과테말라',
+      '그리스',
+      '나이지리아',
+      '남아프리카공화국',
+      '네덜란드',
+      '노르웨이',
+      '뉴질랜드',
+      '대만',
+      '덴마크',
+      '독일',
+      '동티모르',
+      '라오스',
+      '라트비아',
+      '러시아',
+      '루마니아',
+      '리투아니아',
+      '말레이시아',
+      '멕시코',
+      '모로코',
+      '모리셔스',
+      '미국',
+      '미얀마',
+      '방글라데시',
+      '베트남',
+      '벨기에',
+      '벨라루스',
+      '보스니아',
+      '북한',
+      '불가리아',
+      '브라질',
+      '스리랑카',
+      '스웨덴',
+      '스위스',
+      '스페인',
+      '슬로바키아',
+      '슬로베니아',
+      '싱가폴',
+      '아르헨티나',
+      '아일랜드',
+      '에스토니아',
+      '영국',
+      '오스트레일리아',
+      '오스트리아',
+      '온두라스',
+      '요르단',
+      '우크라이나',
+      '이스라엘',
+      '이집트',
+      '이탈리아',
+      '인도',
+      '인도네시아',
+      '일본',
+      '중국',
+      '중국OEM',
+      '체코',
+      '칠레',
+      '캄보디아',
+      '캐나다',
+      '콜롬비아',
+      '크로아티아',
+      '키르기스스탄',
+      '키프로스',
+      '태국',
+      '터키',
+      '튀니지',
+      '파키스탄',
+      '포르투갈',
+      '폴란드',
+      '프랑스',
+      '핀란드',
+      '필리핀',
+      '헝가리',
+      '홍콩',
+    ]
+
+    // 국내 시/도 목록 (select_home_01)
+    const koreanProvinces = [
+      '강원',
+      '경기',
+      '경남',
+      '경북',
+      '광주',
+      '대구',
+      '대전',
+      '부산',
+      '서울',
+      '세종',
+      '울산',
+      '인천',
+      '전남',
+      '전북',
+      '제주',
+      '충남',
+      '충북',
+    ]
+
+    // 원산지 판단: 목록 기반으로만 판단
+    const isForeign = foreignCountries.some(country => originText.includes(country))
+    const isDomestic = koreanProvinces.some(province => originText.includes(province))
+
+    // 국내원산지는 원본 텍스트 그대로 사용
+    const normalizedDomesticOrigin = isDomestic ? originText : ''
 
     const featurePairs: { label: string; value: string }[] = Array.isArray(data.특성)
       ? data.특성
@@ -434,13 +534,21 @@ export class S2BSourcing extends S2BBase {
     if (spec) features.push(spec)
     if (materialValue && materialValue !== '상세설명참고') features.push(`소재/재질: ${materialValue}`)
 
+    // 원산지구분: 목록에 있으면 해당 구분, 없으면 공란
+    let originType: OriginType = ''
+    if (isDomestic) {
+      originType = '국내'
+    } else if (isForeign) {
+      originType = '국외'
+    }
+
     return {
       물품명: name || '상품명',
       모델명: modelName,
       '소재/재질': materialValue,
-      원산지구분: isDomestic ? '국내' : '국외',
-      국내원산지: isDomestic ? originText : '',
-      해외원산지: isDomestic ? '' : originText,
+      원산지구분: originType,
+      국내원산지: isDomestic ? normalizedDomesticOrigin : '',
+      해외원산지: isForeign ? originText : '',
       certificationNumbers,
       이미지사용여부: '모름',
       options: [],
@@ -849,7 +957,7 @@ export class S2BSourcing extends S2BBase {
       const v2 = pickFeatureValue('크기 및 무게')
       if (v2) (baseProduct as any).크기및무게 = v2
       const v3 = pickFeatureValue('동일모델출시일')
-      if (v3) (baseProduct as any).동일모델출시년월 = v3
+      if (v3) (baseProduct as any).동일모델출시년월 = this._validateSameDate(v3)
       const v4 = pickFeatureValue('제품구성')
       if (v4) (baseProduct as any).제품구성 = v4
       const v5 = pickFeatureValue('안전표시(주의,경고)')
@@ -930,5 +1038,37 @@ export class S2BSourcing extends S2BBase {
         재고수량: 9999,
       } as ExcelRegistrationData,
     ]
+  }
+
+  private _validateSameDate(value: string): string {
+    if (!value || value.trim() === '') return ''
+
+    const trimmed = value.trim()
+
+    // YYYY.MM 형식 검증 (예: 2020.06)
+    const dotFormatRegex = /^\d{4}\.\d{2}$/
+    if (dotFormatRegex.test(trimmed)) {
+      const [year, month] = trimmed.split('.')
+      const yearNum = parseInt(year, 10)
+      const monthNum = parseInt(month, 10)
+      if (yearNum >= 1900 && yearNum <= 2100 && monthNum >= 1 && monthNum <= 12) {
+        return trimmed
+      }
+    }
+
+    // YYYYMM 형식 검증 (예: 202006)
+    const noDotFormatRegex = /^\d{6}$/
+    if (noDotFormatRegex.test(trimmed)) {
+      const year = trimmed.substring(0, 4)
+      const month = trimmed.substring(4, 6)
+      const yearNum = parseInt(year, 10)
+      const monthNum = parseInt(month, 10)
+      if (yearNum >= 1900 && yearNum <= 2100 && monthNum >= 1 && monthNum <= 12) {
+        return trimmed
+      }
+    }
+
+    // 형식이 맞지 않으면 공란 반환
+    return ''
   }
 }

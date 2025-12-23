@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { OriginType } from '../types/excel'
 
 export interface AiOptionItem {
   name: string
@@ -10,7 +11,7 @@ export interface AiRefinedPayload {
   물품명: string
   모델명: string
   '소재/재질': string
-  원산지구분: '국내' | '국외'
+  원산지구분: OriginType
   국내원산지: string
   해외원산지: string
   certificationNumbers: string[]

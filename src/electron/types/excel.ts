@@ -15,7 +15,7 @@ export type DeliveryFeeType = '무료' | '유료' | '조건부무료'
 export type DeliveryLimitType = '3일' | '5일' | '7일' | '15일' | '30일' | '45일'
 
 // 원산지 구분 타입
-export type OriginType = '국내' | '국외'
+export type OriginType = '국내' | '국외' | ''
 
 // 과세 여부 타입
 export type TaxType = '과세(세금계산서)' | '면세'
