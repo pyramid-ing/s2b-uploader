@@ -259,6 +259,7 @@ export class S2BRegistration extends S2BBase {
     switch (dialog.type()) {
       case 'alert':
         // 예상가능 alert
+        this._log(`Alert 메시지: ${message}`, 'warning')
         if (
           message.includes('S2B의 "견적정보 등록"은 지방자치단체를 당사자로 하는 계약에 관한 법률 시행령 제30조') ||
           message.includes('등록대기 상태로 변경되었으며') ||
@@ -267,7 +268,6 @@ export class S2BRegistration extends S2BBase {
           await dialog.accept()
           // 그외 로깅후 무시
         } else {
-          this._log(`Alert 메시지: ${message}`, 'warning')
           await dialog.accept()
         }
         break
