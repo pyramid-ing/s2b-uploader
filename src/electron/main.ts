@@ -10,14 +10,7 @@ import * as XLSX from 'xlsx'
 import dayjs from 'dayjs'
 import { autoUpdater } from 'electron-updater'
 import { ExcelRegistrationData, ConfigSet } from './types/excel'
-import { envConfig } from './envConfig'
-import { createClient } from '@supabase/supabase-js'
-
-// Supabase 클라이언트 생성
-const supabaseUrl = 'https://rvubjjtdegnxeaablucf.supabase.co'
-const supabaseAnonKey =
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ2dWJqanRkZWdueGVhYWJsdWNmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg2MjcwMjMsImV4cCI6MjA3NDIwMzAyM30.35GRmArGK3_GHi_DsAsvTusqRCchlbamnmafoFLKnno'
-const supabase = createClient(supabaseUrl, supabaseAnonKey)
+import { envConfig, supabase } from './envConfig'
 
 /**
  * 계정 정보 조회 함수

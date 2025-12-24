@@ -1,5 +1,6 @@
 import { app } from 'electron'
 import path from 'node:path'
+import { createClient, SupabaseClient } from '@supabase/supabase-js'
 
 export interface EnvConfig {
   isDevelopment: boolean
@@ -9,6 +10,21 @@ export interface EnvConfig {
   downloadsPath: string
   tempDir: string
 }
+
+export interface SupabaseConfig {
+  url: string
+  anonKey: string
+}
+
+// Supabase 설정
+const supabaseConfig: SupabaseConfig = {
+  url: 'https://rvubjjtdegnxeaablucf.supabase.co',
+  anonKey:
+    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ2dWJqanRkZWdueGVhYWJsdWNmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg2MjcwMjMsImV4cCI6MjA3NDIwMzAyM30.35GRmArGK3_GHi_DsAsvTusqRCchlbamnmafoFLKnno',
+}
+
+// Supabase 클라이언트 생성 및 export
+export const supabase: SupabaseClient = createClient(supabaseConfig.url, supabaseConfig.anonKey)
 
 export function getEnvConfig(): EnvConfig {
   const isPackage = app.isPackaged
