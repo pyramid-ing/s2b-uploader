@@ -7,11 +7,70 @@ import { S2BManagement } from './s2b-management'
 import fs from 'fs/promises'
 import * as fsSync from 'fs'
 import * as XLSX from 'xlsx'
-import axios from 'axios'
 import dayjs from 'dayjs'
 import { autoUpdater } from 'electron-updater'
 import { ExcelRegistrationData, ConfigSet } from './types/excel'
 import { envConfig } from './envConfig'
+import { createClient } from '@supabase/supabase-js'
+
+// Supabase 클라이언트 생성
+const supabaseUrl = 'https://rvubjjtdegnxeaablucf.supabase.co'
+const supabaseAnonKey =
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ2dWJqanRkZWdueGVhYWJsdWNmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg2MjcwMjMsImV4cCI6MjA3NDIwMzAyM30.35GRmArGK3_GHi_DsAsvTusqRCchlbamnmafoFLKnno'
+const supabase = createClient(supabaseUrl, supabaseAnonKey)
+
+/**
+ * 계정 정보 조회 함수
+ * @param accountId - 확인할 계정 ID
+ * @returns 계정 정보 객체 또는 null
+ */
+async function getAccountInfo(accountId: string): Promise<any | null> {
+  try {
+    // Supabase RPC 함수로 계정 조회 (배열 반환)
+    const { data, error } = await supabase.rpc('get_account', { p_s2b_id: accountId })
+
+    if (error) {
+      console.error('계정 조회 실패:', error)
+      throw new Error(`계정 조회 중 문제가 발생했습니다: ${error.message}`)
+    }
+
+    // data가 null이거나 빈 배열인 경우는 해당 계정이 존재하지 않는 경우
+    if (!data || data.length === 0) {
+      console.log('계정을 찾을 수 없음:', accountId)
+      return null
+    }
+
+    const account = data[0] // 첫 번째 결과 사용
+
+    // 1. 만료일 체크: 현재 날짜가 start_date와 end_date 사이에 있는지 확인
+    const today = dayjs()
+    const startDate = account.start_date ? dayjs(account.start_date) : null
+    const endDate = account.end_date ? dayjs(account.end_date) : null
+
+    if (startDate && today.isBefore(startDate, 'day')) {
+      console.log(`계정 사용 기간이 아직 시작되지 않음: ${accountId} (시작일: ${startDate.format('YYYY-MM-DD')})`)
+      return null
+    }
+
+    if (endDate && today.isAfter(endDate, 'day')) {
+      console.log(`계정 사용 기간이 만료됨: ${accountId} (만료일: ${endDate.format('YYYY-MM-DD')})`)
+      return null
+    }
+
+    // 2. 권한 체크: permissions 배열에 필요한 권한이 있는지 확인
+    // permissions가 배열이고 비어있지 않은 경우에만 유효한 계정으로 간주
+    if (!account.permissions || !Array.isArray(account.permissions) || account.permissions.length === 0) {
+      console.log(`계정에 권한이 없음: ${accountId}`)
+      return null
+    }
+
+    console.log(`계정 확인 성공: ${accountId} (권한: ${account.permissions.join(', ')})`)
+    return account
+  } catch (error: any) {
+    console.error('계정 조회 실패:', error)
+    throw new Error(`계정 조회 중 문제가 발생했습니다: ${error?.message || error}`)
+  }
+}
 
 /**
  * 계정 유효성 확인 함수
@@ -19,14 +78,37 @@ import { envConfig } from './envConfig'
  * @returns boolean - 계정이 유효한 경우 true, 그렇지 않은 경우 false
  */
 async function checkAccountValidity(accountId: string): Promise<boolean> {
+  const account = await getAccountInfo(accountId)
+  return account !== null
+}
+
+/**
+ * 계정 권한 확인 함수
+ * @param accountId - 확인할 계정 ID
+ * @param requiredPermission - 필요한 권한 (예: "상품등록", "판매관리일연장")
+ * @returns boolean - 권한이 있는 경우 true, 그렇지 않은 경우 false
+ */
+async function checkAccountPermission(accountId: string, requiredPermission: string): Promise<boolean> {
   try {
-    const response = await axios.post('https://n8n.pyramid-ing.com/webhook/check-s2b-id', {
-      accountId,
-    })
-    return response.data?.exist === true
-  } catch (error) {
-    console.error('계정 확인 실패:', error)
-    throw new Error('계정 확인 중 문제가 발생했습니다.')
+    const account = await getAccountInfo(accountId)
+
+    if (!account) {
+      return false
+    }
+
+    // permissions 배열에 필요한 권한이 있는지 확인
+    const hasPermission =
+      account.permissions && Array.isArray(account.permissions) && account.permissions.includes(requiredPermission)
+
+    if (!hasPermission) {
+      console.log(`계정에 "${requiredPermission}" 권한이 없음: ${accountId}`)
+      return false
+    }
+
+    return true
+  } catch (error: any) {
+    console.error('권한 확인 실패:', error)
+    return false
   }
 }
 
@@ -334,10 +416,10 @@ function setupIpcHandlers() {
         registration.setImageOptimize(settings.imageOptimize)
         sendLogToRenderer(`이미지 최적화 설정: ${settings.imageOptimize}`, 'info')
 
-        // ✅ 계정 유효성 검사
-        const isAccountValid = await checkAccountValidity(settings.loginId)
-        if (!isAccountValid) {
-          throw new Error('인증되지 않은 계정입니다. 상품 등록이 불가능합니다.')
+        // ✅ 계정 유효성 및 권한 검사
+        const hasPermission = await checkAccountPermission(settings.loginId, '상품등록')
+        if (!hasPermission) {
+          throw new Error('"상품등록" 권한이 없습니다. 상품 등록이 불가능합니다.')
         }
 
         const delay = Number(settings.registrationDelay) || 0 // 등록 간격 (초)
@@ -688,6 +770,13 @@ function setupIpcHandlers() {
   ipcMain.handle('extend-management-date', async (_, { startDate, endDate, registrationStatus }) => {
     try {
       const settings = store.get('settings')
+
+      // ✅ 계정 권한 검사
+      const hasPermission = await checkAccountPermission(settings.loginId, '판매관리일연장')
+      if (!hasPermission) {
+        throw new Error('"판매관리일연장" 권한이 없습니다. 판매 관리일 수정이 불가능합니다.')
+      }
+
       management = new S2BManagement(settings.fileDir, sendLogToRenderer, settings.headless, settings)
 
       await management.launch()
@@ -699,7 +788,7 @@ function setupIpcHandlers() {
 
       return { success: true, message: `상품 관리일이 ${startDate} ~ ${endDate}로 설정되었습니다.` }
     } catch (error) {
-      console.error('Failed to extend management date:', error)
+      sendLogToRenderer(`에러 발생: ${error.message}`, 'error')
       return { success: false, error: error.message || 'Unknown error occurred.' }
     } finally {
       await management?.close()

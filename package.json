@@ -79,6 +79,7 @@
   },
   "dependencies": {
     "@ant-design/icons": "^5.5.1",
+    "@supabase/supabase-js": "^2.89.0",
     "antd": "^5.22.2",
     "axios": "^1.12.2",
     "dayjs": "^1.11.13",
