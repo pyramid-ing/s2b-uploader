@@ -126,10 +126,13 @@ export class S2BSourcing extends S2BBase {
   public async collectNormalizedDetailForProducts(
     products: SourcingListProduct[],
     optionHandling?: 'split' | 'single',
+    delayConfig?: { minDelaySec?: number; maxDelaySec?: number },
   ) {
     if (!this.page) throw new Error('Browser page not initialized')
     const outputs: (SourcingCrawlData & { excelMapped?: ExcelRegistrationData[] })[] = []
-    for (const product of products || []) {
+    const productsArray = products || []
+    for (let i = 0; i < productsArray.length; i++) {
+      const product = productsArray[i]
       const url = product?.url
       if (!url) continue
 
@@ -251,6 +254,18 @@ export class S2BSourcing extends S2BBase {
         kcResolved,
       )
       outputs.push({ ...crawlData, excelMapped })
+
+      // 마지막 상품이 아니고 학교장터인 경우 딜레이 처리
+      if (i < productsArray.length - 1 && vendorKey === VendorKey.학교장터 && delayConfig) {
+        const minDelaySec = delayConfig.minDelaySec ?? 5
+        const maxDelaySec = delayConfig.maxDelaySec ?? 30
+        const minDelayMs = Math.max(0, minDelaySec) * 1000
+        const maxDelayMs = Math.max(minDelayMs, maxDelaySec * 1000)
+        const randomDelayMs = Math.floor(Math.random() * (maxDelayMs - minDelayMs + 1)) + minDelayMs
+        const delaySeconds = (randomDelayMs / 1000).toFixed(1)
+        this._log(`${delaySeconds}초 대기`, 'info')
+        await new Promise(resolve => setTimeout(resolve, randomDelayMs))
+      }
     }
     return outputs
   }

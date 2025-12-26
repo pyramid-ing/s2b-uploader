@@ -24,6 +24,8 @@ export interface SourcingItem {
 export interface SourcingSettings {
   marginRate: number
   detailHtmlTemplate: string
+  s2bMinDelaySec?: number // 학교장터 소싱 최소 딜레이 (초)
+  s2bMaxDelaySec?: number // 학교장터 소싱 최대 딜레이 (초)
 }
 
 export interface SourcingConfigSet {
@@ -71,6 +73,8 @@ export const sourcingSettingsState = atom<SourcingSettings>({
   default: {
     marginRate: 20,
     detailHtmlTemplate: '<p>상세설명을 입력하세요.</p>',
+    s2bMinDelaySec: 5, // 기본값: 5초
+    s2bMaxDelaySec: 30, // 기본값: 30초
   },
 })
 

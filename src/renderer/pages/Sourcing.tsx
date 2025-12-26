@@ -365,19 +365,70 @@ const Sourcing: React.FC = () => {
 
     const targetItems = items.filter(item => targetKeys.includes(item.key))
     const firstItemName = targetItems[0]?.name || ''
+    const hasSchoolS2B = targetItems.some(item => item.vendor === '학교장터')
 
-    const content = count === 1 ? `${firstItemName}을 수집하겠습니까?` : `${count}개의 상품을 수집하겠습니까?`
+    // 2개 이상이고 학교장터 상품이 있으면 딜레이 설정 팝업 표시
+    if (count >= 2 && hasSchoolS2B) {
+      const delayRef = { min: 5, max: 30 }
 
-    Modal.confirm({
-      title: '수집 시 정말로 수집하겠습니까?',
-      content,
-      okText: '예',
-      cancelText: '아니오',
-      onOk: () => {
-        // 팝업은 바로 닫히고, 수집은 백그라운드에서 진행되도록 Promise를 반환하지 않는다.
-        requestRegister(targetKeys, optionHandling)
-      },
-    })
+      Modal.confirm({
+        title: '소싱 딜레이 설정',
+        width: 500,
+        content: (
+          <div style={{ padding: '16px 0' }}>
+            <Typography.Text>{count}개의 상품을 수집하겠습니까?</Typography.Text>
+            <Divider style={{ margin: '16px 0' }} />
+            <Form.Item label="소싱 딜레이(최소초)" style={{ marginBottom: 16 }}>
+              <InputNumber
+                style={{ width: '100%' }}
+                min={0}
+                max={300}
+                step={1}
+                precision={0}
+                defaultValue={5}
+                onChange={v => {
+                  delayRef.min = typeof v === 'number' ? v : 5
+                }}
+              />
+            </Form.Item>
+            <Form.Item label="소싱 딜레이(최대초)" style={{ marginBottom: 0 }}>
+              <InputNumber
+                style={{ width: '100%' }}
+                min={0}
+                max={300}
+                step={1}
+                precision={0}
+                defaultValue={30}
+                onChange={v => {
+                  delayRef.max = typeof v === 'number' ? v : 30
+                }}
+              />
+            </Form.Item>
+          </div>
+        ),
+        okText: '수집하기',
+        cancelText: '취소',
+        onOk: () => {
+          // 최소값이 최대값보다 크면 최대값으로 조정
+          const finalMin = Math.min(delayRef.min, delayRef.max)
+          const finalMax = Math.max(delayRef.min, delayRef.max)
+          requestRegister(targetKeys, optionHandling, finalMin, finalMax)
+        },
+      })
+    } else {
+      // 1개이거나 학교장터가 아니면 기존 방식
+      const content = count === 1 ? `${firstItemName}을 수집하겠습니까?` : `${count}개의 상품을 수집하겠습니까?`
+
+      Modal.confirm({
+        title: '수집 시 정말로 수집하겠습니까?',
+        content,
+        okText: '예',
+        cancelText: '아니오',
+        onOk: () => {
+          requestRegister(targetKeys, optionHandling)
+        },
+      })
+    }
   }
 
   const handleBulkDelete = () => {
@@ -484,22 +535,24 @@ const Sourcing: React.FC = () => {
             </Form.Item>
             {vendor === 's2b' && (
               <>
+                <Divider style={{ margin: '16px 0' }} />
                 <div
                   style={{
                     width: '100%',
-                    display: 'flex',
-                    flexWrap: 'wrap',
-                    gap: 12,
-                    alignItems: 'end',
-                    marginTop: 8,
-                    paddingTop: 8,
-                    borderTop: '1px solid #f0f0f0',
+                    padding: '16px',
+                    backgroundColor: '#fafafa',
+                    borderRadius: '8px',
+                    border: '1px solid #e8e8e8',
                   }}
                 >
-                  <Form.Item label="학교장터 키워드" style={{ marginBottom: 0 }}>
+                  <Typography.Title level={5} style={{ marginTop: 0, marginBottom: 16 }}>
+                    학교장터 필터 검색
+                  </Typography.Title>
+
+                  {/* 그룹 1: 키워드 */}
+                  <Form.Item label="키워드" style={{ marginBottom: 16 }}>
                     <Input
                       placeholder="예: 노트북"
-                      style={{ width: 220 }}
                       value={s2bKeyword}
                       onChange={e => {
                         const v = e.target.value
@@ -510,67 +563,78 @@ const Sourcing: React.FC = () => {
                       status={s2bKeywordInvalid && (s2bKeyword || '').trim().length === 0 ? 'error' : undefined}
                     />
                   </Form.Item>
-                  <Form.Item label="금액(최소)" style={{ marginBottom: 0 }}>
-                    <InputNumber
-                      style={{ width: 140 }}
-                      min={0}
-                      max={S2B_DEFAULT_MAX_PRICE}
-                      value={s2bMinPrice}
-                      onChange={v => setS2bMinPrice(typeof v === 'number' ? v : null)}
-                      placeholder="0"
-                    />
-                  </Form.Item>
-                  <Form.Item label="금액(최대)" style={{ marginBottom: 0 }}>
-                    <InputNumber
-                      style={{ width: 160 }}
-                      min={0}
-                      max={S2B_DEFAULT_MAX_PRICE}
-                      value={s2bMaxPrice}
-                      onChange={v => setS2bMaxPrice(typeof v === 'number' ? v : S2B_DEFAULT_MAX_PRICE)}
-                    />
-                  </Form.Item>
-                  <Form.Item label="최대갯수" style={{ marginBottom: 0 }}>
-                    <InputNumber
-                      style={{ width: 120 }}
-                      min={1}
-                      max={5000}
-                      value={s2bMaxCount}
-                      onChange={v => setS2bMaxCount(typeof v === 'number' ? v : 50)}
-                    />
-                  </Form.Item>
-                  <Form.Item label="페이지 딜레이(초)" style={{ marginBottom: 0 }}>
-                    <InputNumber
-                      style={{ width: 150 }}
-                      min={0}
-                      max={60}
-                      step={1}
-                      precision={0}
-                      value={s2bPageDelaySec}
-                      onChange={v => setS2bPageDelaySec(typeof v === 'number' ? v : S2B_DEFAULT_PAGE_DELAY_SEC)}
-                    />
-                  </Form.Item>
-                  <Form.Item label="정렬" style={{ marginBottom: 0 }}>
-                    <Select
-                      style={{ width: 160 }}
-                      value={s2bSortCode}
-                      onChange={v => setS2bSortCode(v)}
-                      options={[
-                        { label: '낮은 금액순', value: 'PCAC' },
-                        { label: '정확도순', value: 'RANK' },
-                        { label: '인증 많은순', value: 'CERT' },
-                        { label: '계약이행신뢰도순', value: 'TRUST' },
-                        { label: '등록순', value: 'DATE' },
-                        { label: '높은 금액순', value: 'PCDC' },
-                        { label: '후기 많은순', value: 'REVIEW_COUNT' },
-                      ]}
-                    />
-                  </Form.Item>
+
+                  {/* 그룹 2: 금액 최소/최대 */}
+                  <Space.Compact style={{ width: '100%', marginBottom: 16 }}>
+                    <Form.Item label="금액(최소)" style={{ flex: 1, marginRight: 8, marginBottom: 0 }}>
+                      <InputNumber
+                        style={{ width: '100%' }}
+                        min={0}
+                        max={S2B_DEFAULT_MAX_PRICE}
+                        value={s2bMinPrice}
+                        onChange={v => setS2bMinPrice(typeof v === 'number' ? v : null)}
+                        placeholder="0"
+                      />
+                    </Form.Item>
+                    <Form.Item label="금액(최대)" style={{ flex: 1, marginBottom: 0 }}>
+                      <InputNumber
+                        style={{ width: '100%' }}
+                        min={0}
+                        max={S2B_DEFAULT_MAX_PRICE}
+                        value={s2bMaxPrice}
+                        onChange={v => setS2bMaxPrice(typeof v === 'number' ? v : S2B_DEFAULT_MAX_PRICE)}
+                      />
+                    </Form.Item>
+                  </Space.Compact>
+
+                  {/* 그룹 3: 페이지딜레이, 정렬, 최대갯수 */}
+                  <Space.Compact style={{ width: '100%', marginBottom: 16 }}>
+                    <Form.Item label="페이지 딜레이(초)" style={{ flex: 1, marginRight: 8, marginBottom: 0 }}>
+                      <InputNumber
+                        style={{ width: '100%' }}
+                        min={0}
+                        max={60}
+                        step={1}
+                        precision={0}
+                        value={s2bPageDelaySec}
+                        onChange={v => setS2bPageDelaySec(typeof v === 'number' ? v : S2B_DEFAULT_PAGE_DELAY_SEC)}
+                      />
+                    </Form.Item>
+                    <Form.Item label="정렬" style={{ flex: 1, marginRight: 8, marginBottom: 0 }}>
+                      <Select
+                        style={{ width: '100%' }}
+                        value={s2bSortCode}
+                        onChange={v => setS2bSortCode(v)}
+                        options={[
+                          { label: '낮은 금액순', value: 'PCAC' },
+                          { label: '정확도순', value: 'RANK' },
+                          { label: '인증 많은순', value: 'CERT' },
+                          { label: '계약이행신뢰도순', value: 'TRUST' },
+                          { label: '등록순', value: 'DATE' },
+                          { label: '높은 금액순', value: 'PCDC' },
+                          { label: '후기 많은순', value: 'REVIEW_COUNT' },
+                        ]}
+                      />
+                    </Form.Item>
+                    <Form.Item label="최대갯수" style={{ flex: 1, marginBottom: 0 }}>
+                      <InputNumber
+                        style={{ width: '100%' }}
+                        min={1}
+                        max={5000}
+                        value={s2bMaxCount}
+                        onChange={v => setS2bMaxCount(typeof v === 'number' ? v : 50)}
+                      />
+                    </Form.Item>
+                  </Space.Compact>
+
+                  {/* 검색 버튼 */}
                   <Form.Item style={{ marginBottom: 0 }}>
                     <Button
                       type="primary"
                       onClick={handleS2BFilterSearch}
                       loading={listLoading}
                       disabled={(s2bKeyword || '').trim().length === 0}
+                      block
                     >
                       필터 검색 (자동)
                     </Button>
@@ -578,21 +642,25 @@ const Sourcing: React.FC = () => {
                 </div>
               </>
             )}
-            <Divider />
-            <Form.Item label="URL">
-              <Input
-                placeholder="https://"
-                style={{ width: 360 }}
-                value={urlInput}
-                onChange={e => setUrlInput(e.target.value)}
-                onPressEnter={handleFetchOneByUrl}
-              />
-            </Form.Item>
-            <Form.Item>
-              <Button type="primary" icon={<PlusOutlined />} onClick={handleFetchOneByUrl}>
-                1개 가져오기 (수동)
-              </Button>
-            </Form.Item>
+            {vendor !== 's2b' && (
+              <>
+                <Divider style={{ margin: '16px 0' }} />
+                <Form.Item label="URL">
+                  <Input
+                    placeholder="https://"
+                    style={{ width: 360 }}
+                    value={urlInput}
+                    onChange={e => setUrlInput(e.target.value)}
+                    onPressEnter={handleFetchOneByUrl}
+                  />
+                </Form.Item>
+                <Form.Item>
+                  <Button type="primary" icon={<PlusOutlined />} onClick={handleFetchOneByUrl}>
+                    1개 가져오기 (수동)
+                  </Button>
+                </Form.Item>
+              </>
+            )}
           </Form>
         </Space>
       </Card>

@@ -616,10 +616,12 @@ function setupIpcHandlers() {
         url,
         product,
         optionHandling,
+        delayConfig,
       }: {
         url: string
         product?: { url: string; name?: string; price?: number; listThumbnail?: string; vendor?: string }
         optionHandling?: 'split' | 'single'
+        delayConfig?: { minDelaySec?: number; maxDelaySec?: number }
       },
     ) => {
       try {
@@ -640,7 +642,7 @@ function setupIpcHandlers() {
         await sourcing.launch()
 
         const target = product && product.url ? product : { url }
-        const details = await sourcing.collectNormalizedDetailForProducts([target], optionHandling)
+        const details = await sourcing.collectNormalizedDetailForProducts([target], optionHandling, delayConfig)
         if (details.length === 0) {
           throw new Error('상품 정보를 가져올 수 없습니다.')
         }
@@ -654,34 +656,50 @@ function setupIpcHandlers() {
     },
   )
 
-  ipcMain.handle('sourcing-collect-details', async (_, { urls, products }: { urls?: string[]; products?: any[] }) => {
-    try {
-      const settings = store.get('settings')
-      const configSets = (store.get('configSets') || []) as ConfigSet[]
-      const activeConfigSetId = store.get('activeConfigSetId')
-      const activeConfigSet = configSets.find(cs => cs.id === activeConfigSetId) || configSets.find(cs => cs.isActive)
+  ipcMain.handle(
+    'sourcing-collect-details',
+    async (
+      _,
+      {
+        urls,
+        products,
+        optionHandling,
+        delayConfig,
+      }: {
+        urls?: string[]
+        products?: any[]
+        optionHandling?: 'split' | 'single'
+        delayConfig?: { minDelaySec?: number; maxDelaySec?: number }
+      },
+    ) => {
+      try {
+        const settings = store.get('settings')
+        const configSets = (store.get('configSets') || []) as ConfigSet[]
+        const activeConfigSetId = store.get('activeConfigSetId')
+        const activeConfigSet = configSets.find(cs => cs.id === activeConfigSetId) || configSets.find(cs => cs.isActive)
 
-      if (!sourcing) {
-        sourcing = new S2BSourcing(settings.fileDir, sendLogToRenderer, settings.headless, settings, activeConfigSet)
+        if (!sourcing) {
+          sourcing = new S2BSourcing(settings.fileDir, sendLogToRenderer, settings.headless, settings, activeConfigSet)
+        }
+
+        // 항상 최신 active 설정값 세트를 반영
+        sourcing.setConfigSet(activeConfigSet)
+
+        await sourcing.launch()
+        const details =
+          products && Array.isArray(products) && products.length > 0
+            ? await sourcing.collectNormalizedDetailForProducts(products, optionHandling, delayConfig)
+            : await sourcing.collectNormalizedDetailForUrls(urls || [])
+        await sourcing.close()
+
+        return { success: true, items: details }
+      } catch (error: any) {
+        console.error('Error collecting details:', error)
+        sendLogToRenderer(`상세 수집 실패: ${error?.message || '알 수 없는 오류'}`, 'error')
+        return { success: false, error: error?.message || '상세 수집 실패' }
       }
-
-      // 항상 최신 active 설정값 세트를 반영
-      sourcing.setConfigSet(activeConfigSet)
-
-      await sourcing.launch()
-      const details =
-        products && Array.isArray(products) && products.length > 0
-          ? await sourcing.collectNormalizedDetailForProducts(products)
-          : await sourcing.collectNormalizedDetailForUrls(urls || [])
-      await sourcing.close()
-
-      return { success: true, items: details }
-    } catch (error) {
-      console.error('Error collecting details:', error)
-      sendLogToRenderer(`상세 수집 실패: ${error.message || '알 수 없는 오류'}`, 'error')
-      return { success: false, error: error.message || '상세 수집 실패' }
-    }
-  })
+    },
+  )
 
   ipcMain.handle('check-account-validity', async (_, { accountId }) => {
     return await checkAccountValidity(accountId)
