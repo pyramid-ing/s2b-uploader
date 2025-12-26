@@ -642,7 +642,7 @@ function setupIpcHandlers() {
         await sourcing.launch()
 
         const target = product && product.url ? product : { url }
-        const details = await sourcing.collectNormalizedDetailForProducts([target], optionHandling, delayConfig)
+        const details = await sourcing.collectNormalizedDetailForProducts([target], optionHandling)
         if (details.length === 0) {
           throw new Error('상품 정보를 가져올 수 없습니다.')
         }
@@ -656,20 +656,17 @@ function setupIpcHandlers() {
     },
   )
 
+  // 단일 URL 처리 핸들러 (기존 sourcing-collect-details를 단일 URL 처리로 변경)
   ipcMain.handle(
     'sourcing-collect-details',
     async (
       _,
       {
-        urls,
-        products,
+        url,
         optionHandling,
-        delayConfig,
       }: {
-        urls?: string[]
-        products?: any[]
+        url?: string
         optionHandling?: 'split' | 'single'
-        delayConfig?: { minDelaySec?: number; maxDelaySec?: number }
       },
     ) => {
       try {
@@ -686,10 +683,10 @@ function setupIpcHandlers() {
         sourcing.setConfigSet(activeConfigSet)
 
         await sourcing.launch()
-        const details =
-          products && Array.isArray(products) && products.length > 0
-            ? await sourcing.collectNormalizedDetailForProducts(products, optionHandling, delayConfig)
-            : await sourcing.collectNormalizedDetailForUrls(urls || [])
+        if (!url) {
+          throw new Error('URL이 필요합니다.')
+        }
+        const details = await sourcing.collectNormalizedDetailForUrls([url], optionHandling)
         await sourcing.close()
 
         return { success: true, items: details }

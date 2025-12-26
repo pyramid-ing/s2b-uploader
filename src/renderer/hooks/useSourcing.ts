@@ -1,5 +1,6 @@
 import { useRecoilState, useRecoilCallback } from 'recoil'
 import { message } from 'antd'
+import { random } from 'lodash'
 import {
   sourcingItemsState,
   selectedSourcingKeysState,
@@ -170,7 +171,7 @@ export const useSourcing = () => {
             return
           }
 
-          const res = await ipcRenderer.invoke('sourcing-collect-details', { urls: [urlInput] })
+          const res = await ipcRenderer.invoke('sourcing-collect-details', { url: urlInput })
           if (!res?.success) throw new Error(res?.error || '상세 수집 실패')
 
           const found = (res.items || []).find((d: any) => d.url === urlInput)
@@ -222,67 +223,75 @@ export const useSourcing = () => {
           // 선택된 상품들만 필터링
           const selectedItems = currentItems.filter(item => targetKeys.includes(item.key))
 
-          // 모든 상품 로딩 상태 시작
-          set(sourcingItemsState, prev =>
-            prev.map(p => (targetKeys.includes(p.key) ? { ...p, loading: true, result: undefined } : p)),
-          )
-
           // 딜레이 설정 (학교장터 상품이 있고 2개 이상일 때만)
           const hasSchoolS2B = selectedItems.some(item => item.vendor === '학교장터')
-          const delayConfig =
-            selectedItems.length >= 2 && hasSchoolS2B
-              ? {
-                  minDelaySec: delayMinSec ?? 5,
-                  maxDelaySec: delayMaxSec ?? 30,
-                }
-              : undefined
+          const minDelaySec = delayMinSec ?? 5
+          const maxDelaySec = delayMaxSec ?? 30
 
-          // 여러 상품을 한 번에 처리 (딜레이는 collectNormalizedDetailForProducts 내부에서 처리)
-          const products = selectedItems.map(item => ({
-            url: item.url,
-            name: item.name,
-            price: item.price,
-            listThumbnail: item.listThumbnail,
-            vendor: item.vendor,
-          }))
+          // 각 상품을 순차적으로 처리
+          for (let i = 0; i < selectedItems.length; i++) {
+            const item = selectedItems[i]
 
-          const result = await ipcRenderer.invoke('sourcing-collect-details', {
-            products,
-            optionHandling,
-            delayConfig,
-          })
-
-          if (result?.success && result?.items && Array.isArray(result.items)) {
-            // 성공 시 결과 업데이트
-            interface ResultItem {
-              url: string
-              downloadDir?: string
-              [key: string]: any
-            }
-            const resultMap = new Map<string, ResultItem>(
-              (result.items as ResultItem[]).map((item: ResultItem) => [item.url, item]),
-            )
+            // 현재 상품 로딩 상태 시작
             set(sourcingItemsState, prev =>
-              prev.map(p => {
-                if (!targetKeys.includes(p.key)) return p
-                const resultItem = resultMap.get(p.url)
-                if (resultItem) {
-                  return {
-                    ...p,
-                    ...resultItem,
-                    downloadDir: resultItem.downloadDir ?? p.downloadDir,
-                    isCollected: true,
-                    loading: false,
-                    result: '성공',
-                  }
-                }
-                return { ...p, loading: false, result: '수집 실패' }
-              }),
+              prev.map(p => (p.key === item.key ? { ...p, loading: true, result: undefined } : p)),
             )
 
-            message.success(`${(result.items as ResultItem[]).length}개 상품 수집 완료`)
-          } else {
-            throw new Error(result?.error || '수집 실패')
+            try {
+              // 단일 상품 수집
+              const result = await ipcRenderer.invoke('sourcing-collect-single-detail', {
+                url: item.url,
+                product: {
+                  url: item.url,
+                  name: item.name,
+                  price: item.price,
+                  listThumbnail: item.listThumbnail,
+                  vendor: item.vendor,
+                },
+                optionHandling,
+              })
+
+              if (result?.success) {
+                // 성공 시 결과 업데이트
+                set(sourcingItemsState, prev =>
+                  prev.map(p =>
+                    p.key === item.key
+                      ? {
+                          ...p,
+                          ...result.item,
+                          downloadDir: result.item.downloadDir ?? p.downloadDir,
+                          isCollected: true,
+                          loading: false,
+                          result: '성공',
+                        }
+                      : p,
+                  ),
+                )
+
+                message.success(`${item.name} 수집 완료`)
+              } else {
+                throw new Error(result?.error || '수집 실패')
+              }
+            } catch (error: any) {
+              // 실패 시 결과 업데이트
+              set(sourcingItemsState, prev =>
+                prev.map(p =>
+                  p.key === item.key ? { ...p, loading: false, result: error.message || '수집 실패' } : p,
+                ),
+              )
+
+              message.error(`${item.name} 수집 실패: ${error.message}`)
+            }
+
+            // 마지막 상품이 아니고 학교장터인 경우 딜레이 처리 (프론트엔드에서)
+            if (i < selectedItems.length - 1 && item.vendor === '학교장터' && hasSchoolS2B) {
+              const minDelayMs = Math.max(0, minDelaySec) * 1000
+              const maxDelayMs = Math.max(minDelayMs, maxDelaySec * 1000)
+              const randomDelayMs = random(minDelayMs, maxDelayMs)
+              const delaySeconds = (randomDelayMs / 1000).toFixed(1)
+              message.info(`다음 상품 소싱까지 ${delaySeconds}초 대기 중...`)
+              await new Promise(resolve => setTimeout(resolve, randomDelayMs))
+            }
           }
         } catch (e) {
           message.error('상세 수집 중 오류가 발생했습니다.')
