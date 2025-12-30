@@ -1,4 +1,5 @@
 import { S2BBase } from './s2b-base'
+import dayjs from 'dayjs'
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
@@ -13,13 +14,17 @@ export class S2BManagement extends S2BBase {
   }
 
   public async extendManagementDateForRange(
-    startDate: string,
-    endDate: string,
+    startDate?: string,
+    endDate?: string,
     registrationStatus: string = '',
   ): Promise<void> {
     if (!this.page) throw new Error('브라우저가 초기화되지 않았습니다.')
 
-    await this._gotoAndSearchListPageByRange(startDate, endDate, registrationStatus)
+    // 날짜가 제공되지 않았을 경우 기본값으로 3개월 이내 설정
+    const finalStartDate = startDate || dayjs().format('YYYYMMDD')
+    const finalEndDate = endDate || dayjs().add(3, 'month').format('YYYYMMDD')
+
+    await this._gotoAndSearchListPageByRange(finalStartDate, finalEndDate, registrationStatus)
     const products = await this._collectAllProductLinks()
     await this._processExtendProducts(products)
   }
