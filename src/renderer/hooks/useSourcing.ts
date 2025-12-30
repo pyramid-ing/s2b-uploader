@@ -209,7 +209,13 @@ export const useSourcing = () => {
   // 등록 요청 (상세 수집)
   const requestRegister = useRecoilCallback(
     ({ set, snapshot }) =>
-      async (keys?: React.Key[], optionHandling?: 'split' | 'single', delayMinSec?: number, delayMaxSec?: number) => {
+      async (
+        keys?: React.Key[],
+        optionHandling?: 'split' | 'single',
+        delayMinSec?: number,
+        delayMaxSec?: number,
+        useAI?: boolean,
+      ) => {
         const currentSelectedKeys = await snapshot.getPromise(selectedSourcingKeysState)
         const currentItems = await snapshot.getPromise(sourcingItemsState)
 
@@ -249,6 +255,7 @@ export const useSourcing = () => {
                   vendor: item.vendor,
                 },
                 optionHandling,
+                useAI,
               })
 
               if (result?.success) {

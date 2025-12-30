@@ -220,6 +220,7 @@ interface StoreSchema {
     headless: boolean
     marginRate: number
     detailHtmlTemplate: string
+    useAIForSourcing?: boolean
   }
   configSets: any[]
   activeConfigSetId: string | null
@@ -238,6 +239,7 @@ const store = new Store<StoreSchema>({
       headless: false,
       marginRate: 20,
       detailHtmlTemplate: '<p>상세설명을 입력하세요.</p>',
+      useAIForSourcing: false,
     },
     configSets: [],
     activeConfigSetId: null,
@@ -617,11 +619,13 @@ function setupIpcHandlers() {
         product,
         optionHandling,
         delayConfig,
+        useAI,
       }: {
         url: string
         product?: { url: string; name?: string; price?: number; listThumbnail?: string; vendor?: string }
         optionHandling?: 'split' | 'single'
         delayConfig?: { minDelaySec?: number; maxDelaySec?: number }
+        useAI?: boolean
       },
     ) => {
       try {
@@ -642,7 +646,9 @@ function setupIpcHandlers() {
         await sourcing.launch()
 
         const target = product && product.url ? product : { url }
-        const details = await sourcing.collectNormalizedDetailForProducts([target], optionHandling)
+        // useAI가 명시되지 않으면 설정값 사용, 설정값도 없으면 false (기본값)
+        const effectiveUseAI = useAI !== undefined ? useAI : (settings.useAIForSourcing ?? false)
+        const details = await sourcing.collectNormalizedDetailForProducts([target], optionHandling, effectiveUseAI)
         if (details.length === 0) {
           throw new Error('상품 정보를 가져올 수 없습니다.')
         }
@@ -664,9 +670,11 @@ function setupIpcHandlers() {
       {
         url,
         optionHandling,
+        useAI,
       }: {
         url?: string
         optionHandling?: 'split' | 'single'
+        useAI?: boolean
       },
     ) => {
       try {
@@ -686,7 +694,9 @@ function setupIpcHandlers() {
         if (!url) {
           throw new Error('URL이 필요합니다.')
         }
-        const details = await sourcing.collectNormalizedDetailForUrls([url], optionHandling)
+        // useAI가 명시되지 않으면 설정값 사용, 설정값도 없으면 false (기본값)
+        const effectiveUseAI = useAI !== undefined ? useAI : (settings.useAIForSourcing ?? false)
+        const details = await sourcing.collectNormalizedDetailForUrls([url], optionHandling, effectiveUseAI)
         await sourcing.close()
 
         return { success: true, items: details }

@@ -116,16 +116,18 @@ export class S2BSourcing extends S2BBase {
     return await scraper.collectFilteredList(this.page, vendor, params, (m, lv) => this._log(m, lv))
   }
 
-  public async collectNormalizedDetailForUrls(urls: string[], optionHandling?: 'split' | 'single') {
+  public async collectNormalizedDetailForUrls(urls: string[], optionHandling?: 'split' | 'single', useAI?: boolean) {
     return await this.collectNormalizedDetailForProducts(
       (urls || []).map(url => ({ url })),
       optionHandling,
+      useAI,
     )
   }
 
   public async collectNormalizedDetailForProducts(
     products: SourcingListProduct[],
     optionHandling?: 'split' | 'single',
+    useAI?: boolean,
   ) {
     if (!this.page) throw new Error('Browser page not initialized')
     const outputs: (SourcingCrawlData & { excelMapped?: ExcelRegistrationData[] })[] = []
@@ -211,16 +213,29 @@ export class S2BSourcing extends S2BBase {
 
       // 학교장터는 n8n(AI 정제/OCR) 호출 없이 크롤링 데이터 그대로 사용한다.
       // (요청사항: n8n 서버 요청 금지)
+      // useAI가 false이면 모든 벤더에서 AI 없이 처리
       const aiRefined =
         vendorKey === VendorKey.학교장터
           ? this._buildRefinedPayloadWithoutAI(crawlData)
-          : await this._refineCrawlWithAI(crawlData)
+          : useAI === false
+            ? this._buildRefinedPayloadWithoutAIForVendor(crawlData, vendorKey)
+            : await this._refineCrawlWithAI(crawlData)
 
       // 학교장터는 외부 KC 검증 호출 없이, 상세 화면의 "인증정보" 텍스트를 기반으로 KC 정보를 채운다.
+      // useAI가 false이면 KC 검증도 건너뛰고 기본값 사용
       const kcResolved =
         vendorKey === VendorKey.학교장터
           ? this._determineKcFromS2BFeatures(crawlData.특성)
-          : await this._determineKcFromAI(aiRefined)
+          : useAI === false
+            ? {
+                kids: { type: 'N' as const, certNum: '' },
+                elec: { type: 'N' as const, certNum: '' },
+                daily: { type: 'N' as const, certNum: '' },
+                broadcasting: { type: 'N' as const, certNum: '' },
+                issue: false,
+                issuesText: '',
+              }
+            : await this._determineKcFromAI(aiRefined)
 
       let categoryMapped: any = {}
       switch (vendorKey) {
@@ -366,6 +381,121 @@ export class S2BSourcing extends S2BBase {
     // 4) AI 정제 완료
     this._log(`AI 정제 완료: ${data.name ?? ''}`, 'info')
     return aiRefined
+  }
+
+  private _buildRefinedPayloadWithoutAIForVendor(data: SourcingCrawlData, vendorKey: VendorKey): AiRefinedPayload {
+    const name = (data.name || '').toString().trim()
+
+    const originText = (data.origin || '').toString().trim()
+
+    const featurePairs: { label: string; value: string }[] = Array.isArray(data.특성)
+      ? data.특성
+          .map(v => ({ label: (v?.label ?? '').toString().trim(), value: (v?.value ?? '').toString().trim() }))
+          .filter(v => v.label || v.value)
+      : []
+
+    const pickByLabel = (labels: string[]): string | undefined => {
+      for (const label of labels) {
+        const found = featurePairs.find(p => p.label === label || p.label.includes(label))
+        if (found?.value?.trim()) return found.value.trim()
+      }
+      return undefined
+    }
+
+    // 모델명: 여러 가능한 라벨명 시도
+    const modelName =
+      pickByLabel(['모델명', '모델명/품번', '모델명 / 품번', '모델']) ||
+      (() => {
+        const raw = pickByLabel(['모델명 / 규격', '모델명/규격'])
+        if (!raw) return undefined
+        return raw
+          .split('/')
+          .map(v => v.trim())
+          .filter(Boolean)[0]
+      })() ||
+      '상세설명참고'
+
+    // 규격
+    const spec =
+      pickByLabel(['규격', '사양']) ||
+      (() => {
+        const raw = pickByLabel(['모델명 / 규격', '모델명/규격'])
+        if (!raw) return undefined
+        const parts = raw
+          .split('/')
+          .map(v => v.trim())
+          .filter(Boolean)
+        if (parts.length <= 1) return undefined
+        return parts.slice(1).join(' / ')
+      })()
+
+    // 소재/재질
+    const materialValue = pickByLabel(['소재 / 재질', '소재/재질', '소재', '재질', '재료']) || '상세설명참고'
+
+    // 인증번호는 페이지에서 제공되는 KC 표기/인증번호 텍스트에서만 단순 추출 (검증 호출 없음)
+    const textPool = featurePairs.map(p => `${p.label}: ${p.value}`)
+    const certificationNumbers = Array.from(
+      new Set(
+        textPool
+          .flatMap(s => {
+            const matches = s.match(/\b(?:R-[A-Z0-9-]+|R-[A-Z]-[A-Z0-9-]+|MSIP-[A-Z0-9-]+|KCC-[A-Z0-9-]+)\b/gi) || []
+            const bracketed = s.match(/\[([A-Za-z0-9-]{6,})\]/g) || []
+            return [...matches, ...bracketed.map(v => v.replace(/^\[/, '').replace(/\]$/, ''))].map(v => v.trim())
+          })
+          .filter(Boolean),
+      ),
+    )
+
+    // Excel 규격에 들어가야 하므로 spec를 제일 앞에 두고, 너무 길어지지 않게 최소만 넣는다.
+    const features: string[] = []
+    if (spec) features.push(spec)
+    if (materialValue && materialValue !== '상세설명참고') features.push(`소재/재질: ${materialValue}`)
+
+    // 원산지구분: 크롤링된 데이터 그대로 사용 (추론하지 않음)
+    const originType: OriginType = ''
+
+    // 옵션 정보는 크롤링된 데이터를 AiOptionItem[] 형식으로 변환
+    const options: { name: string; price: number; qty: number }[] = []
+    if (data.options && Array.isArray(data.options)) {
+      // 2차원 배열을 평탄화하고 AiOptionItem 형식으로 변환
+      for (const optionGroup of data.options) {
+        if (Array.isArray(optionGroup)) {
+          for (const option of optionGroup) {
+            if (option && typeof option === 'object' && option.name) {
+              options.push({
+                name: String(option.name || ''),
+                price: typeof option.price === 'number' ? option.price : 0,
+                qty: typeof option.qty === 'number' ? option.qty : 0,
+              })
+            }
+          }
+        }
+      }
+    }
+
+    // 이미지사용여부는 '허용' | '불가' | '모름' 타입으로 변환
+    let imageUsage: '허용' | '불가' | '모름' = '모름'
+    if (data.imageUsage) {
+      const usage = String(data.imageUsage).trim()
+      if (usage === '허용' || usage === '불가') {
+        imageUsage = usage
+      } else {
+        imageUsage = '모름'
+      }
+    }
+
+    return {
+      물품명: name || '상품명',
+      모델명: modelName,
+      '소재/재질': materialValue,
+      원산지구분: originType,
+      국내원산지: '',
+      해외원산지: originText,
+      certificationNumbers,
+      이미지사용여부: imageUsage,
+      options,
+      특성: features,
+    }
   }
 
   private _buildRefinedPayloadWithoutAI(data: SourcingCrawlData): AiRefinedPayload {

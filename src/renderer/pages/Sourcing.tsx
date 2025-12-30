@@ -4,6 +4,7 @@ import {
   Alert,
   Button,
   Card,
+  Checkbox,
   Collapse,
   Divider,
   Form,
@@ -73,6 +74,7 @@ const Sourcing: React.FC = () => {
   const [optionHandling, setOptionHandling] = useState<'split' | 'single'>('split')
   const [configSets] = useRecoilState(sourcingConfigSetsState)
   const [activeConfigSetId] = useRecoilState(activeConfigSetIdState)
+  const [lastUseAI, setLastUseAI] = useState<boolean | null>(null)
 
   // Recoil 기반 상태 관리
   const { logs, progress, clearLogs } = useLog()
@@ -123,6 +125,16 @@ const Sourcing: React.FC = () => {
   useEffect(() => {
     loadSettings()
     checkPermission()
+    // 마지막 AI 사용 설정 불러오기
+    const { ipcRenderer } = window.require('electron')
+    ipcRenderer
+      .invoke('get-settings')
+      .then((settingsData: any) => {
+        if (settingsData?.useAIForSourcing !== undefined) {
+          setLastUseAI(settingsData.useAIForSourcing)
+        }
+      })
+      .catch(console.error)
   }, [loadSettings, checkPermission])
 
   // 활성화된 설정값 세트 기준으로 기본 옵션 처리 방법 설정
@@ -367,6 +379,9 @@ const Sourcing: React.FC = () => {
     const firstItemName = targetItems[0]?.name || ''
     const hasSchoolS2B = targetItems.some(item => item.vendor === '학교장터')
 
+    // AI 사용 여부 체크박스 상태 관리
+    const useAIRef = { value: lastUseAI ?? false }
+
     // 2개 이상이고 학교장터 상품이 있으면 딜레이 설정 팝업 표시
     if (count >= 2 && hasSchoolS2B) {
       const delayRef = { min: 5, max: 30 }
@@ -391,7 +406,7 @@ const Sourcing: React.FC = () => {
                 }}
               />
             </Form.Item>
-            <Form.Item label="소싱 딜레이(최대초)" style={{ marginBottom: 0 }}>
+            <Form.Item label="소싱 딜레이(최대초)" style={{ marginBottom: 16 }}>
               <InputNumber
                 style={{ width: '100%' }}
                 min={0}
@@ -404,6 +419,16 @@ const Sourcing: React.FC = () => {
                 }}
               />
             </Form.Item>
+            <Form.Item style={{ marginBottom: 0 }}>
+              <Checkbox
+                defaultChecked={lastUseAI ?? false}
+                onChange={e => {
+                  useAIRef.value = e.target.checked
+                }}
+              >
+                수집시 AI로 정보 가져오기
+              </Checkbox>
+            </Form.Item>
           </div>
         ),
         okText: '수집하기',
@@ -412,7 +437,12 @@ const Sourcing: React.FC = () => {
           // 최소값이 최대값보다 크면 최대값으로 조정
           const finalMin = Math.min(delayRef.min, delayRef.max)
           const finalMax = Math.max(delayRef.min, delayRef.max)
-          requestRegister(targetKeys, optionHandling, finalMin, finalMax)
+          const useAI = useAIRef.value
+          // 마지막 설정값 저장
+          setLastUseAI(useAI)
+          const { ipcRenderer } = window.require('electron')
+          ipcRenderer.invoke('save-settings', { useAIForSourcing: useAI }).catch(console.error)
+          requestRegister(targetKeys, optionHandling, finalMin, finalMax, useAI)
         },
       })
     } else {
@@ -421,11 +451,32 @@ const Sourcing: React.FC = () => {
 
       Modal.confirm({
         title: '수집 시 정말로 수집하겠습니까?',
-        content,
+        width: 500,
+        content: (
+          <div style={{ padding: '16px 0' }}>
+            <Typography.Text>{content}</Typography.Text>
+            <Divider style={{ margin: '16px 0' }} />
+            <Form.Item style={{ marginBottom: 0 }}>
+              <Checkbox
+                defaultChecked={lastUseAI ?? false}
+                onChange={e => {
+                  useAIRef.value = e.target.checked
+                }}
+              >
+                수집시 AI로 정보 가져오기
+              </Checkbox>
+            </Form.Item>
+          </div>
+        ),
         okText: '예',
         cancelText: '아니오',
         onOk: () => {
-          requestRegister(targetKeys, optionHandling)
+          const useAI = useAIRef.value
+          // 마지막 설정값 저장
+          setLastUseAI(useAI)
+          const { ipcRenderer } = window.require('electron')
+          ipcRenderer.invoke('save-settings', { useAIForSourcing: useAI }).catch(console.error)
+          requestRegister(targetKeys, optionHandling, undefined, undefined, useAI)
         },
       })
     }
