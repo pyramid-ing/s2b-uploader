@@ -35,11 +35,15 @@ export function getEnvConfig(): EnvConfig {
   let downloadsPath: string
   let tempDir: string
 
+  // Electron userData 디렉터리 (업데이트 후에도 유지되는 디렉터리)
+  const userDataPath = app.getPath('userData')
+
   if (isPackage) {
     // 프로덕션 환경: 앱 경로 기준
     appPath = app.getAppPath()
     filesPath = path.join(appPath, 'dist', 'electron', 'files')
-    downloadsPath = path.join(appPath, 'downloads')
+    // downloadsPath는 userData 디렉터리 사용 (업데이트 후에도 유지)
+    downloadsPath = path.join(userDataPath, 'downloads')
   } else {
     // 개발 환경: 프로젝트 루트 기준
     appPath = process.cwd()
@@ -48,7 +52,6 @@ export function getEnvConfig(): EnvConfig {
   }
 
   // Electron userData 디렉터리 기준 temp 폴더
-  const userDataPath = app.getPath('userData')
   tempDir = path.join(userDataPath, 'temp')
 
   return {
