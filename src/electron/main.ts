@@ -13,11 +13,24 @@ import { ExcelRegistrationData, ConfigSet } from './types/excel'
 import { envConfig, supabase } from './envConfig'
 
 /**
+ * 계정 정보 타입 정의
+ */
+interface AccountInfo {
+  id: bigint | number // s2b_accounts.id는 BIGSERIAL (bigint)
+  s2b_id: string
+  plan_type: string | null
+  status: string | null
+  period_start: string | null
+  period_end: string | null
+  permissions: string[]
+}
+
+/**
  * 계정 정보 조회 함수
  * @param accountId - 확인할 계정 ID
  * @returns 계정 정보 객체 또는 null
  */
-async function getAccountInfo(accountId: string): Promise<any | null> {
+async function getAccountInfo(accountId: string): Promise<AccountInfo | null> {
   try {
     // Supabase RPC 함수로 계정 조회 (배열 반환)
     const { data, error } = await supabase.rpc('get_account', { p_s2b_id: accountId })
@@ -33,12 +46,12 @@ async function getAccountInfo(accountId: string): Promise<any | null> {
       return null
     }
 
-    const account = data[0] // 첫 번째 결과 사용
+    const account: AccountInfo = data[0] // 첫 번째 결과 사용
 
     // 1. 만료일 체크: 현재 날짜가 start_date와 end_date 사이에 있는지 확인
     const today = dayjs()
-    const startDate = account.start_date ? dayjs(account.start_date) : null
-    const endDate = account.end_date ? dayjs(account.end_date) : null
+    const startDate = account.period_start ? dayjs(account.period_start) : null
+    const endDate = account.period_end ? dayjs(account.period_end) : null
 
     if (startDate && today.isBefore(startDate, 'day')) {
       console.log(`계정 사용 기간이 아직 시작되지 않음: ${accountId} (시작일: ${startDate.format('YYYY-MM-DD')})`)
@@ -469,6 +482,13 @@ function setupIpcHandlers() {
   ipcMain.handle('sourcing-open-site', async (_, { vendor }: { vendor: string }) => {
     try {
       const settings = store.get('settings')
+
+      // ✅ 계정 권한 검사
+      const hasPermission = await checkAccountPermission(settings.loginId, '소싱')
+      if (!hasPermission) {
+        throw new Error('"소싱" 권한이 없습니다. 소싱 기능을 사용할 수 없습니다.')
+      }
+
       const configSets = (store.get('configSets') || []) as ConfigSet[]
       const activeConfigSetId = store.get('activeConfigSetId')
       const activeConfigSet = configSets.find(cs => cs.id === activeConfigSetId) || configSets.find(cs => cs.isActive)
@@ -507,6 +527,14 @@ function setupIpcHandlers() {
   // 소싱: 현재 페이지에서 목록 수집 (이미 열린 브라우저 기준)
   ipcMain.handle('sourcing-collect-list-current', async () => {
     try {
+      const settings = store.get('settings')
+
+      // ✅ 계정 권한 검사
+      const hasPermission = await checkAccountPermission(settings.loginId, '소싱')
+      if (!hasPermission) {
+        throw new Error('"소싱" 권한이 없습니다. 소싱 기능을 사용할 수 없습니다.')
+      }
+
       if (!sourcing) throw new Error('브라우저가 열려있지 않습니다. 먼저 사이트를 여세요.')
 
       const currentUrl = sourcing.getCurrentUrl()
@@ -546,6 +574,13 @@ function setupIpcHandlers() {
     ) => {
       try {
         const settings = store.get('settings')
+
+        // ✅ 계정 권한 검사
+        const hasPermission = await checkAccountPermission(settings.loginId, '소싱')
+        if (!hasPermission) {
+          throw new Error('"소싱" 권한이 없습니다. 소싱 기능을 사용할 수 없습니다.')
+        }
+
         const configSets = (store.get('configSets') || []) as ConfigSet[]
         const activeConfigSetId = store.get('activeConfigSetId')
         const activeConfigSet = configSets.find(cs => cs.id === activeConfigSetId) || configSets.find(cs => cs.isActive)
@@ -584,6 +619,13 @@ function setupIpcHandlers() {
   ipcMain.handle('sourcing-collect-list', async (_, { url }: { url: string }) => {
     try {
       const settings = store.get('settings')
+
+      // ✅ 계정 권한 검사
+      const hasPermission = await checkAccountPermission(settings.loginId, '소싱')
+      if (!hasPermission) {
+        throw new Error('"소싱" 권한이 없습니다. 소싱 기능을 사용할 수 없습니다.')
+      }
+
       const configSets = (store.get('configSets') || []) as ConfigSet[]
       const activeConfigSetId = store.get('activeConfigSetId')
       const activeConfigSet = configSets.find(cs => cs.id === activeConfigSetId) || configSets.find(cs => cs.isActive)
@@ -630,6 +672,13 @@ function setupIpcHandlers() {
     ) => {
       try {
         const settings = store.get('settings')
+
+        // ✅ 계정 권한 검사
+        const hasPermission = await checkAccountPermission(settings.loginId, '소싱')
+        if (!hasPermission) {
+          throw new Error('"소싱" 권한이 없습니다. 소싱 기능을 사용할 수 없습니다.')
+        }
+
         const configSets = (store.get('configSets') || []) as ConfigSet[]
         const activeConfigSetId = store.get('activeConfigSetId')
         const activeConfigSet = configSets.find(cs => cs.id === activeConfigSetId) || configSets.find(cs => cs.isActive)
@@ -679,6 +728,13 @@ function setupIpcHandlers() {
     ) => {
       try {
         const settings = store.get('settings')
+
+        // ✅ 계정 권한 검사
+        const hasPermission = await checkAccountPermission(settings.loginId, '소싱')
+        if (!hasPermission) {
+          throw new Error('"소싱" 권한이 없습니다. 소싱 기능을 사용할 수 없습니다.')
+        }
+
         const configSets = (store.get('configSets') || []) as ConfigSet[]
         const activeConfigSetId = store.get('activeConfigSetId')
         const activeConfigSet = configSets.find(cs => cs.id === activeConfigSetId) || configSets.find(cs => cs.isActive)
@@ -1017,6 +1073,14 @@ function setupIpcHandlers() {
     'download-sourcing-excel',
     async (_, { sourcingItems, configSet }: { sourcingItems: any[]; configSet?: ConfigSet }) => {
       try {
+        const settings = store.get('settings')
+
+        // ✅ 계정 권한 검사
+        const hasPermission = await checkAccountPermission(settings.loginId, '소싱')
+        if (!hasPermission) {
+          throw new Error('"소싱" 권한이 없습니다. 소싱 기능을 사용할 수 없습니다.')
+        }
+
         // excelMapped 데이터를 평면화하여 사용
         const excelData: ExcelRegistrationData[] = []
         sourcingItems.forEach((item: any) => {
