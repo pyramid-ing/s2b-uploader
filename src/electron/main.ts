@@ -18,7 +18,8 @@ import { envConfig, supabase } from './envConfig'
 interface AccountInfo {
   id: bigint | number // s2b_accounts.id는 BIGSERIAL (bigint)
   s2b_id: string
-  plan_type: string | null
+  plan_type: string | null // subscription_plans.code
+  plan_label: string | null // subscription_plans.label
   status: string | null
   period_start: string | null
   period_end: string | null
@@ -26,51 +27,103 @@ interface AccountInfo {
 }
 
 /**
- * 계정 정보 조회 함수
- * @param accountId - 확인할 계정 ID
+ * 계정 정보 조회 함수 (s2b_accounts -> subscriptions -> subscription_plans 조인)
+ * @param accountId - 확인할 계정 ID (s2b_id)
  * @returns 계정 정보 객체 또는 null
  */
 async function getAccountInfo(accountId: string): Promise<AccountInfo | null> {
   try {
-    // Supabase RPC 함수로 계정 조회 (배열 반환)
-    const { data, error } = await supabase.rpc('get_account', { p_s2b_id: accountId })
+    // 1. s2b_accounts 테이블에서 profile_id 조회
+    const { data: accountData, error: accountError } = await supabase
+      .from('s2b_accounts')
+      .select('id, s2b_id, profile_id')
+      .eq('s2b_id', accountId)
+      .single()
 
-    if (error) {
-      console.error('계정 조회 실패:', error)
-      throw new Error(`계정 조회 중 문제가 발생했습니다: ${error.message}`)
+    if (accountError) {
+      console.error('계정 조회 실패:', accountError)
+      // 계정이 없는 경우 null 반환 (에러로 처리하지 않음)
+      if (accountError.code === 'PGRST116') {
+        console.log('계정을 찾을 수 없음:', accountId)
+        return null
+      }
+      throw new Error(`계정 조회 중 문제가 발생했습니다: ${accountError.message}`)
     }
 
-    // data가 null이거나 빈 배열인 경우는 해당 계정이 존재하지 않는 경우
-    if (!data || data.length === 0) {
+    if (!accountData) {
       console.log('계정을 찾을 수 없음:', accountId)
       return null
     }
 
-    const account: AccountInfo = data[0] // 첫 번째 결과 사용
+    // 2. subscriptions 테이블에서 profile_id로 조회
+    let planType: string | null = null
+    let planLabel: string | null = null
+    let status: string | null = null
+    let periodStart: string | null = null
+    let periodEnd: string | null = null
+    let permissions: string[] = []
 
-    // 1. 만료일 체크: 현재 날짜가 start_date와 end_date 사이에 있는지 확인
-    const today = dayjs()
-    const startDate = account.period_start ? dayjs(account.period_start) : null
-    const endDate = account.period_end ? dayjs(account.period_end) : null
+    if (accountData.profile_id) {
+      const { data: subscriptionData, error: subscriptionError } = await supabase
+        .from('subscriptions')
+        .select('plan_type, status, period_start, period_end')
+        .eq('profile_id', accountData.profile_id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
 
-    if (startDate && today.isBefore(startDate, 'day')) {
-      console.log(`계정 사용 기간이 아직 시작되지 않음: ${accountId} (시작일: ${startDate.format('YYYY-MM-DD')})`)
-      return null
+      if (subscriptionError) {
+        console.error('구독 정보 조회 실패:', subscriptionError)
+        // 구독 정보가 없어도 계정 정보는 반환
+      } else if (subscriptionData) {
+        planType = subscriptionData.plan_type
+        status = subscriptionData.status
+        periodStart = subscriptionData.period_start
+        periodEnd = subscriptionData.period_end
+
+        // 3. subscription_plans 테이블에서 plan_type(code)로 label과 permissions 조회
+        if (planType) {
+          const { data: planData, error: planError } = await supabase
+            .from('subscription_plans')
+            .select('label, permissions')
+            .eq('code', planType)
+            .maybeSingle()
+
+          if (planError) {
+            console.error('플랜 정보 조회 실패:', planError)
+          } else if (planData) {
+            planLabel = planData.label || null
+            if (planData.permissions) {
+              // permissions는 JSONB 배열로 저장되어 있을 수 있으므로 처리
+              if (Array.isArray(planData.permissions)) {
+                permissions = planData.permissions
+              } else if (typeof planData.permissions === 'string') {
+                try {
+                  permissions = JSON.parse(planData.permissions)
+                } catch {
+                  permissions = []
+                }
+              }
+            }
+          }
+        }
+      }
     }
 
-    if (endDate && today.isAfter(endDate, 'day')) {
-      console.log(`계정 사용 기간이 만료됨: ${accountId} (만료일: ${endDate.format('YYYY-MM-DD')})`)
-      return null
+    const account: AccountInfo = {
+      id: accountData.id,
+      s2b_id: accountData.s2b_id,
+      plan_type: planType,
+      plan_label: planLabel,
+      status,
+      period_start: periodStart,
+      period_end: periodEnd,
+      permissions,
     }
 
-    // 2. 권한 체크: permissions 배열에 필요한 권한이 있는지 확인
-    // permissions가 배열이고 비어있지 않은 경우에만 유효한 계정으로 간주
-    if (!account.permissions || !Array.isArray(account.permissions) || account.permissions.length === 0) {
-      console.log(`계정에 권한이 없음: ${accountId}`)
-      return null
-    }
-
-    console.log(`계정 확인 성공: ${accountId} (권한: ${account.permissions.join(', ')})`)
+    console.log(
+      `계정 정보 조회 성공: ${accountId} (만료일: ${account.period_end || '없음'}, 플랜: ${account.plan_type || '없음'})`,
+    )
     return account
   } catch (error: any) {
     console.error('계정 조회 실패:', error)
@@ -79,13 +132,45 @@ async function getAccountInfo(accountId: string): Promise<AccountInfo | null> {
 }
 
 /**
- * 계정 유효성 확인 함수
+ * 계정 유효성 확인 함수 (만료일 및 권한 체크 포함)
  * @param accountId - 확인할 계정 ID
  * @returns boolean - 계정이 유효한 경우 true, 그렇지 않은 경우 false
  */
 async function checkAccountValidity(accountId: string): Promise<boolean> {
-  const account = await getAccountInfo(accountId)
-  return account !== null
+  try {
+    const account = await getAccountInfo(accountId)
+    if (!account) {
+      return false
+    }
+
+    // 1. 만료일 체크: 현재 날짜가 start_date와 end_date 사이에 있는지 확인
+    const today = dayjs()
+    const startDate = account.period_start ? dayjs(account.period_start) : null
+    const endDate = account.period_end ? dayjs(account.period_end) : null
+
+    if (startDate && today.isBefore(startDate, 'day')) {
+      console.log(`계정 사용 기간이 아직 시작되지 않음: ${accountId} (시작일: ${startDate.format('YYYY-MM-DD')})`)
+      return false
+    }
+
+    if (endDate && today.isAfter(endDate, 'day')) {
+      console.log(`계정 사용 기간이 만료됨: ${accountId} (만료일: ${endDate.format('YYYY-MM-DD')})`)
+      return false
+    }
+
+    // 2. 권한 체크: permissions 배열에 필요한 권한이 있는지 확인
+    // permissions가 배열이고 비어있지 않은 경우에만 유효한 계정으로 간주
+    if (!account.permissions || !Array.isArray(account.permissions) || account.permissions.length === 0) {
+      console.log(`계정에 권한이 없음: ${accountId}`)
+      return false
+    }
+
+    console.log(`계정 확인 성공: ${accountId} (권한: ${account.permissions.join(', ')})`)
+    return true
+  } catch (error: any) {
+    console.error('계정 유효성 확인 실패:', error)
+    return false
+  }
 }
 
 /**
@@ -765,7 +850,37 @@ function setupIpcHandlers() {
   )
 
   ipcMain.handle('check-account-validity', async (_, { accountId }) => {
-    return await checkAccountValidity(accountId)
+    // 로그인 없이 s2b_accounts 테이블에서 직접 계정 정보 조회
+    const account = await getAccountInfo(accountId)
+    if (!account) {
+      return { valid: false, accountInfo: null }
+    }
+
+    // 만료일 체크
+    const today = dayjs()
+    const startDate = account.period_start ? dayjs(account.period_start) : null
+    const endDate = account.period_end ? dayjs(account.period_end) : null
+
+    let isValid = true
+    if (startDate && today.isBefore(startDate, 'day')) {
+      isValid = false
+    }
+    if (endDate && today.isAfter(endDate, 'day')) {
+      isValid = false
+    }
+    if (!account.permissions || !Array.isArray(account.permissions) || account.permissions.length === 0) {
+      isValid = false
+    }
+
+    return {
+      valid: isValid,
+      accountInfo: {
+        periodEnd: account.period_end,
+        planType: account.plan_label || account.plan_type, // label 우선, 없으면 code
+        periodStart: account.period_start,
+        status: account.status,
+      },
+    }
   })
 
   // 설정 불러오기

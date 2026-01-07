@@ -17,7 +17,7 @@ export const usePermission = () => {
           const settingsData = await ipcRenderer.invoke('get-settings')
           if (!settingsData?.loginId) {
             message.error('로그인 정보가 설정되지 않았습니다.')
-            set(permissionState, prev => ({ ...prev, hasPermission: false, isLoading: false }))
+            set(permissionState, prev => ({ ...prev, hasPermission: false, isLoading: false, accountInfo: null }))
             return
           }
 
@@ -25,10 +25,15 @@ export const usePermission = () => {
             accountId: settingsData.loginId,
           })
 
-          set(permissionState, prev => ({ ...prev, hasPermission: result, isLoading: false }))
+          set(permissionState, prev => ({
+            ...prev,
+            hasPermission: result.valid,
+            isLoading: false,
+            accountInfo: result.accountInfo,
+          }))
         } catch (error) {
           console.error('권한 체크 실패:', error)
-          set(permissionState, prev => ({ ...prev, hasPermission: false, isLoading: false }))
+          set(permissionState, prev => ({ ...prev, hasPermission: false, isLoading: false, accountInfo: null }))
           message.error('권한 체크 중 오류가 발생했습니다.')
         }
       },
@@ -42,6 +47,7 @@ export const usePermission = () => {
         set(permissionState, {
           hasPermission: null,
           isLoading: false,
+          accountInfo: null,
         })
       },
     [],

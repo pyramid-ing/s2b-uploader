@@ -1,12 +1,19 @@
 import React, { useEffect, useState } from 'react'
 import { Layout, Menu, theme } from 'antd'
-import { AppstoreOutlined, SettingOutlined, UploadOutlined, CalendarOutlined } from '@ant-design/icons'
+import {
+  AppstoreOutlined,
+  SettingOutlined,
+  UploadOutlined,
+  CalendarOutlined,
+  SafetyCertificateOutlined,
+} from '@ant-design/icons'
 import { Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { RecoilRoot } from 'recoil'
 import Settings from './pages/Settings'
 import Register from './pages/Register'
 import Sourcing from './pages/Sourcing'
 import Management from './pages/Management'
+import License from './pages/License'
 
 const { ipcRenderer } = window.require('electron')
 
@@ -41,6 +48,11 @@ const App: React.FC = () => {
       key: '/settings',
       icon: <SettingOutlined />,
       label: '설정',
+    },
+    {
+      key: '/license',
+      icon: <SafetyCertificateOutlined />,
+      label: '라이센스',
     },
   ]
 
@@ -93,6 +105,7 @@ const App: React.FC = () => {
               <Route path="/sourcing" element={<Sourcing />} />
               <Route path="/management" element={<Management />} />
               <Route path="/settings" element={<Settings />} />
+              <Route path="/license" element={<License />} />
             </Routes>
           </Content>
         </Layout>

@@ -59,7 +59,16 @@ const Register: React.FC = () => {
       {permission.hasPermission === false && (
         <Alert
           message="계정 인증 실패"
-          description="현재 계정으로는 상품 등록이 불가능합니다. 관리자에게 문의하세요."
+          description={
+            <>
+              현재 계정으로는 상품 등록이 불가능합니다. 관리자에게 문의하세요.
+              {permission.accountInfo?.periodEnd && (
+                <div style={{ marginTop: '8px', fontSize: '14px' }}>
+                  계정 만료일: {new Date(permission.accountInfo.periodEnd).toLocaleDateString('ko-KR')}
+                </div>
+              )}
+            </>
+          }
           type="error"
           showIcon
           style={{ marginBottom: '20px' }}
