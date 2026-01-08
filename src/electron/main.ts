@@ -18,8 +18,8 @@ import { envConfig, supabase } from './envConfig'
 interface AccountInfo {
   id: bigint | number // s2b_accounts.id는 BIGSERIAL (bigint)
   s2b_id: string
-  plan_type: string | null // subscription_plans.code
-  plan_label: string | null // subscription_plans.label
+  plan_type: string | null // products.product_type 또는 metadata.plan_code
+  plan_label: string | null // products.name
   status: string | null
   period_start: string | null
   period_end: string | null
@@ -27,7 +27,7 @@ interface AccountInfo {
 }
 
 /**
- * 계정 정보 조회 함수 (s2b_accounts -> subscriptions -> subscription_plans 조인)
+ * 계정 정보 조회 함수 (s2b_accounts -> subscriptions -> products 조인)
  * @param accountId - 확인할 계정 ID (s2b_id)
  * @returns 계정 정보 객체 또는 null
  */
@@ -81,28 +81,50 @@ async function getAccountInfo(accountId: string): Promise<AccountInfo | null> {
         periodStart = subscriptionData.period_start
         periodEnd = subscriptionData.period_end
 
-        // 3. subscription_plans 테이블에서 plan_type(code)로 label과 permissions 조회
+        // 3. products 테이블에서 plan_type으로 매칭하여 name과 metadata.permissions 조회
         if (planType) {
-          const { data: planData, error: planError } = await supabase
-            .from('subscription_plans')
-            .select('label, permissions')
-            .eq('code', planType)
+          // 먼저 product_type으로 매칭 시도
+          let productData: any = null
+          const { data: productByType, error: productByTypeError } = await supabase
+            .from('products')
+            .select('id, name, product_type, metadata')
+            .eq('product_type', planType)
+            .eq('active', true)
             .maybeSingle()
 
-          if (planError) {
-            console.error('플랜 정보 조회 실패:', planError)
-          } else if (planData) {
-            planLabel = planData.label || null
-            if (planData.permissions) {
-              // permissions는 JSONB 배열로 저장되어 있을 수 있으므로 처리
-              if (Array.isArray(planData.permissions)) {
-                permissions = planData.permissions
-              } else if (typeof planData.permissions === 'string') {
-                try {
-                  permissions = JSON.parse(planData.permissions)
-                } catch {
-                  permissions = []
+          if (!productByTypeError && productByType) {
+            productData = productByType
+          } else {
+            // product_type으로 찾지 못하면 metadata.plan_code로 매칭 시도
+            // Supabase에서는 JSONB 필드 검색을 위해 특별한 문법이 필요할 수 있음
+            // 하지만 직접 쿼리로는 어려우므로, 모든 subscription 타입 제품을 가져와서 필터링
+            const { data: allSubscriptionProducts, error: allProductsError } = await supabase
+              .from('products')
+              .select('id, name, product_type, metadata')
+              .eq('product_type', 'subscription')
+              .eq('active', true)
+
+            if (!allProductsError && allSubscriptionProducts) {
+              // metadata.plan_code가 planType과 일치하는 제품 찾기
+              const matchedProduct = allSubscriptionProducts.find((product: any) => {
+                if (product.metadata && typeof product.metadata === 'object') {
+                  return product.metadata.plan_code === planType
                 }
+                return false
+              })
+              if (matchedProduct) {
+                productData = matchedProduct
+              }
+            }
+          }
+
+          if (productData) {
+            planLabel = productData.name || null
+
+            // metadata에서 permissions 추출
+            if (productData.metadata && typeof productData.metadata === 'object') {
+              if (productData.metadata.permissions && Array.isArray(productData.metadata.permissions)) {
+                permissions = productData.metadata.permissions
               }
             }
           }
