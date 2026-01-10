@@ -339,7 +339,11 @@ export class S2BSourcing extends S2BBase {
       folderName = `${safeName}_${Date.now()}`
     }
 
-    const dir = path.join(this.baseFilePath, 'downloads', dateDir, folderName)
+    // 채널명 가져오기 (없으면 '기타'로 설정)
+    const channelName = vendorKey || '기타'
+
+    // 설정 파일 폴더 경로에 소싱/채널명/날짜/폴더명 구조로 저장
+    const dir = path.join(this.baseFilePath, '소싱', channelName, dateDir, folderName)
     this._ensureDir(dir)
     return dir
   }
