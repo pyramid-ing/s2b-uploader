@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { Layout, Menu, theme } from 'antd'
+import { Layout, Menu, theme, Typography } from 'antd'
 import {
   AppstoreOutlined,
   SettingOutlined,
@@ -15,7 +15,7 @@ import Sourcing from './pages/Sourcing'
 import Management from './pages/Management'
 import License from './pages/License'
 
-const { ipcRenderer } = window.require('electron')
+const { ipcRenderer, shell } = window.require('electron')
 
 const { Header, Sider, Content } = Layout
 
@@ -88,6 +88,30 @@ const App: React.FC = () => {
             <div style={{ fontSize: '12px', marginTop: '8px', color: '#BBB' }}>
               버전 <span style={{ fontWeight: 'bold' }}>{appVersion}</span>
             </div>
+          </div>
+          <div
+            style={{
+              padding: '16px',
+              borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+              textAlign: 'center',
+              fontSize: '12px',
+              color: '#BBB',
+            }}
+          >
+            <Typography.Text style={{ color: '#BBB', fontSize: '12px' }}>
+              추가구매 & 문의사항
+              <br />
+              <Typography.Link
+                href="mailto:busidev22@gmail.com"
+                style={{ color: '#1890ff', fontSize: '12px' }}
+                onClick={e => {
+                  e.preventDefault()
+                  shell.openExternal('mailto:busidev22@gmail.com')
+                }}
+              >
+                busidev22@gmail.com
+              </Typography.Link>
+            </Typography.Text>
           </div>
           <Menu
             theme="dark"
