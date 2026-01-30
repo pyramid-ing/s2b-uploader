@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react'
-import { Alert, Button, Card, Collapse, DatePicker, Radio, Space } from 'antd'
+import { Alert, Button, Card, Checkbox, Collapse, DatePicker, Input, InputNumber, Radio, Space } from 'antd'
 import { useRecoilState } from 'recoil'
 import { useLog } from '../hooks/useLog'
 import { useManagement } from '../hooks/useManagement'
@@ -14,8 +14,18 @@ const { RangePicker } = DatePicker
 
 const Management: React.FC = () => {
   const { logs, clearLogs } = useLog()
-  const { settings, permission, checkPermission, extendManagementDate, updateDateRange, updateRegistrationStatus } =
-    useManagement()
+  const {
+    settings,
+    permission,
+    checkPermission,
+    updateManagementDateAndPrice,
+    updateDateRange,
+    updateRegistrationStatus,
+    updateSearchQuery,
+    updatePriceChangePercent,
+    updateUseManagementDateRange,
+    updateUsePriceChange,
+  } = useManagement()
   const [videoCollapsed, setVideoCollapsed] = useRecoilState(managementVideoCollapsedState)
 
   useEffect(() => {
@@ -83,17 +93,24 @@ const Management: React.FC = () => {
       />
 
       <Card
-        title="최종관리일 설정"
+        title="상품일괄관리"
         style={{ marginBottom: '20px', opacity: permission.hasPermission === false ? 0.5 : 1 }}
         bordered={false}
       >
         <Space direction="vertical" size="middle">
           <Space>
-            <label>최종관리일:</label>
+            <label>판매관리일 범위:</label>
+            <Checkbox
+              checked={settings.useManagementDateRange}
+              onChange={e => updateUseManagementDateRange(e.target.checked)}
+              disabled={permission.hasPermission === false}
+            >
+              사용
+            </Checkbox>
             <RangePicker
               value={settings.dateRange}
               onChange={dates => updateDateRange(dates as [any, any])}
-              disabled={permission.hasPermission === false}
+              disabled={permission.hasPermission === false || !settings.useManagementDateRange}
               format="YYYY-MM-DD"
               locale={koKR}
               presets={[
@@ -121,16 +138,46 @@ const Management: React.FC = () => {
               ))}
             </Radio.Group>
           </Space>
+          <Space>
+            <label>검색어:</label>
+            <Input
+              value={settings.searchQuery}
+              onChange={e => updateSearchQuery(e.target.value)}
+              placeholder="물품명/규격/모델명/제조사/S2B물품번호"
+              style={{ width: 360 }}
+              disabled={permission.hasPermission === false}
+              allowClear
+            />
+          </Space>
+          <Space>
+            <label>금액변경 %:</label>
+            <Checkbox
+              checked={settings.usePriceChange}
+              onChange={e => updateUsePriceChange(e.target.checked)}
+              disabled={permission.hasPermission === false}
+            >
+              사용
+            </Checkbox>
+            <InputNumber
+              value={settings.priceChangePercent}
+              onChange={value => updatePriceChangePercent(Number(value || 0))}
+              min={-100}
+              max={1000}
+              step={0.1}
+              style={{ width: 140 }}
+              disabled={permission.hasPermission === false || !settings.usePriceChange}
+            />
+          </Space>
           <div style={{ fontSize: '12px', color: '#888' }}>
-            해당 프로그램에 등록하지 않은 제품도 모두 최종관리일 연장이 가능합니다.
+            검색된 상품의 최종관리일 연장 + 제시금액(%) 변경이 한번에 진행됩니다.
           </div>
           <Button
             type="primary"
-            onClick={extendManagementDate}
-            disabled={permission.hasPermission === false || settings.loading || !settings.dateRange}
+            onClick={updateManagementDateAndPrice}
+            disabled={permission.hasPermission === false || settings.loading}
             loading={settings.loading}
           >
-            관리일 연장
+            관리일/가격 변경
           </Button>
         </Space>
       </Card>

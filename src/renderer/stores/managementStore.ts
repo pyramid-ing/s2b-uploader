@@ -5,6 +5,10 @@ import dayjs, { type Dayjs } from 'dayjs'
 export interface ManagementSettings {
   dateRange: [Dayjs, Dayjs]
   registrationStatus: string
+  searchQuery: string
+  priceChangePercent: number
+  useManagementDateRange: boolean
+  usePriceChange: boolean
   loading: boolean
 }
 
@@ -29,6 +33,10 @@ export const managementSettingsState = atom<ManagementSettings>({
   default: {
     dateRange: [dayjs(), dayjs().add(3, 'month')],
     registrationStatus: REGISTRATION_STATUS.ALL,
+    searchQuery: '',
+    priceChangePercent: 0,
+    useManagementDateRange: true,
+    usePriceChange: false,
     loading: false,
   },
 })

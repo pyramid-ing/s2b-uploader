@@ -18,21 +18,41 @@ export class S2BManagement extends S2BBase {
     endDate?: string,
     registrationStatus: string = '',
   ): Promise<void> {
+    await this.updateManagementDateAndPriceForRange(startDate, endDate, registrationStatus, '', 0)
+  }
+
+  public async updateManagementDateAndPriceForRange(
+    startDate?: string,
+    endDate?: string,
+    registrationStatus: string = '',
+    searchQuery: string = '',
+    priceChangePercent: number = 0,
+    useManagementDateRange: boolean = true,
+    usePriceChange: boolean = true,
+  ): Promise<void> {
     if (!this.page) throw new Error('브라우저가 초기화되지 않았습니다.')
 
     // 날짜가 제공되지 않았을 경우 기본값으로 3개월 이내 설정
     const finalStartDate = startDate || dayjs().format('YYYYMMDD')
     const finalEndDate = endDate || dayjs().add(3, 'month').format('YYYYMMDD')
 
-    await this._gotoAndSearchListPageByRange(finalStartDate, finalEndDate, registrationStatus)
+    await this._gotoAndSearchListPageByRange(
+      finalStartDate,
+      finalEndDate,
+      registrationStatus,
+      searchQuery,
+      useManagementDateRange,
+    )
     const products = await this._collectAllProductLinks()
-    await this._processExtendProducts(products)
+    await this._processUpdateProducts(products, usePriceChange ? priceChangePercent : 0, useManagementDateRange)
   }
 
   private async _gotoAndSearchListPageByRange(
     startDate: string,
     endDate: string,
     registrationStatus: string = '',
+    searchQuery: string = '',
+    useManagementDateRange: boolean = true,
   ): Promise<void> {
     await this.page!.goto('https://www.s2b.kr/S2BNVendor/S2B/srcweb/remu/rema/rema100_list_new.jsp', {
       waitUntil: 'domcontentloaded',
@@ -45,11 +65,16 @@ export class S2BManagement extends S2BBase {
     })
     await this.page!.waitForLoadState('domcontentloaded')
 
-    await this.page!.selectOption('#search_date', 'LIMIT_DATE')
-    await this.page!.fill('#search_date_start', startDate)
-    await this.page!.fill('#search_date_end', endDate)
+    if (useManagementDateRange) {
+      await this.page!.selectOption('#search_date', 'LIMIT_DATE')
+      await this.page!.fill('#search_date_start', startDate)
+      await this.page!.fill('#search_date_end', endDate)
+    }
     if (registrationStatus) {
       await this.page!.check(`input[name="tgruStatus"][value="${registrationStatus}"]`)
+    }
+    if (searchQuery) {
+      await this.page!.fill('#search_query', searchQuery)
     }
     await this.page!.click('[href^="javascript:search()"]')
     await this.page!.waitForLoadState('domcontentloaded')
@@ -130,14 +155,128 @@ export class S2BManagement extends S2BBase {
     return products
   }
 
-  private async _processExtendProducts(
+  private _parsePrice(value: string): number {
+    const sanitized = value.replace(/[^\d]/g, '')
+    const parsed = sanitized ? parseInt(sanitized, 10) : 0
+    return Number.isFinite(parsed) ? parsed : 0
+  }
+
+  private _formatPrice(value: number): string {
+    const rounded = Math.max(0, Math.round(value))
+    return rounded.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',')
+  }
+
+  private _roundToTen(value: number): number {
+    return Math.round(value / 10) * 10
+  }
+
+  private async _ensureEditMode(): Promise<void> {
+    const estimateInput = this.page!.locator('input[name="f_estimate_amt"]')
+    if ((await estimateInput.count()) > 0) return
+  }
+
+  private async _updateEstimateAmount(priceChangePercent: number): Promise<{
+    before: number
+    after: number
+    changed: boolean
+  } | null> {
+    await this._ensureEditMode()
+    const input = this.page!.locator('input[name="f_estimate_amt"]').first()
+    try {
+      await input.waitFor({ state: 'attached', timeout: 5000 })
+    } catch {
+      // ignore - handled by count check below
+    }
+    if ((await input.count()) === 0) {
+      return null
+    }
+
+    const beforeValue = await input.inputValue()
+    const before = this._parsePrice(beforeValue)
+    const multiplier = 1 + priceChangePercent / 100
+    const afterRaw = before * multiplier
+    const after = this._roundToTen(afterRaw)
+    const clampedAfter = Math.max(0, after)
+    const changed = clampedAfter !== before
+
+    if (changed) {
+      const formatted = this._formatPrice(clampedAfter)
+      try {
+        const isVisible = await input.isVisible()
+        const isEnabled = await input.isEnabled()
+        if (isVisible && isEnabled) {
+          await input.fill(formatted)
+        } else {
+          await input.fill(formatted, { force: true })
+        }
+      } catch {
+        await this.page!.evaluate(value => {
+          const el = document.querySelector('input[name=\"f_estimate_amt\"]') as HTMLInputElement | null
+          if (!el) return
+          el.value = value
+          el.dispatchEvent(new Event('input', { bubbles: true }))
+          el.dispatchEvent(new Event('change', { bubbles: true }))
+        }, formatted)
+      }
+      await this.page!.evaluate(() => {
+        const el = document.querySelector('input[name=\"f_estimate_amt\"]') as HTMLInputElement | null
+        if (!el) return
+        el.dispatchEvent(new Event('input', { bubbles: true }))
+        el.dispatchEvent(new Event('change', { bubbles: true }))
+      })
+    }
+
+    return { before, after: clampedAfter, changed }
+  }
+
+  private async _saveProductChanges(): Promise<boolean> {
+    const saveSelector = 'a[href*="javascript:register(\'4\')"]'
+    const locator = this.page!.locator(saveSelector)
+    if ((await locator.count()) > 0) {
+      let popup: any | null = null
+      try {
+        const popupPromise = this.page!.waitForEvent('popup', { timeout: 5000 }).catch(() => null)
+        await locator.first().click()
+        popup = await popupPromise
+      } catch (error) {
+        this._log(`수정완료 버튼 클릭 실패: ${String(error)}`, 'warning')
+      }
+
+      if (popup) {
+        try {
+          await popup.waitForLoadState('domcontentloaded')
+          await popup.bringToFront().catch(() => {})
+          const confirmButton = popup.locator('img[onclick*="fnConfirm(\'4\')"]')
+          if ((await confirmButton.count()) > 0) {
+            await confirmButton.first().click()
+            await popup.waitForTimeout(300)
+            await popup.close().catch(() => {})
+          } else {
+            this._log('팝업 내 fnConfirm(4) 버튼을 찾지 못했습니다.', 'warning')
+          }
+        } catch (error) {
+          this._log(`수정 확인 팝업 처리 실패: ${String(error)}`, 'warning')
+        }
+        return true
+      }
+
+      this._log('수정완료 팝업이 열리지 않았습니다.', 'warning')
+      return false
+    }
+    return false
+  }
+
+  private async _processUpdateProducts(
     products: {
       name: string
       link: string
       status?: 'success' | 'fail'
       errorMessage?: string
       extendedDate?: string | null
+      priceChanged?: boolean
     }[],
+    priceChangePercent: number,
+    useManagementDateRange: boolean,
   ): Promise<typeof products> {
     for (const product of products) {
       try {
@@ -145,74 +284,119 @@ export class S2BManagement extends S2BBase {
         await this.page!.waitForLoadState('domcontentloaded')
 
         const extendButton = this.page!.locator('a[href^="javascript:fnLimitDateUpdate()"]')
-        if ((await extendButton.count()) === 0) {
+        if (useManagementDateRange && (await extendButton.count()) === 0) {
           product.status = 'fail'
           product.errorMessage = '관리일 연장 버튼을 찾을 수 없습니다'
           this._log(`관리일 연장 버튼을 찾을 수 없습니다: ${product.name}`, 'error')
           continue
         }
 
-        let isSuccess: boolean | undefined = undefined
-        let errorMessage = ''
+        let extendSuccess: boolean | undefined = undefined
+        let extendErrorMessage = ''
 
         const handleExtensionDialog = async (dialog: any) => {
           const message = dialog.message()
           switch (dialog.type()) {
             case 'alert':
               if (message.match(/\d{4}년\s\d{1,2}월\s\d{1,2}일\s까지\s관리기간이\s연장되었습니다/)) {
-                isSuccess = true
+                extendSuccess = true
                 const dateMatch = message.match(/(\d{4}년\s\d{1,2}월\s\d{1,2}일)/)
                 product.extendedDate = dateMatch ? dateMatch[1] : null
                 await dialog.accept()
               } else {
-                isSuccess = false
-                errorMessage = message
+                extendSuccess = false
+                extendErrorMessage = message
                 this._log(`관리일 연장 실패 - ${message}`, 'error')
                 await dialog.dismiss()
               }
               break
             case 'confirm':
-              if (message.includes('최종관리일을 연장하시겠습니까?')) {
-                await dialog.accept()
-              }
+              await dialog.accept()
               break
           }
         }
 
-        this.page!.on('dialog', handleExtensionDialog)
-        try {
-          await extendButton.click()
+        if (useManagementDateRange) {
+          this.page!.on('dialog', handleExtensionDialog)
           try {
-            await Promise.race([
-              new Promise((_, reject) => setTimeout(() => reject(new Error('연장 다이얼로그 대기 시간 초과')), 5000)),
-              new Promise<void>(resolve => {
-                const checkInterval = setInterval(() => {
-                  if (isSuccess !== undefined) {
-                    clearInterval(checkInterval)
-                    this.page!.off('dialog', handleExtensionDialog)
-                    resolve()
-                  }
-                }, 100)
-              }),
-            ])
-          } catch (error) {
-            this.page!.off('dialog', handleExtensionDialog)
-            product.status = 'fail'
-            product.errorMessage = '연장 처리 중 타임아웃이 발생했습니다.'
-            this._log(`관리일 연장 실패 (타임아웃) - ${product.name}`, 'error')
-            continue
-          }
+            await extendButton.click()
+            try {
+              await Promise.race([
+                new Promise((_, reject) => setTimeout(() => reject(new Error('연장 다이얼로그 대기 시간 초과')), 5000)),
+                new Promise<void>(resolve => {
+                  const checkInterval = setInterval(() => {
+                    if (extendSuccess !== undefined) {
+                      clearInterval(checkInterval)
+                      this.page!.off('dialog', handleExtensionDialog)
+                      resolve()
+                    }
+                  }, 100)
+                }),
+              ])
+            } catch (error) {
+              this.page!.off('dialog', handleExtensionDialog)
+              product.status = 'fail'
+              product.errorMessage = '연장 처리 중 타임아웃이 발생했습니다.'
+              this._log(`관리일 연장 실패 (타임아웃) - ${product.name}`, 'error')
+              continue
+            }
 
-          if (isSuccess) {
-            product.status = 'success'
-            this._log(`관리일 연장 성공: ${product.name} (${product.extendedDate}까지)`, 'info')
-          } else {
-            product.status = 'fail'
-            product.errorMessage = errorMessage
-            this._log(`관리일 연장 실패: ${product.name}`, 'error')
+            if (extendSuccess) {
+              product.status = 'success'
+              this._log(`관리일 연장 성공: ${product.name} (${product.extendedDate}까지)`, 'info')
+            } else {
+              product.status = 'fail'
+              product.errorMessage = extendErrorMessage
+              this._log(`관리일 연장 실패: ${product.name}`, 'error')
+            }
+          } finally {
+            this.page!.off('dialog', handleExtensionDialog)
           }
-        } finally {
-          this.page!.off('dialog', handleExtensionDialog)
+        }
+
+        let priceUpdateInfo: { before: number; after: number; changed: boolean } | null = null
+        if (priceChangePercent !== 0) {
+          try {
+            priceUpdateInfo = await this._updateEstimateAmount(priceChangePercent)
+            if (!priceUpdateInfo) {
+              this._log(`제시금액 입력란을 찾을 수 없습니다: ${product.name}`, 'warning')
+            } else if (priceUpdateInfo.changed) {
+              this._log(
+                `제시금액 변경: ${product.name} (${priceUpdateInfo.before} -> ${priceUpdateInfo.after})`,
+                'info',
+              )
+              let saved = false
+              const handleSaveDialog = async (dialog: any) => {
+                const message = dialog.message()
+                if (dialog.type() === 'confirm') {
+                  await dialog.accept()
+                  return
+                }
+                if (dialog.type() === 'alert') {
+                  if (message.includes('오류') || message.includes('실패') || message.includes('필수')) {
+                    this._log(`제시금액 수정 실패 - ${message}`, 'error')
+                  }
+                  await dialog.accept()
+                }
+              }
+              this.page!.on('dialog', handleSaveDialog)
+              try {
+                saved = await this._saveProductChanges()
+                if (!saved) {
+                  this._log(`수정/저장 버튼을 찾을 수 없습니다: ${product.name}`, 'warning')
+                } else {
+                  await this.page!.waitForLoadState('domcontentloaded')
+                }
+              } finally {
+                this.page!.off('dialog', handleSaveDialog)
+              }
+              product.priceChanged = saved
+            } else {
+              product.priceChanged = false
+            }
+          } catch (error: any) {
+            this._log(`제시금액 변경 오류 (${product.name}): ${error?.message || error}`, 'error')
+          }
         }
 
         await delay(2000)
@@ -223,19 +407,21 @@ export class S2BManagement extends S2BBase {
       }
     }
 
-    const successProducts = products.filter(p => p.status === 'success')
-    const failedProducts = products.filter(p => p.status === 'fail')
+    if (useManagementDateRange) {
+      const successProducts = products.filter(p => p.status === 'success')
+      const failedProducts = products.filter(p => p.status === 'fail')
 
-    this._log(
-      `관리일 연장 처리 완료 - 총: ${products.length}개, 성공: ${successProducts.length}개, 실패: ${failedProducts.length}개`,
-      successProducts.length === products.length ? 'info' : 'warning',
-    )
+      this._log(
+        `관리일 연장 처리 완료 - 총: ${products.length}개, 성공: ${successProducts.length}개, 실패: ${failedProducts.length}개`,
+        successProducts.length === products.length ? 'info' : 'warning',
+      )
 
-    if (failedProducts.length > 0) {
-      this._log('실패한 상품 목록:', 'error')
-      failedProducts.forEach(product => {
-        this._log(`- ${product.name}: ${product.errorMessage}`, 'error')
-      })
+      if (failedProducts.length > 0) {
+        this._log('실패한 상품 목록:', 'error')
+        failedProducts.forEach(product => {
+          this._log(`- ${product.name}: ${product.errorMessage}`, 'error')
+        })
+      }
     }
     return products
   }

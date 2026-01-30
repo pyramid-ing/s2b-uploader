@@ -978,6 +978,56 @@ function setupIpcHandlers() {
     return result.canceled ? null : result.filePaths[0]
   })
 
+  ipcMain.handle(
+    'update-management-date-price',
+    async (
+      _,
+      {
+        startDate,
+        endDate,
+        registrationStatus,
+        searchQuery,
+        priceChangePercent,
+        useManagementDateRange,
+        usePriceChange,
+      },
+    ) => {
+      try {
+        const settings = store.get('settings')
+
+        // ✅ 계정 권한 검사
+        const hasPermission = await checkAccountPermission(settings.loginId, '판매관리일연장')
+        if (!hasPermission) {
+          throw new Error('"판매관리일연장" 권한이 없습니다. 판매 관리일 수정이 불가능합니다.')
+        }
+
+        management = new S2BManagement(settings.fileDir, sendLogToRenderer, settings.headless, settings)
+
+        await management.launch()
+
+        await management.login(settings.loginId, settings.loginPw)
+        sendLogToRenderer(`로그인 성공 (ID: ${settings.loginId})`, 'info')
+
+        await management.updateManagementDateAndPriceForRange(
+          startDate,
+          endDate,
+          registrationStatus,
+          searchQuery,
+          priceChangePercent,
+          Boolean(useManagementDateRange),
+          Boolean(usePriceChange),
+        )
+
+        return { success: true, message: `상품 관리일이 ${startDate} ~ ${endDate}로 설정되었습니다.` }
+      } catch (error) {
+        sendLogToRenderer(`에러 발생: ${error.message}`, 'error')
+        return { success: false, error: error.message || 'Unknown error occurred.' }
+      } finally {
+        await management?.close()
+      }
+    },
+  )
+
   ipcMain.handle('extend-management-date', async (_, { startDate, endDate, registrationStatus }) => {
     try {
       const settings = store.get('settings')

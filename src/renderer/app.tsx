@@ -42,7 +42,7 @@ const App: React.FC = () => {
     {
       key: '/management',
       icon: <CalendarOutlined />,
-      label: '최종관리일',
+      label: '상품일괄관리',
     },
     {
       key: '/settings',
