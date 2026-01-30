@@ -1,28 +1,21 @@
 import React, { useEffect } from 'react'
-import { Alert, Button, Card, Collapse, DatePicker, Input, Radio, Space } from 'antd'
+import { Alert, Button, Card, Collapse, Input, InputNumber, Radio, Space } from 'antd'
 import { useRecoilState } from 'recoil'
 import { useLog } from '../hooks/useLog'
-import { useManagement } from '../hooks/useManagement'
+import { usePricing } from '../hooks/usePricing'
 import { managementVideoCollapsedState, REGISTRATION_STATUS_LABELS } from '../stores/managementStore'
-import dayjs from 'dayjs'
-import 'dayjs/locale/ko'
-import koKR from 'antd/es/date-picker/locale/ko_KR'
 
-dayjs.locale('ko')
-
-const { RangePicker } = DatePicker
-
-const Management: React.FC = () => {
+const Pricing: React.FC = () => {
   const { logs, clearLogs } = useLog()
   const {
     settings,
     permission,
     checkPermission,
-    extendManagementDate,
-    updateDateRange,
+    updatePricing,
     updateRegistrationStatus,
     updateSearchQuery,
-  } = useManagement()
+    updatePriceChangePercent,
+  } = usePricing()
   const [videoCollapsed, setVideoCollapsed] = useRecoilState(managementVideoCollapsedState)
 
   useEffect(() => {
@@ -36,7 +29,7 @@ const Management: React.FC = () => {
           message="계정 인증 실패"
           description={
             <>
-              현재 계정으로는 판매관리일 연장 기능이 제한됩니다. 관리자에게 문의하세요.
+              현재 계정으로는 상품가격수정 기능이 제한됩니다. 관리자에게 문의하세요.
               {permission.accountInfo?.periodEnd && (
                 <div style={{ marginTop: '8px', fontSize: '14px' }}>
                   계정 만료일: {new Date(permission.accountInfo.periodEnd).toLocaleDateString('ko-KR')}
@@ -61,7 +54,7 @@ const Management: React.FC = () => {
               <div
                 style={{
                   position: 'relative',
-                  paddingBottom: '56.25%', // 16:9 비율
+                  paddingBottom: '56.25%',
                   height: 0,
                   overflow: 'hidden',
                   maxWidth: '100%',
@@ -78,7 +71,7 @@ const Management: React.FC = () => {
                     border: 0,
                   }}
                   src="https://www.youtube.com/embed/dkLT_swmnio?si=E_gLnmW52ClwwpbT"
-                  title="판매관리일 연장 사용 방법"
+                  title="상품가격수정 사용 방법"
                   allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                   referrerPolicy="strict-origin-when-cross-origin"
                   allowFullScreen
@@ -90,30 +83,11 @@ const Management: React.FC = () => {
       />
 
       <Card
-        title="판매관리일 연장"
+        title="상품가격수정"
         style={{ marginBottom: '20px', opacity: permission.hasPermission === false ? 0.5 : 1 }}
         bordered={false}
       >
         <Space direction="vertical" size="middle">
-          <Space>
-            <label>판매관리일 범위:</label>
-            <RangePicker
-              value={settings.dateRange}
-              onChange={dates => updateDateRange(dates as [any, any])}
-              disabled={permission.hasPermission === false}
-              format="YYYY-MM-DD"
-              locale={koKR}
-              presets={[
-                { label: '전체', value: [dayjs('2000-01-01'), dayjs('2100-01-01')] },
-                { label: '1주일', value: [dayjs(), dayjs().add(1, 'week')] },
-                { label: '1개월', value: [dayjs(), dayjs().add(1, 'month')] },
-                { label: '3개월', value: [dayjs(), dayjs().add(3, 'month')] },
-                { label: '1년', value: [dayjs(), dayjs().add(1, 'year')] },
-              ]}
-              showNow
-              allowClear={false}
-            />
-          </Space>
           <Space>
             <label>등록상태:</label>
             <Radio.Group
@@ -139,14 +113,28 @@ const Management: React.FC = () => {
               allowClear
             />
           </Space>
-          <div style={{ fontSize: '12px', color: '#888' }}>검색된 상품의 판매관리일 연장이 진행됩니다.</div>
+          <Space>
+            <label>금액변경 %:</label>
+            <InputNumber
+              value={settings.priceChangePercent}
+              onChange={value => updatePriceChangePercent(Number(value || 0))}
+              min={-100}
+              max={1000}
+              step={0.1}
+              style={{ width: 140 }}
+              disabled={permission.hasPermission === false}
+            />
+          </Space>
+          <div style={{ fontSize: '12px', color: '#888' }}>
+            검색된 상품의 제시금액을 설정한 %만큼 변경합니다. (10원 단위 반올림)
+          </div>
           <Button
             type="primary"
-            onClick={extendManagementDate}
-            disabled={permission.hasPermission === false || settings.loading || !settings.dateRange}
+            onClick={updatePricing}
+            disabled={permission.hasPermission === false || settings.loading}
             loading={settings.loading}
           >
-            관리일 연장
+            가격 수정
           </Button>
         </Space>
       </Card>
@@ -185,4 +173,4 @@ const Management: React.FC = () => {
   )
 }
 
-export default Management
+export default Pricing

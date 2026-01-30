@@ -13,6 +13,7 @@ import Settings from './pages/Settings'
 import Register from './pages/Register'
 import Sourcing from './pages/Sourcing'
 import Management from './pages/Management'
+import Pricing from './pages/Pricing'
 import License from './pages/License'
 
 const { ipcRenderer, shell } = window.require('electron')
@@ -42,7 +43,12 @@ const App: React.FC = () => {
     {
       key: '/management',
       icon: <CalendarOutlined />,
-      label: '상품일괄관리',
+      label: '판매관리일 연장',
+    },
+    {
+      key: '/pricing',
+      icon: <CalendarOutlined />,
+      label: '상품가격수정',
     },
     {
       key: '/settings',
@@ -128,6 +134,7 @@ const App: React.FC = () => {
               <Route path="/register" element={<Register />} />
               <Route path="/sourcing" element={<Sourcing />} />
               <Route path="/management" element={<Management />} />
+              <Route path="/pricing" element={<Pricing />} />
               <Route path="/settings" element={<Settings />} />
               <Route path="/license" element={<License />} />
             </Routes>
