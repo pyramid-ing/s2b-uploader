@@ -3,6 +3,14 @@ import dayjs from 'dayjs'
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
+export type RoundingBase = 1 | 10 | 100 | 1000 | 10000
+export type RoundingMode = 'ceil' | 'floor' | 'round' | 'halfDown' // 올림, 내림, 반올림, 반내림
+
+export interface PricingRoundOptions {
+  base: RoundingBase
+  mode: RoundingMode
+}
+
 export class S2BPricing extends S2BBase {
   constructor(
     _baseImagePath: string, // 가격 수정 기능은 이미지 경로 사용하지 않음
@@ -19,14 +27,30 @@ export class S2BPricing extends S2BBase {
     priceChangePercent: number = 0,
     startDate?: string,
     endDate?: string,
+    roundOptions: PricingRoundOptions = { base: 10, mode: 'round' },
+    statusDateRange?: { start: string; end: string },
   ): Promise<void> {
     if (!this.page) throw new Error('브라우저가 초기화되지 않았습니다.')
 
+    const clampedPercent = Math.max(-10, Math.min(10, priceChangePercent))
     const finalStartDate = startDate || dayjs().format('YYYYMMDD')
     const finalEndDate = endDate || dayjs().add(3, 'month').format('YYYYMMDD')
     await this._gotoAndSearchListPageByRange(finalStartDate, finalEndDate, registrationStatus, searchQuery)
-    const products = await this._collectAllProductLinks()
-    await this._processUpdateProducts(products, priceChangePercent)
+    let products = await this._collectAllProductLinks(true)
+
+    if (statusDateRange) {
+      const beforeCount = products.length
+      products = this._filterByStatusDateRange(products, statusDateRange.start, statusDateRange.end)
+      this._log(
+        `상태일자 필터 적용: ${beforeCount}개 → ${products.length}개 (${statusDateRange.start} ~ ${statusDateRange.end})`,
+        'info',
+      )
+      if (products.length === 0 && beforeCount > 0) {
+        this._log('상태일자 컬럼을 찾지 못했거나 해당 기간에 일치하는 상품이 없습니다.', 'warning')
+      }
+    }
+
+    await this._processUpdateProducts(products, clampedPercent, roundOptions)
   }
 
   private async _gotoAndSearchListPageByRange(
@@ -59,8 +83,37 @@ export class S2BPricing extends S2BBase {
     await this.page!.waitForLoadState('domcontentloaded')
   }
 
-  private async _collectAllProductLinks(): Promise<{ name: string; link: string }[]> {
-    const products: { name: string; link: string }[] = []
+  private async _getStatusDateColumnIndex(): Promise<number> {
+    const idx = await this.page!.evaluate(() => {
+      const firstRow = document.querySelector('#listTable tbody tr')
+      if (!firstRow) return -1
+      const cells = firstRow.querySelectorAll('td, th')
+      for (let i = 0; i < cells.length; i++) {
+        if ((cells[i].textContent ?? '').trim() === '상태일자') return i
+      }
+      return -1
+    })
+    return idx
+  }
+
+  private _filterByStatusDateRange(
+    products: { name: string; link: string; statusDate?: string }[],
+    startStr: string,
+    endStr: string,
+  ): { name: string; link: string; statusDate?: string }[] {
+    const start = dayjs(startStr.replace(/-/g, ''), 'YYYYMMDD')
+    const end = dayjs(endStr.replace(/-/g, ''), 'YYYYMMDD')
+    return products.filter(p => {
+      if (!p.statusDate) return false
+      const d = dayjs(p.statusDate.replace(/[^0-9]/g, '').slice(0, 8), 'YYYYMMDD')
+      return d.isValid() && !d.isBefore(start) && !d.isAfter(end)
+    })
+  }
+
+  private async _collectAllProductLinks(
+    includeStatusDate: boolean = false,
+  ): Promise<{ name: string; link: string; statusDate?: string }[]> {
+    const products: { name: string; link: string; statusDate?: string }[] = []
     const waitForListReady = async () => {
       await this.page!.waitForLoadState('domcontentloaded')
       await this.page!.waitForSelector('#listTable tr td.td_graylist_l a', { state: 'attached' })
@@ -90,6 +143,7 @@ export class S2BPricing extends S2BBase {
       })) ?? 0
 
     const totalPages = Math.max(1, Math.ceil(totalResults / itemsPerPage))
+    const statusDateColIndex = includeStatusDate ? await this._getStatusDateColumnIndex() : -1
 
     for (let pageIndex = 0; pageIndex < totalPages; pageIndex++) {
       if (pageIndex > 0) {
@@ -117,18 +171,31 @@ export class S2BPricing extends S2BBase {
         await waitForListReady()
       }
 
-      const pageProducts = await this.page!.$$eval('#listTable tr', rows => {
-        return Array.from(rows)
-          .map(row => {
-            const linkEl = row.querySelector('td.td_graylist_l a') as HTMLAnchorElement
-            const nameEl = row.querySelector('td.td_graylist_l')
-            if (linkEl && nameEl) {
-              return { name: nameEl.textContent?.trim() || '', link: linkEl.href }
-            }
-            return null
-          })
-          .filter(Boolean)
-      })
+      const pageProducts = await this.page!.$$eval(
+        '#listTable tbody tr',
+        (rows, colIdx) => {
+          return Array.from(rows)
+            .map(row => {
+              const linkEl = row.querySelector('td.td_graylist_l a') as HTMLAnchorElement
+              const nameEl = row.querySelector('td.td_graylist_l')
+              if (!linkEl || !nameEl) return null
+              let statusDate: string | undefined
+              if (colIdx >= 0) {
+                const td = row.querySelectorAll('td')[colIdx]
+                const text = (td?.textContent ?? '').replace(/\s/g, ' ').trim()
+                const match = text.match(/(\d{4})[-./]?(\d{1,2})[-./]?(\d{1,2})/) || text.match(/(\d{4})(\d{2})(\d{2})/)
+                if (match) {
+                  const [, y, m, d] = match
+                  const pad = (n: string) => n.padStart(2, '0')
+                  statusDate = `${y}-${pad(m!)}-${pad(d!)}`
+                }
+              }
+              return { name: nameEl.textContent?.trim() || '', link: linkEl.href, statusDate }
+            })
+            .filter(Boolean)
+        },
+        statusDateColIndex,
+      )
       products.push(...(pageProducts as any[]))
     }
     return products
@@ -145,8 +212,27 @@ export class S2BPricing extends S2BBase {
     return rounded.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',')
   }
 
-  private _roundToTen(value: number): number {
-    return Math.round(value / 10) * 10
+  private _roundToUnit(value: number, base: RoundingBase, mode: RoundingMode): number {
+    const unit = base
+    const scaled = value / unit
+    let rounded: number
+    switch (mode) {
+      case 'ceil':
+        rounded = Math.ceil(scaled)
+        break
+      case 'floor':
+        rounded = Math.floor(scaled)
+        break
+      case 'round':
+        rounded = Math.round(scaled)
+        break
+      case 'halfDown': // 반내림: 0.5일 때 내림
+        rounded = scaled % 1 === 0.5 ? Math.floor(scaled) : Math.round(scaled)
+        break
+      default:
+        rounded = Math.round(scaled)
+    }
+    return Math.max(0, Math.round(rounded * unit))
   }
 
   private async _ensureEditMode(): Promise<void> {
@@ -162,7 +248,10 @@ export class S2BPricing extends S2BBase {
     }
   }
 
-  private async _updateEstimateAmount(priceChangePercent: number): Promise<{
+  private async _updateEstimateAmount(
+    priceChangePercent: number,
+    roundOptions: PricingRoundOptions,
+  ): Promise<{
     before: number
     after: number
     changed: boolean
@@ -182,7 +271,14 @@ export class S2BPricing extends S2BBase {
     const before = this._parsePrice(beforeValue)
     const multiplier = 1 + priceChangePercent / 100
     const afterRaw = before * multiplier
-    const after = this._roundToTen(afterRaw)
+    let after = this._roundToUnit(afterRaw, roundOptions.base, roundOptions.mode)
+    const maxAllowed = before * 1.1
+    const minAllowed = before * 0.9
+    if (after > maxAllowed) {
+      after = this._roundToUnit(maxAllowed, roundOptions.base, 'floor')
+    } else if (after < minAllowed) {
+      after = this._roundToUnit(minAllowed, roundOptions.base, 'ceil')
+    }
     const clampedAfter = Math.max(0, after)
     const changed = clampedAfter !== before
 
@@ -257,11 +353,13 @@ export class S2BPricing extends S2BBase {
     products: {
       name: string
       link: string
+      statusDate?: string
       status?: 'success' | 'fail'
       errorMessage?: string
       priceChanged?: boolean
     }[],
     priceChangePercent: number,
+    roundOptions: PricingRoundOptions,
   ): Promise<typeof products> {
     for (const product of products) {
       try {
@@ -271,7 +369,7 @@ export class S2BPricing extends S2BBase {
         let priceUpdateInfo: { before: number; after: number; changed: boolean } | null = null
         if (priceChangePercent !== 0) {
           try {
-            priceUpdateInfo = await this._updateEstimateAmount(priceChangePercent)
+            priceUpdateInfo = await this._updateEstimateAmount(priceChangePercent, roundOptions)
             if (!priceUpdateInfo) {
               this._log(`제시금액 입력란을 찾을 수 없습니다: ${product.name}`, 'warning')
             } else if (priceUpdateInfo.changed) {

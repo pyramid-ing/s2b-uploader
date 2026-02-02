@@ -1009,40 +1009,65 @@ function setupIpcHandlers() {
 
   ipcMain.handle(
     'update-pricing',
-    async (_, { startDate, endDate, registrationStatus, searchQuery, priceChangePercent }) => {
-    let pricing: S2BPricing | null = null
-    try {
-      const settings = store.get('settings')
-
-      // ✅ 계정 권한 검사
-      const hasPermission = await checkAccountPermission(settings.loginId, '판매관리일연장')
-      if (!hasPermission) {
-        throw new Error('"판매관리일연장" 권한이 없습니다. 상품 가격 수정이 불가능합니다.')
-      }
-
-      pricing = new S2BPricing(settings.fileDir, sendLogToRenderer, settings.headless, settings)
-
-      await pricing.launch()
-
-      await pricing.login(settings.loginId, settings.loginPw)
-      sendLogToRenderer(`로그인 성공 (ID: ${settings.loginId})`, 'info')
-
-      await pricing.updatePricingForRange(
+    async (
+      _: unknown,
+      params: {
+        startDate: string
+        endDate: string
+        statusDateRange?: { start: string; end: string }
+        registrationStatus: string
+        searchQuery: string
+        priceChangePercent: number
+        roundingBase?: 1 | 10 | 100 | 1000 | 10000
+        roundingMode?: 'ceil' | 'floor' | 'round' | 'halfDown'
+      },
+    ) => {
+      const {
+        startDate,
+        endDate,
+        statusDateRange,
         registrationStatus,
         searchQuery,
         priceChangePercent,
-        startDate,
-        endDate,
-      )
+        roundingBase = 10,
+        roundingMode = 'round',
+      } = params
+      let pricing: S2BPricing | null = null
+      try {
+        const settings = store.get('settings')
 
-      return { success: true, message: '상품 가격이 성공적으로 변경되었습니다.' }
-    } catch (error) {
-      sendLogToRenderer(`에러 발생: ${error.message}`, 'error')
-      return { success: false, error: error.message || 'Unknown error occurred.' }
-    } finally {
-      await pricing?.close()
-    }
-  })
+        // ✅ 계정 권한 검사
+        const hasPermission = await checkAccountPermission(settings.loginId, '판매관리일연장')
+        if (!hasPermission) {
+          throw new Error('"판매관리일연장" 권한이 없습니다. 상품 가격 수정이 불가능합니다.')
+        }
+
+        pricing = new S2BPricing(settings.fileDir, sendLogToRenderer, settings.headless, settings)
+
+        await pricing.launch()
+
+        await pricing.login(settings.loginId, settings.loginPw)
+        sendLogToRenderer(`로그인 성공 (ID: ${settings.loginId})`, 'info')
+
+        await pricing.updatePricingForRange(
+          registrationStatus,
+          searchQuery,
+          priceChangePercent,
+          startDate,
+          endDate,
+          { base: roundingBase, mode: roundingMode },
+          statusDateRange,
+        )
+
+        return { success: true, message: '상품 가격이 성공적으로 변경되었습니다.' }
+      } catch (error) {
+        sendLogToRenderer(`에러 발생: ${error.message}`, 'error')
+        return { success: false, error: error.message || 'Unknown error occurred.' }
+      } finally {
+        await pricing?.close()
+      }
+    },
+  )
 
   // 설정값 세트 엑셀 다운로드 핸들러
   ipcMain.handle('download-config-set-excel', async (_, configSet: ConfigSet) => {

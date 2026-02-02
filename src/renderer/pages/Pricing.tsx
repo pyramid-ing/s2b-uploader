@@ -1,9 +1,10 @@
 import React, { useEffect } from 'react'
-import { Alert, Button, Card, Collapse, DatePicker, Input, InputNumber, Radio, Space } from 'antd'
+import { Alert, Button, Card, Collapse, DatePicker, Input, InputNumber, Radio, Select, Space } from 'antd'
 import { useRecoilState } from 'recoil'
 import { useLog } from '../hooks/useLog'
 import { usePricing } from '../hooks/usePricing'
 import { managementVideoCollapsedState, REGISTRATION_STATUS_LABELS } from '../stores/managementStore'
+import { ROUNDING_BASE_OPTIONS, ROUNDING_MODE_OPTIONS } from '../stores/pricingStore'
 import dayjs from 'dayjs'
 import 'dayjs/locale/ko'
 import koKR from 'antd/es/date-picker/locale/ko_KR'
@@ -20,9 +21,12 @@ const Pricing: React.FC = () => {
     checkPermission,
     updatePricing,
     updateDateRange,
+    updateStatusDateRange,
     updateRegistrationStatus,
     updateSearchQuery,
     updatePriceChangePercent,
+    updateRoundingBase,
+    updateRoundingMode,
   } = usePricing()
   const [videoCollapsed, setVideoCollapsed] = useRecoilState(managementVideoCollapsedState)
 
@@ -116,6 +120,20 @@ const Pricing: React.FC = () => {
             />
           </Space>
           <Space>
+            <label>상태일자 범위:</label>
+            <RangePicker
+              value={settings.statusDateRange}
+              onChange={dates => updateStatusDateRange(dates as [any, any] | null)}
+              disabled={permission.hasPermission === false}
+              format="YYYY-MM-DD"
+              locale={koKR}
+              placeholder={['시작일', '종료일']}
+              allowClear
+              style={{ width: 300 }}
+            />
+            <span style={{ fontSize: '12px', color: '#888' }}>(선택 시 검색 결과에서 해당 기간만 필터)</span>
+          </Space>
+          <Space>
             <label>등록상태:</label>
             <Radio.Group
               value={settings.registrationStatus}
@@ -145,15 +163,50 @@ const Pricing: React.FC = () => {
             <InputNumber
               value={settings.priceChangePercent}
               onChange={value => updatePriceChangePercent(Number(value || 0))}
-              min={-100}
-              max={1000}
+              min={-10}
+              max={10}
               step={0.1}
-              style={{ width: 140 }}
+              style={{ width: 100 }}
+              disabled={permission.hasPermission === false}
+            />
+            <span style={{ fontSize: '12px', color: '#888' }}>(-10% ~ 10% 제한)</span>
+          </Space>
+          <Space>
+            <label>올림기준:</label>
+            <Select
+              value={settings.roundingBase}
+              onChange={updateRoundingBase}
+              options={ROUNDING_BASE_OPTIONS}
+              style={{ width: 100 }}
+              disabled={permission.hasPermission === false}
+            />
+            <label style={{ marginLeft: 8 }}>올림/내림:</label>
+            <Select
+              value={settings.roundingMode}
+              onChange={updateRoundingMode}
+              options={ROUNDING_MODE_OPTIONS}
+              style={{ width: 90 }}
               disabled={permission.hasPermission === false}
             />
           </Space>
-          <div style={{ fontSize: '12px', color: '#888' }}>
-            검색된 상품의 제시금액을 설정한 %만큼 변경합니다. (10원 단위 반올림)
+          <div
+            style={{
+              fontSize: '13px',
+              color: '#555',
+              lineHeight: 1.6,
+              padding: '12px 16px',
+              backgroundColor: '#fafafa',
+              borderRadius: '8px',
+              border: '1px solid #f0f0f0',
+              marginBottom: '16px',
+            }}
+          >
+            <div style={{ fontWeight: 600, marginBottom: '8px', color: '#333' }}>가격 수정 안내</div>
+            <ul style={{ margin: 0, paddingLeft: '20px' }}>
+              <li>검색된 상품의 제시금액을 설정한 %만큼 변경합니다.</li>
+              <li>등록후 3개월 이내 상품만 수정 가능합니다.</li>
+              <li>등록후 3개월 이상 지난 상품은 최대 10%까지 1회만 수정할 수 있습니다.</li>
+            </ul>
           </div>
           <Button
             type="primary"
