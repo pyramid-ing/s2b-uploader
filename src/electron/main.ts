@@ -1007,7 +1007,9 @@ function setupIpcHandlers() {
     }
   })
 
-  ipcMain.handle('update-pricing', async (_, { registrationStatus, searchQuery, priceChangePercent }) => {
+  ipcMain.handle(
+    'update-pricing',
+    async (_, { startDate, endDate, registrationStatus, searchQuery, priceChangePercent }) => {
     let pricing: S2BPricing | null = null
     try {
       const settings = store.get('settings')
@@ -1025,7 +1027,13 @@ function setupIpcHandlers() {
       await pricing.login(settings.loginId, settings.loginPw)
       sendLogToRenderer(`로그인 성공 (ID: ${settings.loginId})`, 'info')
 
-      await pricing.updatePricingForRange(registrationStatus, searchQuery, priceChangePercent)
+      await pricing.updatePricingForRange(
+        registrationStatus,
+        searchQuery,
+        priceChangePercent,
+        startDate,
+        endDate,
+      )
 
       return { success: true, message: '상품 가격이 성공적으로 변경되었습니다.' }
     } catch (error) {

@@ -27,7 +27,10 @@ export const usePricing = () => {
 
           set(pricingSettingsState, prev => ({ ...prev, loading: true }))
 
+          const [start, end] = currentSettings.dateRange
           await ipcRenderer.invoke('update-pricing', {
+            startDate: start.format('YYYYMMDD'),
+            endDate: end.format('YYYYMMDD'),
             registrationStatus: currentSettings.registrationStatus,
             searchQuery: currentSettings.searchQuery,
             priceChangePercent: currentSettings.priceChangePercent,
@@ -39,6 +42,14 @@ export const usePricing = () => {
         } finally {
           set(pricingSettingsState, prev => ({ ...prev, loading: false }))
         }
+      },
+    [],
+  )
+
+  const updateDateRange = useRecoilCallback(
+    ({ set }) =>
+      (dateRange: [any, any]) => {
+        set(pricingSettingsState, prev => ({ ...prev, dateRange }))
       },
     [],
   )
@@ -72,6 +83,7 @@ export const usePricing = () => {
     permission,
     checkPermission,
     updatePricing,
+    updateDateRange,
     updateRegistrationStatus,
     updateSearchQuery,
     updatePriceChangePercent,

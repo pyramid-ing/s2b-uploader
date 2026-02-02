@@ -1,9 +1,16 @@
 import React, { useEffect } from 'react'
-import { Alert, Button, Card, Collapse, Input, InputNumber, Radio, Space } from 'antd'
+import { Alert, Button, Card, Collapse, DatePicker, Input, InputNumber, Radio, Space } from 'antd'
 import { useRecoilState } from 'recoil'
 import { useLog } from '../hooks/useLog'
 import { usePricing } from '../hooks/usePricing'
 import { managementVideoCollapsedState, REGISTRATION_STATUS_LABELS } from '../stores/managementStore'
+import dayjs from 'dayjs'
+import 'dayjs/locale/ko'
+import koKR from 'antd/es/date-picker/locale/ko_KR'
+
+dayjs.locale('ko')
+
+const { RangePicker } = DatePicker
 
 const Pricing: React.FC = () => {
   const { logs, clearLogs } = useLog()
@@ -12,6 +19,7 @@ const Pricing: React.FC = () => {
     permission,
     checkPermission,
     updatePricing,
+    updateDateRange,
     updateRegistrationStatus,
     updateSearchQuery,
     updatePriceChangePercent,
@@ -88,6 +96,25 @@ const Pricing: React.FC = () => {
         bordered={false}
       >
         <Space direction="vertical" size="middle">
+          <Space>
+            <label>판매관리일 범위:</label>
+            <RangePicker
+              value={settings.dateRange}
+              onChange={dates => updateDateRange(dates as [any, any])}
+              disabled={permission.hasPermission === false}
+              format="YYYY-MM-DD"
+              locale={koKR}
+              presets={[
+                { label: '전체', value: [dayjs('2000-01-01'), dayjs('2100-01-01')] },
+                { label: '1주일', value: [dayjs(), dayjs().add(1, 'week')] },
+                { label: '1개월', value: [dayjs(), dayjs().add(1, 'month')] },
+                { label: '3개월', value: [dayjs(), dayjs().add(3, 'month')] },
+                { label: '1년', value: [dayjs(), dayjs().add(1, 'year')] },
+              ]}
+              showNow
+              allowClear={false}
+            />
+          </Space>
           <Space>
             <label>등록상태:</label>
             <Radio.Group

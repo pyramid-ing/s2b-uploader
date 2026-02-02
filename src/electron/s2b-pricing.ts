@@ -1,4 +1,5 @@
 import { S2BBase } from './s2b-base'
+import dayjs from 'dayjs'
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
@@ -16,15 +17,24 @@ export class S2BPricing extends S2BBase {
     registrationStatus: string = '',
     searchQuery: string = '',
     priceChangePercent: number = 0,
+    startDate?: string,
+    endDate?: string,
   ): Promise<void> {
     if (!this.page) throw new Error('브라우저가 초기화되지 않았습니다.')
 
-    await this._gotoAndSearchListPage(registrationStatus, searchQuery)
+    const finalStartDate = startDate || dayjs().format('YYYYMMDD')
+    const finalEndDate = endDate || dayjs().add(3, 'month').format('YYYYMMDD')
+    await this._gotoAndSearchListPageByRange(finalStartDate, finalEndDate, registrationStatus, searchQuery)
     const products = await this._collectAllProductLinks()
     await this._processUpdateProducts(products, priceChangePercent)
   }
 
-  private async _gotoAndSearchListPage(registrationStatus: string = '', searchQuery: string = ''): Promise<void> {
+  private async _gotoAndSearchListPageByRange(
+    startDate: string,
+    endDate: string,
+    registrationStatus: string = '',
+    searchQuery: string = '',
+  ): Promise<void> {
     await this.page!.goto('https://www.s2b.kr/S2BNVendor/S2B/srcweb/remu/rema/rema100_list_new.jsp', {
       waitUntil: 'domcontentloaded',
     })
@@ -36,6 +46,9 @@ export class S2BPricing extends S2BBase {
     })
     await this.page!.waitForLoadState('domcontentloaded')
 
+    await this.page!.selectOption('#search_date', 'LIMIT_DATE')
+    await this.page!.fill('#search_date_start', startDate)
+    await this.page!.fill('#search_date_end', endDate)
     if (registrationStatus) {
       await this.page!.check(`input[name="tgruStatus"][value="${registrationStatus}"]`)
     }

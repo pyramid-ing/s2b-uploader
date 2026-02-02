@@ -1,7 +1,9 @@
 import { atom } from 'recoil'
+import dayjs, { type Dayjs } from 'dayjs'
 import { REGISTRATION_STATUS } from './managementStore'
 
 export interface PricingSettings {
+  dateRange: [Dayjs, Dayjs]
   registrationStatus: string
   searchQuery: string
   priceChangePercent: number
@@ -12,6 +14,7 @@ export interface PricingSettings {
 export const pricingSettingsState = atom<PricingSettings>({
   key: 'pricingSettingsState',
   default: {
+    dateRange: [dayjs(), dayjs().add(3, 'month')],
     registrationStatus: REGISTRATION_STATUS.ALL,
     searchQuery: '',
     priceChangePercent: 0,
