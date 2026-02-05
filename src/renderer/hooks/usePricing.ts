@@ -32,11 +32,13 @@ export const usePricing = () => {
 
           set(pricingSettingsState, prev => ({ ...prev, loading: true }))
 
-          const [start, end] = currentSettings.dateRange
+          const dateRange = currentSettings.dateRange
+          const start = dateRange?.[0]
+          const end = dateRange?.[1]
           const statusDateRange = currentSettings.statusDateRange
           await ipcRenderer.invoke('update-pricing', {
-            startDate: start.format('YYYYMMDD'),
-            endDate: end.format('YYYYMMDD'),
+            startDate: start ? start.format('YYYYMMDD') : '',
+            endDate: end ? end.format('YYYYMMDD') : '',
             statusDateRange: statusDateRange
               ? {
                   start: statusDateRange[0].format('YYYYMMDD'),
@@ -62,7 +64,7 @@ export const usePricing = () => {
 
   const updateDateRange = useRecoilCallback(
     ({ set }) =>
-      (dateRange: [any, any]) => {
+      (dateRange: [any, any] | null) => {
         set(pricingSettingsState, prev => ({ ...prev, dateRange }))
       },
     [],

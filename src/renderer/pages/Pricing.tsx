@@ -103,8 +103,8 @@ const Pricing: React.FC = () => {
           <Space>
             <label>판매관리일 범위:</label>
             <RangePicker
-              value={settings.dateRange}
-              onChange={dates => updateDateRange(dates as [any, any])}
+              value={settings.dateRange ?? null}
+              onChange={dates => updateDateRange((dates as [any, any]) ?? null)}
               disabled={permission.hasPermission === false}
               format="YYYY-MM-DD"
               locale={koKR}
@@ -116,7 +116,7 @@ const Pricing: React.FC = () => {
                 { label: '1년', value: [dayjs(), dayjs().add(1, 'year')] },
               ]}
               showNow
-              allowClear={false}
+              allowClear
             />
           </Space>
           <Space>

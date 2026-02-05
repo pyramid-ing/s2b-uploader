@@ -6,7 +6,7 @@ export type RoundingBase = 1 | 10 | 100 | 1000 | 10000
 export type RoundingMode = 'ceil' | 'floor' | 'round' | 'halfDown'
 
 export interface PricingSettings {
-  dateRange: [Dayjs, Dayjs]
+  dateRange: [Dayjs, Dayjs] | null
   statusDateRange: [Dayjs, Dayjs] | null
   registrationStatus: string
   searchQuery: string

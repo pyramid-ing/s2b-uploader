@@ -33,8 +33,9 @@ export class S2BPricing extends S2BBase {
     if (!this.page) throw new Error('브라우저가 초기화되지 않았습니다.')
 
     const clampedPercent = Math.max(-10, Math.min(10, priceChangePercent))
-    const finalStartDate = startDate || dayjs().format('YYYYMMDD')
-    const finalEndDate = endDate || dayjs().add(3, 'month').format('YYYYMMDD')
+    const hasDateRange = Boolean(startDate && endDate)
+    const finalStartDate = hasDateRange ? startDate : undefined
+    const finalEndDate = hasDateRange ? endDate : undefined
     await this._gotoAndSearchListPageByRange(finalStartDate, finalEndDate, registrationStatus, searchQuery)
     let products = await this._collectAllProductLinks(true)
 
@@ -54,8 +55,8 @@ export class S2BPricing extends S2BBase {
   }
 
   private async _gotoAndSearchListPageByRange(
-    startDate: string,
-    endDate: string,
+    startDate?: string,
+    endDate?: string,
     registrationStatus: string = '',
     searchQuery: string = '',
   ): Promise<void> {
@@ -70,9 +71,11 @@ export class S2BPricing extends S2BBase {
     })
     await this.page!.waitForLoadState('domcontentloaded')
 
-    await this.page!.selectOption('#search_date', 'LIMIT_DATE')
-    await this.page!.fill('#search_date_start', startDate)
-    await this.page!.fill('#search_date_end', endDate)
+    if (startDate && endDate) {
+      await this.page!.selectOption('#search_date', 'LIMIT_DATE')
+      await this.page!.fill('#search_date_start', startDate)
+      await this.page!.fill('#search_date_end', endDate)
+    }
     if (registrationStatus) {
       await this.page!.check(`input[name="tgruStatus"][value="${registrationStatus}"]`)
     }
@@ -313,39 +316,102 @@ export class S2BPricing extends S2BBase {
   }
 
   private async _saveProductChanges(): Promise<boolean> {
-    const saveSelector = 'a[href*="javascript:register(\\\'4\\\')"]'
-    const locator = this.page!.locator(saveSelector)
-    if ((await locator.count()) > 0) {
-      let popup: any | null = null
-      try {
-        const popupPromise = this.page!.waitForEvent('popup', { timeout: 5000 }).catch(() => null)
-        await locator.first().click()
-        popup = await popupPromise
-      } catch (error) {
-        this._log(`수정완료 버튼 클릭 실패: ${String(error)}`, 'warning')
+    let popup: any | null = null
+    try {
+      popup = await this._openPopupByClick(8000)
+      if (!popup) {
+        this._log('수정완료 팝업이 열리지 않았습니다.', 'warning')
+        return false
       }
 
-      if (popup) {
+      await popup.waitForLoadState('domcontentloaded')
+      await popup.bringToFront().catch(() => {})
+
+      const ok = await this._confirmInPopupAndWaitSuccessAlert(popup, '4', 8000)
+      return ok
+    } catch (error: any) {
+      this._log(`수정 확인 팝업 처리 실패: ${error?.message || String(error)}`, 'warning')
+      return false
+    } finally {
+      if (popup) await popup.close().catch(() => {})
+    }
+  }
+
+  private async _openPopupByClick(timeoutMs: number): Promise<any | null> {
+    const ctx = this.page!.context()
+
+    const beforePages = new Set(ctx.pages())
+
+    const popupFromPagePromise = this.page!.waitForEvent('popup', { timeout: timeoutMs }).catch(() => null)
+    const popupFromContextPromise = ctx.waitForEvent('page', { timeout: timeoutMs }).catch(() => null)
+
+    const editButton = await this.page.$('a[href*="javascript:register(\'4\')"]')
+    await editButton.click({ noWaitAfter: true })
+
+    const raced = (await Promise.race([popupFromPagePromise, popupFromContextPromise])) as any | null
+    if (raced) return raced
+
+    const startedAt = Date.now()
+    const urlPattern = /rema100_statusWaitPopup\.jsp/i
+
+    while (Date.now() - startedAt < timeoutMs) {
+      const pages = ctx.pages()
+
+      const newlyCreated = pages.find(p => !beforePages.has(p))
+      if (newlyCreated) {
         try {
-          await popup.waitForLoadState('domcontentloaded')
-          await popup.bringToFront().catch(() => {})
-          const confirmButton = popup.locator('img[onclick*="fnConfirm(\\\'4\\\')"]')
-          if ((await confirmButton.count()) > 0) {
-            await confirmButton.first().click()
-            await popup.waitForTimeout(300)
-            await popup.close().catch(() => {})
-          } else {
-            this._log('팝업 내 fnConfirm(4) 버튼을 찾지 못했습니다.', 'warning')
-          }
-        } catch (error) {
-          this._log(`수정 확인 팝업 처리 실패: ${String(error)}`, 'warning')
-        }
-        return true
+          await newlyCreated.waitForLoadState('domcontentloaded', { timeout: 2000 }).catch(() => {})
+        } catch {}
+        if (urlPattern.test(newlyCreated.url())) return newlyCreated
       }
 
-      this._log('수정완료 팝업이 열리지 않았습니다.', 'warning')
+      const reusedOrExistingPopup = pages.find(p => p !== this.page && urlPattern.test(p.url()))
+      if (reusedOrExistingPopup) return reusedOrExistingPopup
+
+      await this.page!.waitForTimeout(200)
+    }
+
+    return null
+  }
+
+  private async _confirmInPopupAndWaitSuccessAlert(popup: any, reqStatus: '4', timeoutMs: number): Promise<boolean> {
+    const dialogPromise = popup.waitForEvent('dialog', { timeout: timeoutMs }).catch(() => null)
+    const confirmBtn = popup.locator(`img[onclick*="fnConfirm('${reqStatus}')"]`).first()
+
+    if ((await confirmBtn.count()) > 0) {
+      await confirmBtn.click()
+    } else {
+      const didCall = await popup.evaluate((status: string) => {
+        const w = window as any
+        if (typeof w.fnConfirm === 'function') {
+          w.fnConfirm(status)
+          return true
+        }
+        return false
+      }, reqStatus)
+
+      if (!didCall) {
+        this._log(`팝업 내 fnConfirm(${reqStatus}) 실행 수단을 찾지 못했습니다.`, 'warning')
+        return false
+      }
+    }
+
+    await delay(3000)
+
+    const dialog = await dialogPromise
+    if (!dialog) {
+      this._log('등록 완료 알림창이 뜨지 않았습니다.', 'warning')
       return false
     }
+
+    const message = dialog.message()
+    await dialog.accept()
+
+    if (message.includes('등록하신 물품정보가 변경 되었습니다')) {
+      return true
+    }
+
+    this._log(`등록 완료 메시지를 확인하지 못했습니다: ${message}`, 'warning')
     return false
   }
 
@@ -377,30 +443,12 @@ export class S2BPricing extends S2BBase {
                 `제시금액 변경: ${product.name} (${priceUpdateInfo.before} -> ${priceUpdateInfo.after})`,
                 'info',
               )
-              let saved = false
-              const handleSaveDialog = async (dialog: any) => {
-                const message = dialog.message()
-                if (dialog.type() === 'confirm') {
-                  await dialog.accept()
-                  return
-                }
-                if (dialog.type() === 'alert') {
-                  if (message.includes('오류') || message.includes('실패') || message.includes('필수')) {
-                    this._log(`제시금액 수정 실패 - ${message}`, 'error')
-                  }
-                  await dialog.accept()
-                }
-              }
-              this.page!.on('dialog', handleSaveDialog)
-              try {
-                saved = await this._saveProductChanges()
-                if (!saved) {
-                  this._log(`수정/저장 버튼을 찾을 수 없습니다: ${product.name}`, 'warning')
-                } else {
-                  await this.page!.waitForLoadState('domcontentloaded')
-                }
-              } finally {
-                this.page!.off('dialog', handleSaveDialog)
+              await delay(3000)
+              const saved = await this._saveProductChanges()
+              if (!saved) {
+                this._log(`수정/저장 버튼을 찾을 수 없습니다: ${product.name}`, 'warning')
+              } else {
+                await this.page!.waitForLoadState('domcontentloaded')
               }
               product.priceChanged = saved
             } else {
