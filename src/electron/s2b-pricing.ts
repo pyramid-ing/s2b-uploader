@@ -12,6 +12,8 @@ export interface PricingRoundOptions {
 }
 
 export class S2BPricing extends S2BBase {
+  private dialogLoggerAttached = false
+
   constructor(
     _baseImagePath: string, // 가격 수정 기능은 이미지 경로 사용하지 않음
     logCallback: (message: string, level?: 'info' | 'warning' | 'error') => void,
@@ -31,6 +33,8 @@ export class S2BPricing extends S2BBase {
     statusDateRange?: { start: string; end: string },
   ): Promise<void> {
     if (!this.page) throw new Error('브라우저가 초기화되지 않았습니다.')
+
+    this._attachDialogLoggerOnce()
 
     const clampedPercent = Math.max(-10, Math.min(10, priceChangePercent))
     const hasDateRange = Boolean(startDate && endDate)
@@ -412,6 +416,30 @@ export class S2BPricing extends S2BBase {
 
     this._log(`등록 완료 메시지를 확인하지 못했습니다: ${message}`, 'warning')
     return false
+  }
+
+  private _attachDialogLoggerOnce(): void {
+    if (this.dialogLoggerAttached) return
+    if (!this.page) return
+    this.dialogLoggerAttached = true
+
+    const ctx = this.page.context()
+    const bindPage = (page: any) => {
+      page.on('dialog', (dialog: any) => {
+        const url = page.url?.() ?? 'unknown'
+        const message = dialog.message?.() ?? ''
+        const whitelistMessages = ['등록하신 물품정보가 변경 되었습니다']
+        const isWhitelisted = whitelistMessages.some(whitelist => message.includes(whitelist))
+        if (isWhitelisted) {
+          return
+        }
+        this._log(`alert 감지: from=${url} msg=${message}`, 'info')
+        dialog.accept().catch(() => {})
+      })
+    }
+
+    for (const p of ctx.pages()) bindPage(p)
+    ctx.on('page', bindPage)
   }
 
   private _waitForAnyDialog(timeoutMs: number): Promise<{ page: any; dialog: any } | null> {
