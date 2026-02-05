@@ -375,11 +375,11 @@ export class S2BPricing extends S2BBase {
   }
 
   private async _confirmInPopupAndWaitSuccessAlert(popup: any, reqStatus: '4', timeoutMs: number): Promise<boolean> {
-    const dialogPromise = popup.waitForEvent('dialog', { timeout: timeoutMs }).catch(() => null)
+    const dialogPromise = this._waitForAnyDialog(timeoutMs)
     const confirmBtn = popup.locator(`img[onclick*="fnConfirm('${reqStatus}')"]`).first()
 
     if ((await confirmBtn.count()) > 0) {
-      await confirmBtn.click()
+      await confirmBtn.click({ noWaitAfter: true })
     } else {
       const didCall = await popup.evaluate((status: string) => {
         const w = window as any
@@ -396,23 +396,56 @@ export class S2BPricing extends S2BBase {
       }
     }
 
-    await delay(3000)
-
-    const dialog = await dialogPromise
-    if (!dialog) {
-      this._log('등록 완료 알림창이 뜨지 않았습니다.', 'warning')
+    const got = await dialogPromise
+    if (!got) {
+      this._log('등록 완료 알림창(dialog)이 감지되지 않았습니다. (context 전체 감시 실패)', 'warning')
       return false
     }
 
+    const { page, dialog } = got
     const message = dialog.message()
     await dialog.accept()
 
-    if (message.includes('등록하신 물품정보가 변경 되었습니다')) {
-      return true
-    }
+    this._log(`dialog 감지: from=${page.url?.() ?? 'unknown'} msg=${message}`, 'info')
+
+    if (message.includes('등록하신 물품정보가 변경 되었습니다')) return true
 
     this._log(`등록 완료 메시지를 확인하지 못했습니다: ${message}`, 'warning')
     return false
+  }
+
+  private _waitForAnyDialog(timeoutMs: number): Promise<{ page: any; dialog: any } | null> {
+    const ctx = this.page!.context()
+
+    return new Promise(resolve => {
+      let settled = false
+
+      const cleanup = () => {
+        clearTimeout(timer)
+        ctx.off('page', onNewPage)
+        for (const p of ctx.pages()) p.off('dialog', onDialogBound(p))
+      }
+
+      const done = (payload: { page: any; dialog: any } | null) => {
+        if (settled) return
+        settled = true
+        cleanup()
+        resolve(payload)
+      }
+
+      const onDialogBound = (page: any) => (dialog: any) => done({ page, dialog })
+
+      const bindPage = (page: any) => {
+        page.on('dialog', onDialogBound(page))
+      }
+
+      const onNewPage = (p: any) => bindPage(p)
+
+      for (const p of ctx.pages()) bindPage(p)
+      ctx.on('page', onNewPage)
+
+      const timer = setTimeout(() => done(null), timeoutMs)
+    })
   }
 
   private async _processUpdateProducts(
