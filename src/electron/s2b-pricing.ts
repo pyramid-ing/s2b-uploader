@@ -322,17 +322,52 @@ export class S2BPricing extends S2BBase {
   private async _saveProductChanges(): Promise<boolean> {
     let popup: any | null = null
     try {
-      popup = await this._openPopupByClick(8000)
-      if (!popup) {
+      // 등록완료 상태아닐떄
+      const registerButton = this.page!.locator('a[href*="javascript:register(\'4\')"]')
+      // 등록완료 상태일때
+      const remainButton = this.page!.locator('a[href*="javascript:fnRemainQntUpdate2()"]')
+
+      const hasRegister = (await registerButton.count()) > 0
+      const hasRemain = (await remainButton.count()) > 0
+
+      if (!hasRegister && !hasRemain) {
+        this._log('수정/저장 버튼을 찾을 수 없습니다.', 'warning')
+        return false
+      }
+
+      const editButton = hasRegister ? registerButton : remainButton
+
+      const clicker = async () => {
+        await editButton.first().click({ noWaitAfter: true })
+      }
+
+      const dialogPromise = this._waitForAnyDialog(8000)
+      popup = await this._openPopupAfterClick(clicker, 8000)
+
+      if (popup) {
+        await popup.waitForLoadState('domcontentloaded')
+        await popup.bringToFront().catch(() => {})
+        const ok = await this._confirmInPopupAndWaitSuccessAlert(popup, '4', 8000)
+        return ok
+      }
+
+      if (hasRegister) {
         this._log('수정완료 팝업이 열리지 않았습니다.', 'warning')
         return false
       }
 
-      await popup.waitForLoadState('domcontentloaded')
-      await popup.bringToFront().catch(() => {})
+      const dialog = await dialogPromise
+      if (dialog) {
+        const message = dialog.dialog.message()
+        await dialog.dialog.accept()
+        this._log(`dialog 감지: from=${dialog.page.url?.() ?? 'unknown'} msg=${message}`, 'info')
+        if (message.includes('등록하신 물품정보가 변경 되었습니다')) return true
+        this._log(`등록 완료 메시지를 확인하지 못했습니다: ${message}`, 'warning')
+        return false
+      }
 
-      const ok = await this._confirmInPopupAndWaitSuccessAlert(popup, '4', 8000)
-      return ok
+      this._log('팝업/알림 없이 저장이 진행된 것으로 간주합니다.', 'warning')
+      return true
     } catch (error: any) {
       this._log(`수정 확인 팝업 처리 실패: ${error?.message || String(error)}`, 'warning')
       return false
@@ -341,7 +376,7 @@ export class S2BPricing extends S2BBase {
     }
   }
 
-  private async _openPopupByClick(timeoutMs: number): Promise<any | null> {
+  private async _openPopupAfterClick(clicker: () => Promise<void>, timeoutMs: number): Promise<any | null> {
     const ctx = this.page!.context()
 
     const beforePages = new Set(ctx.pages())
@@ -349,8 +384,7 @@ export class S2BPricing extends S2BBase {
     const popupFromPagePromise = this.page!.waitForEvent('popup', { timeout: timeoutMs }).catch(() => null)
     const popupFromContextPromise = ctx.waitForEvent('page', { timeout: timeoutMs }).catch(() => null)
 
-    const editButton = await this.page.$('a[href*="javascript:register(\'4\')"]')
-    await editButton.click({ noWaitAfter: true })
+    await clicker()
 
     const raced = (await Promise.race([popupFromPagePromise, popupFromContextPromise])) as any | null
     if (raced) return raced
