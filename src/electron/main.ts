@@ -337,6 +337,8 @@ interface StoreSchema {
     loginId: string
     loginPw: string
     registrationDelay: string
+    registrationDelayMin: string
+    registrationDelayMax: string
     imageOptimize: boolean
     headless: boolean
     marginRate: number
@@ -356,6 +358,8 @@ const store = new Store<StoreSchema>({
       loginId: '',
       loginPw: '',
       registrationDelay: '',
+      registrationDelayMin: '',
+      registrationDelayMax: '',
       imageOptimize: false,
       headless: false,
       marginRate: 20,
@@ -538,7 +542,14 @@ function setupIpcHandlers() {
           throw new Error('"상품등록" 권한이 없습니다. 상품 등록이 불가능합니다.')
         }
 
-        const delay = Number(settings.registrationDelay) || 0 // 등록 간격 (초)
+        const legacyDelay = Number(settings.registrationDelay)
+        const minDelayRaw = Number(settings.registrationDelayMin)
+        const maxDelayRaw = Number(settings.registrationDelayMax)
+        const fallbackDelay = Number.isFinite(legacyDelay) ? legacyDelay : 0
+        const minDelay = Number.isFinite(minDelayRaw) ? minDelayRaw : fallbackDelay
+        const maxDelay = Number.isFinite(maxDelayRaw) ? maxDelayRaw : fallbackDelay
+        const lowerDelay = Math.max(0, Math.min(minDelay, maxDelay))
+        const upperDelay = Math.max(0, Math.max(minDelay, maxDelay))
         const selectedProducts = allProducts.filter(p => p.selected) // ✅ 선택된 상품만 필터링
 
         for (let i = 0; i < selectedProducts.length; i++) {
@@ -569,9 +580,14 @@ function setupIpcHandlers() {
           }
 
           // ✅ 설정된 등록 간격만큼 대기
-          if (i < selectedProducts.length - 1 && delay > 0) {
-            sendLogToRenderer(`다음 상품 등록까지 ${delay}초 대기 중...`, 'info')
-            await new Promise(resolve => setTimeout(resolve, delay * 1000))
+          if (i < selectedProducts.length - 1) {
+            const delay = upperDelay > lowerDelay ? lowerDelay + Math.random() * (upperDelay - lowerDelay) : lowerDelay
+
+            if (delay > 0) {
+              const delayText = Number.isInteger(delay) ? delay.toString() : delay.toFixed(2)
+              sendLogToRenderer(`다음 상품 등록까지 ${delayText}초 대기 중...`, 'info')
+              await new Promise(resolve => setTimeout(resolve, delay * 1000))
+            }
           }
         }
 

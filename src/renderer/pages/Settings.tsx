@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { Button, Card, Divider, Form, Input, message, Switch } from 'antd'
+import { Button, Card, Divider, Form, Input, message, Space, Switch } from 'antd'
 import { FolderOutlined } from '@ant-design/icons'
 
 const { ipcRenderer } = window.require('electron')
@@ -8,7 +8,8 @@ interface SettingsForm {
   fileDir: string
   loginId: string
   loginPw: string
-  registrationDelay: number
+  registrationDelayMin: number
+  registrationDelayMax: number
   imageOptimize: boolean // 이미지 최적화 여부
   headless: boolean // ✅ 헤드리스 모드 여부
 }
@@ -26,7 +27,18 @@ const Settings: React.FC = () => {
     try {
       const settings = await ipcRenderer.invoke('get-settings')
       if (settings) {
-        form.setFieldsValue(settings)
+        const legacyDelay = Number(settings.registrationDelay)
+        const rawMin = Number(settings.registrationDelayMin)
+        const rawMax = Number(settings.registrationDelayMax)
+        const fallbackDelay = Number.isFinite(legacyDelay) ? legacyDelay : 0
+        const registrationDelayMin = Number.isFinite(rawMin) ? rawMin : fallbackDelay
+        const registrationDelayMax = Number.isFinite(rawMax) ? rawMax : fallbackDelay
+
+        form.setFieldsValue({
+          ...settings,
+          registrationDelayMin,
+          registrationDelayMax,
+        })
         console.log('Settings loaded successfully:', settings)
       }
     } catch (error) {
@@ -108,13 +120,16 @@ const Settings: React.FC = () => {
 
         <Divider type="horizontal" />
 
-        <Form.Item
-          label="상품 등록 간격 (초)"
-          name="registrationDelay"
-          initialValue={0}
-          tooltip="각 상품 등록 사이의 대기 시간 (초)을 설정합니다."
-        >
-          <Input type="number" min={0} addonAfter="초" />
+        <Form.Item label="상품 등록 간격 (초)" tooltip="각 상품 등록 사이의 대기 시간(최소~최대)을 설정합니다.">
+          <Space align="start">
+            <Form.Item name="registrationDelayMin" initialValue={0} noStyle>
+              <Input type="number" min={0} addonAfter="초" placeholder="최소" />
+            </Form.Item>
+            <span>~</span>
+            <Form.Item name="registrationDelayMax" initialValue={0} noStyle>
+              <Input type="number" min={0} addonAfter="초" placeholder="최대" />
+            </Form.Item>
+          </Space>
         </Form.Item>
 
         <Divider type="horizontal" />
