@@ -226,6 +226,50 @@ async function checkAccountPermission(accountId: string, requiredPermission: str
   }
 }
 
+async function getCreditsBalanceByS2bId(s2bId: string): Promise<number | null> {
+  if (!s2bId) return null
+
+  const { data: accountData, error: accountError } = await supabase
+    .from('s2b_accounts')
+    .select('profile_id')
+    .eq('s2b_id', s2bId)
+    .single()
+
+  if (accountError) {
+    if (accountError.code === 'PGRST116') {
+      return null
+    }
+    throw new Error(`계정 조회 실패: ${accountError.message}`)
+  }
+
+  if (!accountData?.profile_id) return null
+
+  const { data: transactions, error: txError } = await supabase
+    .from('credit_transactions')
+    .select('type, amount')
+    .eq('profile_id', accountData.profile_id)
+
+  if (txError) {
+    throw new Error(`크레딧 거래 조회 실패: ${txError.message}`)
+  }
+
+  if (!transactions || transactions.length === 0) return 0
+
+  const debitTypes = new Set(['usage', 'use', 'consume', 'debit', 'spend'])
+  let balance = 0
+  for (const tx of transactions) {
+    const amount = Number(tx.amount) || 0
+    const type = (tx.type || '').toString().toLowerCase()
+    if (debitTypes.has(type)) {
+      balance -= amount
+    } else {
+      balance += amount
+    }
+  }
+
+  return balance
+}
+
 /**
  * 문자열 정리 함수
  * @param value - 정리할 값
@@ -919,6 +963,16 @@ function setupIpcHandlers() {
         periodStart: account.period_start,
         status: account.status,
       },
+    }
+  })
+
+  ipcMain.handle('get-credits', async (_, { s2bId }) => {
+    try {
+      const balance = await getCreditsBalanceByS2bId(s2bId)
+      return { balance }
+    } catch (error: any) {
+      console.error('크레딧 조회 실패:', error)
+      return { balance: null }
     }
   })
 
