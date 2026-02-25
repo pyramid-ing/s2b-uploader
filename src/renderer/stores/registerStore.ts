@@ -23,6 +23,7 @@ export interface RegisterAccountPreset {
   name?: string
   loginId: string
   loginPw?: string
+  lastRegisteredIp?: string
   deliveryAreaPresetMode?: 'nationwide' | 'custom'
   deliveryAreas?: string[]
 }

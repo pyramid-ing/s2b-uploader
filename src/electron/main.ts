@@ -12,6 +12,7 @@ import dayjs from 'dayjs'
 import { autoUpdater } from 'electron-updater'
 import { ExcelRegistrationData, ConfigSet } from './types/excel'
 import { envConfig, supabase } from './envConfig'
+import axios from 'axios'
 
 /**
  * 계정 정보 타입 정의
@@ -402,6 +403,7 @@ interface S2BLoginAccount {
   name?: string
   loginId: string
   loginPw: string
+  lastRegisteredIp?: string
   deliveryAreaPresetMode?: DeliveryAreaPresetMode
   deliveryAreas?: string[]
 }
@@ -443,6 +445,7 @@ function normalizeAccountList(settings: Partial<StoreSchema['settings']> | undef
 
       const deliveryAreaPresetMode: DeliveryAreaPresetMode =
         account?.deliveryAreaPresetMode === 'custom' && filteredAreas.length > 0 ? 'custom' : 'nationwide'
+      const lastRegisteredIp = typeof account?.lastRegisteredIp === 'string' ? account.lastRegisteredIp.trim() : ''
 
       return {
         id:
@@ -452,6 +455,7 @@ function normalizeAccountList(settings: Partial<StoreSchema['settings']> | undef
         name: typeof account?.name === 'string' ? account.name.trim() : '',
         loginId,
         loginPw,
+        lastRegisteredIp,
         deliveryAreaPresetMode,
         deliveryAreas: deliveryAreaPresetMode === 'custom' ? filteredAreas : [],
       } as S2BLoginAccount
@@ -469,6 +473,7 @@ function normalizeAccountList(settings: Partial<StoreSchema['settings']> | undef
         name: '기본 계정',
         loginId: legacyLoginId,
         loginPw: legacyLoginPw,
+        lastRegisteredIp: '',
         deliveryAreaPresetMode: 'nationwide',
         deliveryAreas: [],
       },
@@ -520,6 +525,33 @@ function applyAccountDeliveryPreset(data: ExcelRegistrationData, account: S2BLog
     return { ...data, deliveryAreas: [...account.deliveryAreas] }
   }
   return { ...data, deliveryAreas: ['전국'] }
+}
+
+function isValidIpv4(value: string): boolean {
+  const ipv4Pattern = /^(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}$/
+  return ipv4Pattern.test(value.trim())
+}
+
+async function fetchCurrentPublicIp(): Promise<string> {
+  const endpoints = [
+    { url: 'https://api.ipify.org?format=json', parser: (data: any) => String(data?.ip || '').trim() },
+    { url: 'https://ifconfig.me/ip', parser: (data: any) => String(data || '').trim() },
+  ]
+
+  for (const endpoint of endpoints) {
+    try {
+      const response = await axios.get(endpoint.url, {
+        timeout: 5000,
+        responseType: endpoint.url.includes('ipify') ? 'json' : 'text',
+      })
+      const ip = endpoint.parser(response.data)
+      if (isValidIpv4(ip)) return ip
+    } catch (error) {
+      console.warn(`공인 IP 조회 실패 (${endpoint.url}):`, (error as any)?.message || error)
+    }
+  }
+
+  throw new Error('공인 IP를 확인하지 못했습니다. 네트워크 상태를 확인해주세요.')
 }
 
 // Store 인스턴스 생성
@@ -705,6 +737,46 @@ function setupIpcHandlers() {
         if (!selectedAccount) {
           throw new Error('사용할 계정이 설정되지 않았습니다. 설정에서 계정을 추가해주세요.')
         }
+        const currentPublicIp = await fetchCurrentPublicIp()
+        sendLogToRenderer(`현재 공인 IP 확인: ${currentPublicIp}`, 'info')
+        const expectedIp = String(selectedAccount.lastRegisteredIp || '').trim()
+        if (expectedIp) {
+          if (!isValidIpv4(expectedIp)) {
+            throw new Error(`저장된 마지막 등록 IP 형식이 올바르지 않습니다: ${expectedIp}`)
+          }
+          if (currentPublicIp !== expectedIp) {
+            const confirmResult = await dialog.showMessageBox(mainWindow || undefined, {
+              type: 'warning',
+              title: '사업자 IP 확인',
+              message: '현재 컴퓨터 IP와 마지막 등록 IP가 다릅니다.',
+              detail: `사업자: ${selectedAccount.name || selectedAccount.loginId}\n현재 IP: ${currentPublicIp}\n마지막 등록 IP: ${expectedIp}\n\n계속 진행하시겠습니까?`,
+              buttons: ['취소', '계속 진행'],
+              defaultId: 0,
+              cancelId: 0,
+              noLink: true,
+            })
+
+            if (confirmResult.response !== 1) {
+              throw new Error(
+                `사업자 IP 사전 체크 취소: 현재 IP(${currentPublicIp})와 마지막 등록 IP(${expectedIp})가 다릅니다.`,
+              )
+            }
+
+            sendLogToRenderer(
+              `사업자 IP 불일치 확인 후 계속 진행 (현재: ${currentPublicIp}, 마지막: ${expectedIp})`,
+              'warning',
+            )
+          }
+          sendLogToRenderer(
+            `사업자 IP 사전 체크 통과 (사업자: ${selectedAccount.name || selectedAccount.loginId})`,
+            'info',
+          )
+        } else {
+          sendLogToRenderer(
+            `사업자 IP 사전 체크 스킵 (사업자: ${selectedAccount.name || selectedAccount.loginId}, 마지막 등록 IP 없음)`,
+            'warning',
+          )
+        }
 
         registration = new S2BRegistration(settings.fileDir, sendLogToRenderer, settings.headless)
 
@@ -778,9 +850,19 @@ function setupIpcHandlers() {
           }
         }
 
+        const updatedAccounts = (settings.accounts || []).map(account =>
+          account.id === selectedAccount.id ? { ...account, lastRegisteredIp: currentPublicIp } : account,
+        )
+        store.set('settings', normalizeSettings({ ...settings, accounts: updatedAccounts }))
+        sendLogToRenderer(
+          `사업자 마지막 등록 IP 저장: ${selectedAccount.name || selectedAccount.loginId} -> ${currentPublicIp}`,
+          'info',
+        )
+
         return { success: true }
       } catch (error) {
         sendLogToRenderer(`에러 발생: ${error.message}`, 'error')
+        return { success: false, error: error.message || 'Unknown error occurred.' }
       } finally {
         const resultPath = await saveExcelResult(allProducts)
         sendLogToRenderer(`결과 파일 저장 완료: ${resultPath}`, 'info')
@@ -1116,6 +1198,15 @@ function setupIpcHandlers() {
     } catch (error: any) {
       console.error('크레딧 조회 실패:', error)
       return { balance: null }
+    }
+  })
+
+  ipcMain.handle('get-current-public-ip', async () => {
+    try {
+      const ip = await fetchCurrentPublicIp()
+      return { success: true, ip }
+    } catch (error: any) {
+      return { success: false, ip: '', error: error?.message || '공인 IP 조회 실패' }
     }
   })
 

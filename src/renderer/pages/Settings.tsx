@@ -31,6 +31,7 @@ interface AccountFormItem {
   name?: string
   loginId: string
   loginPw: string
+  lastRegisteredIp?: string
   deliveryAreaPresetMode: DeliveryAreaPresetMode
   deliveryAreas: string[]
 }
@@ -50,6 +51,7 @@ const createEmptyAccount = (): AccountFormItem => ({
   name: '',
   loginId: '',
   loginPw: '',
+  lastRegisteredIp: '',
   deliveryAreaPresetMode: 'nationwide',
   deliveryAreas: [],
 })
@@ -68,6 +70,7 @@ const normalizeAccounts = (accounts?: Partial<AccountFormItem>[]): AccountFormIt
       name: typeof account.name === 'string' ? account.name : '',
       loginId: typeof account.loginId === 'string' ? account.loginId : '',
       loginPw: typeof account.loginPw === 'string' ? account.loginPw : '',
+      lastRegisteredIp: typeof account.lastRegisteredIp === 'string' ? account.lastRegisteredIp : '',
       deliveryAreaPresetMode: mode,
       deliveryAreas:
         mode === 'custom'

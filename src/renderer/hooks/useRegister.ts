@@ -23,6 +23,7 @@ export const useRegister = () => {
             name: typeof account.name === 'string' ? account.name : '',
             loginId: String(account.loginId),
             loginPw: typeof account.loginPw === 'string' ? account.loginPw : '',
+            lastRegisteredIp: typeof account.lastRegisteredIp === 'string' ? account.lastRegisteredIp : '',
             deliveryAreaPresetMode:
               account.deliveryAreaPresetMode === 'custom' &&
               Array.isArray(account.deliveryAreas) &&
@@ -154,8 +155,10 @@ export const useRegister = () => {
           })
 
           if (result.success) {
+            await syncAccountPresets()
             message.success('모든 상품이 성공적으로 처리했습니다')
           } else {
+            await syncAccountPresets()
             message.error(`일부 상품 등록 실패: ${result.error}`)
           }
         } catch (error) {

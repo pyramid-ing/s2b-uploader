@@ -1,5 +1,5 @@
-import React, { useEffect, useRef } from 'react'
-import { Alert, Button, Card, Space, Table, Input, Select } from 'antd'
+import React, { useEffect, useRef, useState } from 'react'
+import { Alert, Button, Card, Space, Table, Input, Select, Tag } from 'antd'
 import { FolderOpenOutlined, ReloadOutlined, StopOutlined, UploadOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import { useLog } from '../hooks/useLog'
@@ -25,12 +25,15 @@ const Register: React.FC = () => {
 
   const { ipcRenderer } = (window as any).require('electron')
   const terminalRef = useRef<HTMLDivElement>(null)
+  const [currentPublicIp, setCurrentPublicIp] = useState<string>('')
 
   useEffect(() => {
     ;(async () => {
       const synced = await syncAccountPresets()
       const targetAccount = synced.accounts.find((account: any) => account.id === synced.selectedAccountId)
       await checkPermission(targetAccount?.loginId)
+      const ipResult = await ipcRenderer.invoke('get-current-public-ip')
+      setCurrentPublicIp(ipResult?.success ? ipResult.ip : '')
       await loadExcelData()
     })()
   }, [checkPermission, loadExcelData, syncAccountPresets])
@@ -59,6 +62,9 @@ const Register: React.FC = () => {
       key: 'modelName',
     },
   ]
+  const selectedAccount = settings.accounts.find(account => account.id === settings.selectedAccountId)
+  const selectedCount = selectedKeys.length
+  const totalCount = products.length
 
   return (
     <>
@@ -81,25 +87,87 @@ const Register: React.FC = () => {
         />
       )}
 
-      <Card
-        title="상품 등록"
-        style={{ marginBottom: '20px', opacity: permission.hasPermission === false ? 0.5 : 1 }}
-        extra={
-          <Space>
-            <Select
-              style={{ width: 240 }}
-              placeholder="등록 계정 선택"
-              value={settings.selectedAccountId}
-              options={settings.accounts.map((account, index) => ({
-                label: account.name?.trim() || account.loginId || `계정 ${index + 1}`,
-                value: account.id,
-              }))}
-              onChange={updateSelectedAccountId}
-              disabled={settings.loading}
-            />
+      <Card title="상품 등록" style={{ marginBottom: '20px', opacity: permission.hasPermission === false ? 0.5 : 1 }}>
+        <div
+          style={{
+            marginBottom: 16,
+            padding: 12,
+            border: '1px solid #f0f0f0',
+            borderRadius: 10,
+            background: '#fafafa',
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'flex-start',
+              gap: 12,
+              flexWrap: 'wrap',
+              marginBottom: 10,
+            }}
+          >
+            <Space wrap size={[8, 8]} align="center">
+              <span style={{ fontSize: 12, color: '#666' }}>사업자</span>
+              <Select
+                style={{ width: 240 }}
+                placeholder="사업자(계정) 선택"
+                value={settings.selectedAccountId}
+                options={settings.accounts.map((account, index) => ({
+                  label: account.name?.trim() || account.loginId || `계정 ${index + 1}`,
+                  value: account.id,
+                }))}
+                onChange={updateSelectedAccountId}
+                disabled={settings.loading}
+              />
+              <Tag color={selectedCount > 0 ? 'blue' : 'default'}>
+                선택 {selectedCount.toLocaleString()} / 전체 {totalCount.toLocaleString()}
+              </Tag>
+            </Space>
+
+            <Space wrap size={[8, 8]}>
+              <Button
+                icon={<ReloadOutlined />}
+                onClick={loadExcelData}
+                loading={settings.loading}
+                disabled={permission.hasPermission === false}
+              >
+                새로고침
+              </Button>
+              <Button
+                type="primary"
+                icon={<UploadOutlined />}
+                onClick={registerProducts}
+                loading={settings.loading}
+                disabled={
+                  selectedKeys.length === 0 || permission.hasPermission === false || !settings.selectedAccountId
+                }
+              >
+                선택 상품 등록
+              </Button>
+              <Button
+                type="primary"
+                danger
+                icon={<StopOutlined />}
+                onClick={cancelRegistration}
+                disabled={!settings.loading}
+              >
+                중단
+              </Button>
+            </Space>
+          </div>
+
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr auto',
+              gap: 8,
+              alignItems: 'center',
+              marginBottom: 10,
+            }}
+          >
             <Input
               readOnly
-              style={{ width: 320 }}
               value={settings.excelPath}
               placeholder="등록용 Excel 파일 경로"
               addonAfter={
@@ -122,35 +190,36 @@ const Register: React.FC = () => {
             <Button type="default" icon={<FolderOpenOutlined />} onClick={openResultFolder}>
               결과 폴더 열기
             </Button>
-            <Button
-              icon={<ReloadOutlined />}
-              onClick={loadExcelData}
-              loading={settings.loading}
-              disabled={permission.hasPermission === false}
+          </div>
+
+          <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 12 }}>
+            <div
+              style={{
+                padding: '6px 10px',
+                borderRadius: 8,
+                background: '#fff',
+                border: '1px solid #eaeaea',
+              }}
             >
-              새로고침
-            </Button>
-            <Button
-              type="primary"
-              icon={<UploadOutlined />}
-              onClick={registerProducts}
-              loading={settings.loading}
-              disabled={selectedKeys.length === 0 || permission.hasPermission === false || !settings.selectedAccountId}
+              <span style={{ color: '#666' }}>현재IP</span>
+              <span style={{ marginLeft: 8, fontFamily: 'monospace', color: '#111' }}>{currentPublicIp || '-'}</span>
+            </div>
+            <div
+              style={{
+                padding: '6px 10px',
+                borderRadius: 8,
+                background: '#fff',
+                border: '1px solid #eaeaea',
+              }}
             >
-              선택 상품 등록
-            </Button>
-            <Button
-              type="primary"
-              danger
-              icon={<StopOutlined />}
-              onClick={cancelRegistration}
-              disabled={!settings.loading}
-            >
-              중단
-            </Button>
-          </Space>
-        }
-      >
+              <span style={{ color: '#666' }}>계정마지막IP</span>
+              <span style={{ marginLeft: 8, fontFamily: 'monospace', color: '#111' }}>
+                {selectedAccount?.lastRegisteredIp || '-'}
+              </span>
+            </div>
+          </div>
+        </div>
+
         <Table
           columns={columns}
           dataSource={products}
