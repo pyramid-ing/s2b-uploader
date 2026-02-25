@@ -10,19 +10,20 @@ export const usePermission = () => {
   // 권한 체크
   const checkPermission = useRecoilCallback(
     ({ set }) =>
-      async () => {
+      async (accountId?: string) => {
         try {
           set(permissionState, prev => ({ ...prev, isLoading: true }))
 
           const settingsData = await ipcRenderer.invoke('get-settings')
-          if (!settingsData?.loginId) {
+          const targetAccountId = accountId || settingsData?.loginId
+          if (!targetAccountId) {
             message.error('로그인 정보가 설정되지 않았습니다.')
             set(permissionState, prev => ({ ...prev, hasPermission: false, isLoading: false, accountInfo: null }))
             return
           }
 
           const result = await ipcRenderer.invoke('check-account-validity', {
-            accountId: settingsData.loginId,
+            accountId: targetAccountId,
           })
 
           set(permissionState, prev => ({

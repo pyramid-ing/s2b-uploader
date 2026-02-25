@@ -11,12 +11,51 @@ export const useRegister = () => {
   const [settings, setSettings] = useRecoilState(registerSettingsState)
   const { permission, checkPermission } = usePermission()
 
+  const syncAccountPresets = useRecoilCallback(
+    ({ set, snapshot }) =>
+      async (settingsData?: any) => {
+        const nextSettings = settingsData || (await ipcRenderer.invoke('get-settings'))
+        const rawAccounts = Array.isArray(nextSettings?.accounts) ? nextSettings.accounts : []
+        const accounts = rawAccounts
+          .filter((account: any) => account?.id && account?.loginId)
+          .map((account: any) => ({
+            id: String(account.id),
+            name: typeof account.name === 'string' ? account.name : '',
+            loginId: String(account.loginId),
+            loginPw: typeof account.loginPw === 'string' ? account.loginPw : '',
+            deliveryAreaPresetMode:
+              account.deliveryAreaPresetMode === 'custom' &&
+              Array.isArray(account.deliveryAreas) &&
+              account.deliveryAreas.length > 0
+                ? 'custom'
+                : 'nationwide',
+            deliveryAreas: Array.isArray(account.deliveryAreas) ? account.deliveryAreas : [],
+          }))
+
+        const current = await snapshot.getPromise(registerSettingsState)
+        const selectedAccountId =
+          accounts.find((account: any) => account.id === current.selectedAccountId)?.id ||
+          accounts.find((account: any) => account.id === nextSettings?.activeAccountId)?.id ||
+          accounts[0]?.id
+
+        set(registerSettingsState, prev => ({
+          ...prev,
+          accounts,
+          selectedAccountId,
+        }))
+
+        return { accounts, selectedAccountId }
+      },
+    [],
+  )
+
   // Excel 데이터 로드
   const loadExcelData = useRecoilCallback(
     ({ set }) =>
       async () => {
         try {
           const settingsData = await ipcRenderer.invoke('get-settings')
+          await syncAccountPresets(settingsData)
           if (!settingsData?.excelPath) {
             message.warning('Excel 파일 경로가 설정되지 않았습니다.')
             return
@@ -93,7 +132,10 @@ export const useRegister = () => {
           }
 
           const settingsData = await ipcRenderer.invoke('get-settings')
-          if (!settingsData?.loginId || !settingsData?.loginPw) {
+          const { accounts, selectedAccountId } = await syncAccountPresets(settingsData)
+          const selectedAccount = accounts.find((account: any) => account.id === selectedAccountId)
+
+          if (!selectedAccount?.loginId || !selectedAccount?.loginPw) {
             message.error('로그인 정보가 설정되지 않았습니다.')
             return
           }
@@ -106,7 +148,10 @@ export const useRegister = () => {
             selected: currentSelectedKeys.includes(item.key),
           }))
 
-          const result = await ipcRenderer.invoke('start-and-register-products', { allProducts })
+          const result = await ipcRenderer.invoke('start-and-register-products', {
+            allProducts,
+            accountId: selectedAccount.id,
+          })
 
           if (result.success) {
             message.success('모든 상품이 성공적으로 처리했습니다')
@@ -180,6 +225,17 @@ export const useRegister = () => {
     [],
   )
 
+  const updateSelectedAccountId = useRecoilCallback(
+    ({ set, snapshot }) =>
+      async (selectedAccountId: string) => {
+        set(registerSettingsState, prev => ({ ...prev, selectedAccountId }))
+        const current = await snapshot.getPromise(registerSettingsState)
+        const targetAccount = current.accounts.find(account => account.id === selectedAccountId)
+        await checkPermission(targetAccount?.loginId)
+      },
+    [checkPermission],
+  )
+
   return {
     products,
     selectedKeys,
@@ -194,5 +250,7 @@ export const useRegister = () => {
     cancelRegistration,
     updateDateRange,
     updateRegistrationStatus,
+    updateSelectedAccountId,
+    syncAccountPresets,
   }
 }

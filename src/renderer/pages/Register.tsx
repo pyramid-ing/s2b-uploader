@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react'
-import { Alert, Button, Card, Space, Table, Input } from 'antd'
+import { Alert, Button, Card, Space, Table, Input, Select } from 'antd'
 import { FolderOpenOutlined, ReloadOutlined, StopOutlined, UploadOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import { useLog } from '../hooks/useLog'
@@ -19,15 +19,21 @@ const Register: React.FC = () => {
     openResultFolder,
     registerProducts,
     cancelRegistration,
+    updateSelectedAccountId,
+    syncAccountPresets,
   } = useRegister()
 
   const { ipcRenderer } = (window as any).require('electron')
   const terminalRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    checkPermission()
-    loadExcelData()
-  }, [checkPermission, loadExcelData])
+    ;(async () => {
+      const synced = await syncAccountPresets()
+      const targetAccount = synced.accounts.find((account: any) => account.id === synced.selectedAccountId)
+      await checkPermission(targetAccount?.loginId)
+      await loadExcelData()
+    })()
+  }, [checkPermission, loadExcelData, syncAccountPresets])
 
   // 로그 업데이트 시 스크롤을 맨 아래로 이동
   useEffect(() => {
@@ -80,6 +86,17 @@ const Register: React.FC = () => {
         style={{ marginBottom: '20px', opacity: permission.hasPermission === false ? 0.5 : 1 }}
         extra={
           <Space>
+            <Select
+              style={{ width: 240 }}
+              placeholder="등록 계정 선택"
+              value={settings.selectedAccountId}
+              options={settings.accounts.map((account, index) => ({
+                label: account.name?.trim() || account.loginId || `계정 ${index + 1}`,
+                value: account.id,
+              }))}
+              onChange={updateSelectedAccountId}
+              disabled={settings.loading}
+            />
             <Input
               readOnly
               style={{ width: 320 }}
@@ -118,7 +135,7 @@ const Register: React.FC = () => {
               icon={<UploadOutlined />}
               onClick={registerProducts}
               loading={settings.loading}
-              disabled={selectedKeys.length === 0 || permission.hasPermission === false}
+              disabled={selectedKeys.length === 0 || permission.hasPermission === false || !settings.selectedAccountId}
             >
               선택 상품 등록
             </Button>

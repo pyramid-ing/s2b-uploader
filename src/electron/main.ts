@@ -380,6 +380,8 @@ interface StoreSchema {
     excelPath: string
     loginId: string
     loginPw: string
+    accounts?: S2BLoginAccount[]
+    activeAccountId?: string
     registrationDelay: string
     registrationDelayMin: string
     registrationDelayMax: string
@@ -393,6 +395,133 @@ interface StoreSchema {
   activeConfigSetId: string | null
 }
 
+type DeliveryAreaPresetMode = 'nationwide' | 'custom'
+
+interface S2BLoginAccount {
+  id: string
+  name?: string
+  loginId: string
+  loginPw: string
+  deliveryAreaPresetMode?: DeliveryAreaPresetMode
+  deliveryAreas?: string[]
+}
+
+const VALID_DELIVERY_AREAS = [
+  '강원',
+  '경기',
+  '경남',
+  '경북',
+  '광주',
+  '대구',
+  '대전',
+  '부산',
+  '서울',
+  '울산',
+  '인천',
+  '전남',
+  '전북',
+  '제주',
+  '충남',
+  '충북',
+  '세종',
+] as const
+
+function normalizeAccountList(settings: Partial<StoreSchema['settings']> | undefined): S2BLoginAccount[] {
+  const rawAccounts = Array.isArray(settings?.accounts) ? settings?.accounts : []
+
+  const normalized = rawAccounts
+    .map((account: any, index: number) => {
+      const loginId = typeof account?.loginId === 'string' ? account.loginId.trim() : ''
+      const loginPw = typeof account?.loginPw === 'string' ? account.loginPw : ''
+      if (!loginId || !loginPw) return null
+
+      const filteredAreas = Array.isArray(account?.deliveryAreas)
+        ? account.deliveryAreas
+            .map((area: any) => (typeof area === 'string' ? area.trim() : ''))
+            .filter((area: string) => VALID_DELIVERY_AREAS.includes(area as (typeof VALID_DELIVERY_AREAS)[number]))
+        : []
+
+      const deliveryAreaPresetMode: DeliveryAreaPresetMode =
+        account?.deliveryAreaPresetMode === 'custom' && filteredAreas.length > 0 ? 'custom' : 'nationwide'
+
+      return {
+        id:
+          typeof account?.id === 'string' && account.id.trim()
+            ? account.id.trim()
+            : `account-${Date.now()}-${index}-${Math.random().toString(36).slice(2, 8)}`,
+        name: typeof account?.name === 'string' ? account.name.trim() : '',
+        loginId,
+        loginPw,
+        deliveryAreaPresetMode,
+        deliveryAreas: deliveryAreaPresetMode === 'custom' ? filteredAreas : [],
+      } as S2BLoginAccount
+    })
+    .filter(Boolean) as S2BLoginAccount[]
+
+  if (normalized.length > 0) return normalized
+
+  const legacyLoginId = typeof settings?.loginId === 'string' ? settings.loginId.trim() : ''
+  const legacyLoginPw = typeof settings?.loginPw === 'string' ? settings.loginPw : ''
+  if (legacyLoginId && legacyLoginPw) {
+    return [
+      {
+        id: 'legacy-default',
+        name: '기본 계정',
+        loginId: legacyLoginId,
+        loginPw: legacyLoginPw,
+        deliveryAreaPresetMode: 'nationwide',
+        deliveryAreas: [],
+      },
+    ]
+  }
+
+  return []
+}
+
+function normalizeSettings(settings: Partial<StoreSchema['settings']> | undefined): StoreSchema['settings'] {
+  const base = (store?.get?.('settings') || {}) as Partial<StoreSchema['settings']>
+  const merged = { ...base, ...(settings || {}) }
+  const accounts = normalizeAccountList(merged)
+  const activeAccountIdCandidate = typeof merged.activeAccountId === 'string' ? merged.activeAccountId : ''
+  const activeAccount = accounts.find(account => account.id === activeAccountIdCandidate) || accounts[0]
+
+  return {
+    ...(merged as any),
+    fileDir: typeof merged.fileDir === 'string' ? merged.fileDir : '',
+    excelPath: typeof merged.excelPath === 'string' ? merged.excelPath : '',
+    loginId: activeAccount?.loginId || '',
+    loginPw: activeAccount?.loginPw || '',
+    accounts,
+    activeAccountId: activeAccount?.id || '',
+    registrationDelay: typeof merged.registrationDelay === 'string' ? merged.registrationDelay : '',
+    registrationDelayMin: typeof merged.registrationDelayMin === 'string' ? merged.registrationDelayMin : '',
+    registrationDelayMax: typeof merged.registrationDelayMax === 'string' ? merged.registrationDelayMax : '',
+    imageOptimize: Boolean(merged.imageOptimize),
+    headless: Boolean(merged.headless),
+    marginRate: typeof merged.marginRate === 'number' ? merged.marginRate : 20,
+    detailHtmlTemplate:
+      typeof merged.detailHtmlTemplate === 'string' ? merged.detailHtmlTemplate : '<p>상세설명을 입력하세요.</p>',
+    useAIForSourcing: Boolean(merged.useAIForSourcing),
+  }
+}
+
+function getSelectedAccount(settings: StoreSchema['settings'], accountId?: string | null): S2BLoginAccount | null {
+  const accounts = normalizeAccountList(settings)
+  if (accounts.length === 0) return null
+  if (accountId) {
+    const matched = accounts.find(account => account.id === accountId)
+    if (matched) return matched
+  }
+  return accounts.find(account => account.id === settings.activeAccountId) || accounts[0]
+}
+
+function applyAccountDeliveryPreset(data: ExcelRegistrationData, account: S2BLoginAccount): ExcelRegistrationData {
+  if (account.deliveryAreaPresetMode === 'custom' && account.deliveryAreas && account.deliveryAreas.length > 0) {
+    return { ...data, deliveryAreas: [...account.deliveryAreas] }
+  }
+  return { ...data, deliveryAreas: ['전국'] }
+}
+
 // Store 인스턴스 생성
 const store = new Store<StoreSchema>({
   defaults: {
@@ -401,6 +530,8 @@ const store = new Store<StoreSchema>({
       excelPath: '',
       loginId: '',
       loginPw: '',
+      accounts: [],
+      activeAccountId: '',
       registrationDelay: '',
       registrationDelayMin: '',
       registrationDelayMax: '',
@@ -563,25 +694,36 @@ function setupIpcHandlers() {
 
   ipcMain.handle(
     'start-and-register-products',
-    async (_, { allProducts }: { allProducts: ExcelRegistrationData[] }) => {
+    async (_, { allProducts, accountId }: { allProducts: ExcelRegistrationData[]; accountId?: string }) => {
       isCancelled = false // ✅ 시작 시 중단 상태 초기화
 
       try {
         sendLogToRenderer('자동화 시작', 'info')
 
-        const settings = store.get('settings')
+        const settings = normalizeSettings(store.get('settings'))
+        const selectedAccount = getSelectedAccount(settings, accountId)
+        if (!selectedAccount) {
+          throw new Error('사용할 계정이 설정되지 않았습니다. 설정에서 계정을 추가해주세요.')
+        }
+
         registration = new S2BRegistration(settings.fileDir, sendLogToRenderer, settings.headless)
 
         await registration.launch()
 
-        await registration.login(settings.loginId, settings.loginPw)
-        sendLogToRenderer(`로그인 성공 (ID: ${settings.loginId})`, 'info')
+        await registration.login(selectedAccount.loginId, selectedAccount.loginPw)
+        sendLogToRenderer(`로그인 성공 (ID: ${selectedAccount.loginId})`, 'info')
 
         registration.setImageOptimize(settings.imageOptimize)
         sendLogToRenderer(`이미지 최적화 설정: ${settings.imageOptimize}`, 'info')
 
+        const deliveryPresetLabel =
+          selectedAccount.deliveryAreaPresetMode === 'custom' && selectedAccount.deliveryAreas?.length
+            ? `지역선택(${selectedAccount.deliveryAreas.join(', ')})`
+            : '전국'
+        sendLogToRenderer(`배송가능지역 preset 적용: ${deliveryPresetLabel}`, 'info')
+
         // ✅ 계정 유효성 및 권한 검사
-        const hasPermission = await checkAccountPermission(settings.loginId, '상품등록')
+        const hasPermission = await checkAccountPermission(selectedAccount.loginId, '상품등록')
         if (!hasPermission) {
           throw new Error('"상품등록" 권한이 없습니다. 상품 등록이 불가능합니다.')
         }
@@ -609,8 +751,9 @@ function setupIpcHandlers() {
           try {
             // ✅ 상품 등록 전 데이터 정리
             const sanitizedProduct = sanitizeProductData(product)
+            const productWithPreset = applyAccountDeliveryPreset(sanitizedProduct, selectedAccount)
 
-            await registration.registerProduct(sanitizedProduct)
+            await registration.registerProduct(productWithPreset)
             product.result = '성공' // ✅ 성공한 경우 결과 업데이트
           } catch (error) {
             if (error.message && isIgnorableError(error.message)) {
@@ -979,7 +1122,7 @@ function setupIpcHandlers() {
   // 설정 불러오기
   ipcMain.handle('get-settings', () => {
     try {
-      const settings = store.get('settings')
+      const settings = normalizeSettings(store.get('settings'))
       return settings
     } catch (error) {
       console.error('Error loading settings:', error)
@@ -990,8 +1133,8 @@ function setupIpcHandlers() {
   // 설정 저장하기
   ipcMain.handle('save-settings', async (_, settings) => {
     try {
-      const prev = store.get('settings') || {}
-      const merged = { ...prev, ...settings }
+      const prev = normalizeSettings(store.get('settings'))
+      const merged = normalizeSettings({ ...prev, ...(settings || {}) })
       store.set('settings', merged)
       return true
     } catch (error) {

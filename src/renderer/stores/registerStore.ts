@@ -14,6 +14,17 @@ export interface RegisterSettings {
   registrationStatus: string
   loading: boolean
   excelPath?: string
+  accounts: RegisterAccountPreset[]
+  selectedAccountId?: string
+}
+
+export interface RegisterAccountPreset {
+  id: string
+  name?: string
+  loginId: string
+  loginPw?: string
+  deliveryAreaPresetMode?: 'nationwide' | 'custom'
+  deliveryAreas?: string[]
 }
 
 export const REGISTRATION_STATUS = {
@@ -51,5 +62,7 @@ export const registerSettingsState = atom<RegisterSettings>({
     registrationStatus: REGISTRATION_STATUS.ALL,
     loading: false,
     excelPath: undefined,
+    accounts: [],
+    selectedAccountId: undefined,
   },
 })
