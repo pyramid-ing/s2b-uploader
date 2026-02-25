@@ -979,6 +979,45 @@ export class S2BSourcing extends S2BBase {
     }
     const marginRate = effectiveConfig.marginRate ?? 20
 
+    const normalizeOriginFields = (): {
+      originType: OriginType
+      domesticOrigin: string
+      foreignOrigin: string
+    } => {
+      const rawOriginType = aiRefined.원산지구분
+      const rawDomesticOrigin = (aiRefined.국내원산지 || '').toString().trim()
+      const rawForeignOrigin = (aiRefined.해외원산지 || '').toString().trim()
+      const rawOriginText = (rawData.origin || '').toString().trim()
+
+      let originType: OriginType =
+        rawOriginType === '국내' || rawOriginType === '국외' ? rawOriginType : ('' as OriginType)
+
+      // AI 응답에 구분값이 없으면 입력된 필드/크롤링 원산지 기준으로 보정
+      if (!originType) {
+        if (rawForeignOrigin && !rawDomesticOrigin) originType = '국외'
+        else if (rawDomesticOrigin && !rawForeignOrigin) originType = '국내'
+        else if (rawForeignOrigin && rawDomesticOrigin) originType = '국외'
+        else if (rawOriginText) originType = '국내'
+        else originType = '국내'
+      }
+
+      if (originType === '국외') {
+        return {
+          originType,
+          domesticOrigin: '',
+          foreignOrigin: rawForeignOrigin || rawOriginText || '',
+        }
+      }
+
+      return {
+        originType: '국내',
+        domesticOrigin: rawDomesticOrigin || rawOriginText || '',
+        foreignOrigin: '',
+      }
+    }
+
+    const normalizedOrigin = normalizeOriginFields()
+
     // 공통: aiRefined['특성']과 최소구매수량을 기반으로 규격 문자열을 만드는 함수
     // - prefix: 규격 앞에 붙는 문자열 (길이 계산에 포함)
     // - maxLen: 최대 길이 (없으면 제한 없음)
@@ -1045,9 +1084,9 @@ export class S2BSourcing extends S2BBase {
       추가이미지1: rawData.mainImages?.[2] || '',
       추가이미지2: rawData.mainImages?.[3] || '',
       상세이미지: rawData.detailImages?.[0] || '',
-      원산지구분: aiRefined.원산지구분 || '국내',
-      국내원산지: aiRefined.국내원산지 || '',
-      해외원산지: aiRefined.해외원산지 || '',
+      원산지구분: normalizedOrigin.originType,
+      국내원산지: normalizedOrigin.domesticOrigin,
+      해외원산지: normalizedOrigin.foreignOrigin,
       배송방법: '택배',
       배송지역: '',
       '정격전압/소비전력': '',
