@@ -155,7 +155,7 @@ export const useSourcing = () => {
   // URL로 1개 제품 가져오기
   const fetchOneByUrl = useRecoilCallback(
     ({ set, snapshot }) =>
-      async (urlInput: string) => {
+      async (urlInput: string, useAI?: boolean) => {
         if (!urlInput) {
           message.warning('URL을 입력하세요.')
           return
@@ -171,7 +171,7 @@ export const useSourcing = () => {
             return
           }
 
-          const res = await ipcRenderer.invoke('sourcing-collect-details', { url: urlInput })
+          const res = await ipcRenderer.invoke('sourcing-collect-details', { url: urlInput, useAI })
           if (!res?.success) throw new Error(res?.error || '상세 수집 실패')
 
           const found = (res.items || []).find((d: any) => d.url === urlInput)

@@ -348,13 +348,44 @@ const Sourcing: React.FC = () => {
   }
 
   const handleFetchOneByUrl = async () => {
-    try {
-      setLoading(true)
-      await fetchOneByUrl(urlInput)
-      setUrlInput('')
-    } finally {
-      setLoading(false)
-    }
+    const useAIRef = { value: lastUseAI ?? false }
+
+    Modal.confirm({
+      title: '1개 가져오기',
+      width: 500,
+      content: (
+        <div style={{ padding: '16px 0' }}>
+          <Typography.Text>입력한 URL 기준으로 1개 항목을 가져오시겠습니까?</Typography.Text>
+          <Divider style={{ margin: '16px 0' }} />
+          <Form.Item style={{ marginBottom: 0 }}>
+            <Checkbox
+              defaultChecked={lastUseAI ?? false}
+              onChange={e => {
+                useAIRef.value = e.target.checked
+              }}
+            >
+              수집시 AI로 정보 가져오기
+            </Checkbox>
+          </Form.Item>
+        </div>
+      ),
+      okText: '가져오기',
+      cancelText: '취소',
+      onOk: async () => {
+        const useAI = useAIRef.value
+        setLastUseAI(useAI)
+        const { ipcRenderer } = window.require('electron')
+        ipcRenderer.invoke('save-settings', { useAIForSourcing: useAI }).catch(console.error)
+
+        try {
+          setLoading(true)
+          await fetchOneByUrl(urlInput, useAI)
+          setUrlInput('')
+        } finally {
+          setLoading(false)
+        }
+      },
+    })
   }
 
   const handleDelete = (key: React.Key) => {
