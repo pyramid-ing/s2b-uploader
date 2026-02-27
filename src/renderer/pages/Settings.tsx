@@ -1,6 +1,15 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { Button, Card, Divider, Form, Input, message, Space, Switch, Select, Radio } from 'antd'
-import { FolderOutlined, PlusOutlined, DeleteOutlined } from '@ant-design/icons'
+import { Button, Card, Divider, Form, Input, message, Space, Switch, Select, Radio, Tag, Tooltip } from 'antd'
+import {
+  FolderOutlined,
+  PlusOutlined,
+  DeleteOutlined,
+  CheckCircleOutlined,
+  CloseCircleOutlined,
+  LoadingOutlined,
+  QuestionCircleOutlined,
+  SyncOutlined,
+} from '@ant-design/icons'
 
 const { ipcRenderer } = window.require('electron')
 
@@ -46,6 +55,14 @@ interface SettingsForm {
   headless: boolean
 }
 
+type ValidityStatus = 'unknown' | 'checking' | 'valid' | 'invalid'
+
+interface AccountValidityItem {
+  status: ValidityStatus
+  loginId: string
+  periodEnd?: string | null
+}
+
 const createEmptyAccount = (): AccountFormItem => ({
   id: `account-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
   name: '',
@@ -86,6 +103,8 @@ const Settings: React.FC = () => {
   const [form] = Form.useForm()
   const [loading, setLoading] = useState(false)
   const [initialLoading, setInitialLoading] = useState(true)
+  const [accountValidity, setAccountValidity] = useState<Record<string, AccountValidityItem>>({})
+  const [checkingAll, setCheckingAll] = useState(false)
   const watchedAccounts = Form.useWatch('accounts', form) as AccountFormItem[] | undefined
 
   const accountOptions = useMemo(
@@ -102,6 +121,24 @@ const Settings: React.FC = () => {
   useEffect(() => {
     loadSettings().finally(() => setInitialLoading(false))
   }, [])
+
+  useEffect(() => {
+    const accounts = watchedAccounts || []
+    setAccountValidity(prev => {
+      const next: Record<string, AccountValidityItem> = {}
+      accounts.forEach(account => {
+        if (!account?.id) return
+        const trimmedLoginId = (account.loginId || '').trim()
+        const prevItem = prev[account.id]
+        if (prevItem && prevItem.loginId === trimmedLoginId) {
+          next[account.id] = prevItem
+        } else {
+          next[account.id] = { status: 'unknown', loginId: trimmedLoginId }
+        }
+      })
+      return next
+    })
+  }, [watchedAccounts])
 
   const loadSettings = async () => {
     try {
@@ -125,6 +162,7 @@ const Settings: React.FC = () => {
           registrationDelayMin,
           registrationDelayMax,
         })
+        await checkAllAccountValidity(normalizedAccounts)
         console.log('Settings loaded successfully:', settings)
       }
     } catch (error) {
@@ -135,6 +173,83 @@ const Settings: React.FC = () => {
         duration: 3,
       })
     }
+  }
+
+  const checkAccountValidity = async (account: AccountFormItem) => {
+    const accountId = account.id
+    const loginId = (account.loginId || '').trim()
+    if (!accountId) return
+    if (!loginId) {
+      setAccountValidity(prev => ({ ...prev, [accountId]: { status: 'unknown', loginId: '' } }))
+      return
+    }
+
+    setAccountValidity(prev => ({
+      ...prev,
+      [accountId]: { status: 'checking', loginId },
+    }))
+
+    try {
+      const result = await ipcRenderer.invoke('check-account-validity', { accountId: loginId })
+      setAccountValidity(prev => ({
+        ...prev,
+        [accountId]: {
+          status: result?.valid ? 'valid' : 'invalid',
+          loginId,
+          periodEnd: result?.accountInfo?.periodEnd,
+        },
+      }))
+    } catch (error) {
+      setAccountValidity(prev => ({
+        ...prev,
+        [accountId]: { status: 'invalid', loginId },
+      }))
+    }
+  }
+
+  const checkAllAccountValidity = async (accounts: AccountFormItem[]) => {
+    if (!accounts?.length) return
+    setCheckingAll(true)
+    try {
+      for (const account of accounts) {
+        await checkAccountValidity(account)
+      }
+    } finally {
+      setCheckingAll(false)
+    }
+  }
+
+  const renderValidityTag = (account: AccountFormItem) => {
+    const loginId = (account.loginId || '').trim()
+    const item = accountValidity[account.id]
+    if (!loginId || !item || item.loginId !== loginId || item.status === 'unknown') {
+      return (
+        <Tag icon={<QuestionCircleOutlined />} color="default">
+          미확인
+        </Tag>
+      )
+    }
+    if (item.status === 'checking') {
+      return (
+        <Tag icon={<LoadingOutlined />} color="processing">
+          확인중
+        </Tag>
+      )
+    }
+    if (item.status === 'valid') {
+      return (
+        <Tag icon={<CheckCircleOutlined />} color="success">
+          유효
+        </Tag>
+      )
+    }
+    return (
+      <Tooltip title="서버에 등록되지 않은 계정입니다. 이름을 다시 확인하거나 관리자에게 문의해주세요.">
+        <Tag icon={<CloseCircleOutlined />} color="error">
+          확인 실패
+        </Tag>
+      </Tooltip>
+    )
   }
 
   const handleSelectDirectory = async () => {
@@ -216,15 +331,25 @@ const Settings: React.FC = () => {
             <>
               <Space style={{ width: '100%', justifyContent: 'space-between', marginBottom: 12 }}>
                 <div style={{ fontWeight: 600 }}>S2B 계정 Preset</div>
-                <Button
-                  type="dashed"
-                  icon={<PlusOutlined />}
-                  onClick={() => add(createEmptyAccount())}
-                  disabled={loading}
-                  size="small"
-                >
-                  계정 추가
-                </Button>
+                <Space>
+                  <Button
+                    size="small"
+                    icon={<SyncOutlined spin={checkingAll} />}
+                    onClick={() => checkAllAccountValidity((form.getFieldValue('accounts') || []) as AccountFormItem[])}
+                    disabled={loading || checkingAll}
+                  >
+                    전체 유효성 확인
+                  </Button>
+                  <Button
+                    type="dashed"
+                    icon={<PlusOutlined />}
+                    onClick={() => add(createEmptyAccount())}
+                    disabled={loading}
+                    size="small"
+                  >
+                    계정 추가
+                  </Button>
+                </Space>
               </Space>
 
               {fields.length === 0 && (
@@ -242,25 +367,44 @@ const Settings: React.FC = () => {
                     key={field.key}
                     size="small"
                     style={{ marginBottom: 12 }}
-                    title={account?.name?.trim() || account?.loginId?.trim() || `계정 ${index + 1}`}
+                    title={
+                      <Space size={8}>
+                        <span>{account?.name?.trim() || account?.loginId?.trim() || `계정 ${index + 1}`}</span>
+                        {account ? renderValidityTag(account) : null}
+                      </Space>
+                    }
                     extra={
-                      <Button
-                        danger
-                        type="text"
-                        icon={<DeleteOutlined />}
-                        onClick={() => {
-                          const removingId = (form.getFieldValue(['accounts', field.name, 'id']) as string) || ''
-                          remove(field.name)
-                          const currentActiveId = form.getFieldValue('activeAccountId')
-                          if (currentActiveId && currentActiveId === removingId) {
-                            const nextAccounts = (form.getFieldValue('accounts') || []) as AccountFormItem[]
-                            form.setFieldValue('activeAccountId', nextAccounts[0]?.id)
-                          }
-                        }}
-                        disabled={loading}
-                      >
-                        삭제
-                      </Button>
+                      <Space size={4}>
+                        <Button
+                          size="small"
+                          type="text"
+                          icon={<SyncOutlined />}
+                          onClick={() => {
+                            const accountValues = form.getFieldValue(['accounts', field.name]) as AccountFormItem
+                            if (accountValues) checkAccountValidity(accountValues)
+                          }}
+                          disabled={loading}
+                        >
+                          확인
+                        </Button>
+                        <Button
+                          danger
+                          type="text"
+                          icon={<DeleteOutlined />}
+                          onClick={() => {
+                            const removingId = (form.getFieldValue(['accounts', field.name, 'id']) as string) || ''
+                            remove(field.name)
+                            const currentActiveId = form.getFieldValue('activeAccountId')
+                            if (currentActiveId && currentActiveId === removingId) {
+                              const nextAccounts = (form.getFieldValue('accounts') || []) as AccountFormItem[]
+                              form.setFieldValue('activeAccountId', nextAccounts[0]?.id)
+                            }
+                          }}
+                          disabled={loading}
+                        >
+                          삭제
+                        </Button>
+                      </Space>
                     }
                   >
                     <Form.Item name={[field.name, 'id']} hidden>

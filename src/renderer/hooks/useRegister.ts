@@ -78,6 +78,7 @@ export const useRegister = () => {
             goodsName: p.goodsName,
             spec: p.spec,
             modelName: p.modelName,
+            result: p.result || '',
             originalData: p,
           }))
 
@@ -154,12 +155,27 @@ export const useRegister = () => {
             accountId: selectedAccount.id,
           })
 
-          if (result.success) {
-            await syncAccountPresets()
-            message.success('모든 상품이 성공적으로 처리했습니다')
+          if (Array.isArray(result?.productResults)) {
+            set(productDataState, prev =>
+              prev.map((item, index) => ({
+                ...item,
+                result: result.productResults[index] || '',
+              })),
+            )
+          }
+
+          await syncAccountPresets()
+
+          if (result?.cancelled) {
+            message.warning(
+              `상품 등록이 중단되었습니다. (성공 ${result.successCount || 0} / 실패 ${result.failCount || 0})`,
+            )
+          } else if (result?.failCount > 0) {
+            message.warning(`일부 상품 등록 실패 (성공 ${result.successCount || 0} / 실패 ${result.failCount})`)
+          } else if (result?.success) {
+            message.success(`모든 상품이 성공적으로 처리되었습니다. (${result.successCount || currentSelectedKeys.length}개)`)
           } else {
-            await syncAccountPresets()
-            message.error(`일부 상품 등록 실패: ${result.error}`)
+            message.error(result?.error || '상품 등록 과정에서 오류가 발생했습니다.')
           }
         } catch (error) {
           console.error('Register process failed:', error)
