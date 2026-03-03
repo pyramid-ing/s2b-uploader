@@ -61,6 +61,21 @@ const Register: React.FC = () => {
       dataIndex: 'modelName',
       key: 'modelName',
     },
+    {
+      title: '등록결과',
+      dataIndex: 'result',
+      key: 'result',
+      width: 180,
+      render: (value?: string) => {
+        if (!value) return <Tag>대기</Tag>
+        if (value === '성공') return <Tag color="success">성공</Tag>
+        return (
+          <Tag color="error" title={value}>
+            실패
+          </Tag>
+        )
+      },
+    },
   ]
   const selectedAccount = settings.accounts.find(account => account.id === settings.selectedAccountId)
   const selectedCount = selectedKeys.length

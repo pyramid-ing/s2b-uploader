@@ -6,6 +6,7 @@ export interface ProductData {
   goodsName: string
   spec: string
   modelName: string
+  result?: string
   originalData?: any
 }
 

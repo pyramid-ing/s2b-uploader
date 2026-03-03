@@ -809,6 +809,8 @@ function setupIpcHandlers() {
         const lowerDelay = Math.max(0, Math.min(minDelay, maxDelay))
         const upperDelay = Math.max(0, Math.max(minDelay, maxDelay))
         const selectedProducts = allProducts.filter(p => p.selected) // ✅ 선택된 상품만 필터링
+        let successCount = 0
+        let failCount = 0
 
         for (let i = 0; i < selectedProducts.length; i++) {
           if (isCancelled) {
@@ -827,14 +829,18 @@ function setupIpcHandlers() {
 
             await registration.registerProduct(productWithPreset)
             product.result = '성공' // ✅ 성공한 경우 결과 업데이트
+            successCount += 1
           } catch (error) {
             if (error.message && isIgnorableError(error.message)) {
               // ✅ 무시할 에러
               console.warn(`무시된 에러: ${error.message}`)
+              product.result = '성공'
+              successCount += 1
             } else {
               // ✅ 사용자에게 보여줘야 하는 에러만 처리
               sendLogToRenderer(`상품 등록 실패: ${product.goodsName} - ${error.message}`, 'error')
               product.result = error.message || '알 수 없는 에러' // ✅ 실패한 경우 결과 업데이트
+              failCount += 1
             }
           }
 
@@ -859,10 +865,22 @@ function setupIpcHandlers() {
           'info',
         )
 
-        return { success: true }
+        return {
+          success: failCount === 0 && !isCancelled,
+          cancelled: isCancelled,
+          successCount,
+          failCount,
+          totalCount: selectedProducts.length,
+          productResults: allProducts.map(product => product.result || ''),
+          error: failCount > 0 ? `${failCount}개 상품 등록 실패` : undefined,
+        }
       } catch (error) {
         sendLogToRenderer(`에러 발생: ${error.message}`, 'error')
-        return { success: false, error: error.message || 'Unknown error occurred.' }
+        return {
+          success: false,
+          error: error.message || 'Unknown error occurred.',
+          productResults: allProducts.map(product => product.result || ''),
+        }
       } finally {
         const resultPath = await saveExcelResult(allProducts)
         sendLogToRenderer(`결과 파일 저장 완료: ${resultPath}`, 'info')
