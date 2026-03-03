@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, shell, protocol } from 'electron'
 import * as path from 'path'
 import Store from 'electron-store'
 import { S2BSourcing } from './s2b-sourcing'
@@ -391,6 +391,7 @@ interface StoreSchema {
     marginRate: number
     detailHtmlTemplate: string
     useAIForSourcing?: boolean
+    categoryExcelPath?: string
   }
   configSets: any[]
   activeConfigSetId: string | null
@@ -507,6 +508,7 @@ function normalizeSettings(settings: Partial<StoreSchema['settings']> | undefine
     detailHtmlTemplate:
       typeof merged.detailHtmlTemplate === 'string' ? merged.detailHtmlTemplate : '<p>상세설명을 입력하세요.</p>',
     useAIForSourcing: Boolean(merged.useAIForSourcing),
+    categoryExcelPath: typeof merged.categoryExcelPath === 'string' ? merged.categoryExcelPath : '',
   }
 }
 
@@ -572,6 +574,7 @@ const store = new Store<StoreSchema>({
       marginRate: 20,
       detailHtmlTemplate: '<p>상세설명을 입력하세요.</p>',
       useAIForSourcing: false,
+      categoryExcelPath: '',
     },
     configSets: [],
     activeConfigSetId: null,
@@ -1301,6 +1304,45 @@ function setupIpcHandlers() {
     return result.canceled ? null : result.filePaths[0]
   })
 
+  // 일반 파일 선택 다이얼로그 (이미지 등)
+  ipcMain.handle('select-file', async () => {
+    if (!mainWindow) return null
+
+    const result = await dialog.showOpenDialog(mainWindow, {
+      properties: ['openFile'],
+      filters: [
+        { name: 'Images', extensions: ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'] },
+        { name: 'All Files', extensions: ['*'] },
+      ],
+      title: '파일 선택',
+    })
+
+    return result.canceled ? null : result.filePaths[0]
+  })
+
+  // 엑셀 파일 읽기 (범용)
+  ipcMain.handle('read-excel-raw', async (_, filePath: string) => {
+    try {
+      let finalPath = filePath
+      if (filePath && !path.isAbsolute(filePath)) {
+        // 상대 경로일 경우 앱 실행 경로 기준으로 변환
+        finalPath = path.join(app.getAppPath(), filePath)
+      }
+
+      if (!fsSync.existsSync(finalPath)) {
+        console.error(`Excel file not found at: ${finalPath}`)
+        return []
+      }
+
+      const workbook = XLSX.readFile(finalPath)
+      const sheet = workbook.Sheets[workbook.SheetNames[0]]
+      return XLSX.utils.sheet_to_json(sheet, { defval: '' })
+    } catch (error) {
+      console.error('Error reading excel raw:', error)
+      return []
+    }
+  })
+
   ipcMain.handle('extend-management-date', async (_, { startDate, endDate, registrationStatus, searchQuery }) => {
     try {
       const settings = store.get('settings')
@@ -1784,6 +1826,17 @@ async function clearTempFiles(): Promise<void> {
 }
 
 app.whenReady().then(() => {
+  // 로컬 파일 경로를 renderer에서 로드하기 위한 프로토콜 등록
+  protocol.registerFileProtocol('local-resource', (request, callback) => {
+    const url = request.url.replace(/^local-resource:\/\//, '')
+    try {
+      return callback(decodeURIComponent(url))
+    } catch (error) {
+      console.error('Failed to register protocol:', error)
+      return callback('')
+    }
+  })
+
   // temp 디렉토리 정리
   clearTempFiles().catch(error => console.error(error))
 

@@ -1,0 +1,49 @@
+export interface CategoryOption {
+  label: string
+  value: string
+  children?: CategoryOption[]
+}
+
+/**
+ * 카테고리 엑셀 파일 경로 (진행 중인 앱 루트 기준 상대 경로)
+ */
+export const CATEGORY_EXCEL_PATH = 'files/s2b_categories.xlsx'
+
+/**
+ * 평면 구조의 카테고리 데이터를 Cascader용 트리 구조로 변환하는 함수
+ */
+export const buildCategoryTree = (rows: any[]): CategoryOption[] => {
+  const tree: CategoryOption[] = []
+
+  rows.forEach(row => {
+    const c1 = row['1차 카테고리'] || row['카테고리1']
+    const c2 = row['2차 카테고리'] || row['카테고리2']
+    const c3 = row['3차 카테고리'] || row['카테고리3']
+
+    if (!c1) return
+
+    let node1 = tree.find(n => n.value === c1)
+    if (!node1) {
+      node1 = { label: c1, value: c1, children: [] }
+      tree.push(node1)
+    }
+
+    if (!c2) return
+    let node2 = node1.children!.find(n => n.value === c2)
+    if (!node2) {
+      node2 = { label: c2, value: c2, children: [] }
+      node1.children!.push(node2)
+    }
+
+    if (!c3) return
+    let node3 = node2.children!.find(n => n.value === c3)
+    if (!node3) {
+      node3 = { label: c3, value: c3 }
+      node2.children!.push(node3)
+    }
+  })
+
+  return tree
+}
+
+

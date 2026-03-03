@@ -1,6 +1,6 @@
 import { useRecoilState, useRecoilCallback } from 'recoil'
 import { message } from 'antd'
-import { productDataState, selectedProductKeysState, registerSettingsState } from '../stores/registerStore'
+import { productDataState, selectedProductKeysState, registerSettingsState, ProductData } from '../stores/registerStore'
 import { usePermission } from './usePermission'
 
 const { ipcRenderer } = window.require('electron')
@@ -173,7 +173,9 @@ export const useRegister = () => {
           } else if (result?.failCount > 0) {
             message.warning(`일부 상품 등록 실패 (성공 ${result.successCount || 0} / 실패 ${result.failCount})`)
           } else if (result?.success) {
-            message.success(`모든 상품이 성공적으로 처리되었습니다. (${result.successCount || currentSelectedKeys.length}개)`)
+            message.success(
+              `모든 상품이 성공적으로 처리되었습니다. (${result.successCount || currentSelectedKeys.length}개)`,
+            )
           } else {
             message.error(result?.error || '상품 등록 과정에서 오류가 발생했습니다.')
           }
@@ -255,6 +257,33 @@ export const useRegister = () => {
     [checkPermission],
   )
 
+  // 상품 추가 (소싱 페이지 등에서 호출)
+  const addProducts = useRecoilCallback(
+    ({ set }) =>
+      (newProducts: ProductData[]) => {
+        set(productDataState, prev => {
+          // 중복 체크 (기존에 동일한 key나 데이터가 있는지 확인 가능하지만, 일단 단순 추가)
+          return [...prev, ...newProducts]
+        })
+        // 새로 추가된 상품들 선택 상태로 만들기
+        set(selectedProductKeysState, prev => {
+          const newKeys = newProducts.map(p => p.key)
+          return [...prev, ...newKeys]
+        })
+        message.success(`${newProducts.length}개의 상품이 등록 목록에 추가되었습니다.`)
+      },
+    [],
+  )
+
+  // 상품 수정
+  const updateProduct = useRecoilCallback(
+    ({ set }) =>
+      (key: string, updatedData: Partial<ProductData>) => {
+        set(productDataState, prev => prev.map(p => (p.key === key ? { ...p, ...updatedData } : p)))
+      },
+    [],
+  )
+
   return {
     products,
     selectedKeys,
@@ -271,5 +300,7 @@ export const useRegister = () => {
     updateRegistrationStatus,
     updateSelectedAccountId,
     syncAccountPresets,
+    addProducts,
+    updateProduct,
   }
 }

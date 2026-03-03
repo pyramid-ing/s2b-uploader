@@ -1,10 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { Alert, Button, Card, Space, Table, Input, Select, Tag } from 'antd'
-import { FolderOpenOutlined, ReloadOutlined, StopOutlined, UploadOutlined } from '@ant-design/icons'
+import { FolderOpenOutlined, ReloadOutlined, StopOutlined, UploadOutlined, EditOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import { useLog } from '../hooks/useLog'
 import { useRegister } from '../hooks/useRegister'
 import { ProductData } from '../stores/registerStore'
+import EditProductModal from '../components/EditProductModal'
 
 const Register: React.FC = () => {
   const { logs, progress, clearLogs } = useLog()
@@ -21,11 +22,16 @@ const Register: React.FC = () => {
     cancelRegistration,
     updateSelectedAccountId,
     syncAccountPresets,
+    updateProduct,
   } = useRegister()
 
   const { ipcRenderer } = (window as any).require('electron')
   const terminalRef = useRef<HTMLDivElement>(null)
   const [currentPublicIp, setCurrentPublicIp] = useState<string>('')
+
+  // 수정 모달 상태
+  const [isEditModalVisible, setIsEditModalVisible] = useState(false)
+  const [editingProduct, setEditingProduct] = useState<ProductData | null>(null)
 
   useEffect(() => {
     ;(async () => {
@@ -75,6 +81,23 @@ const Register: React.FC = () => {
           </Tag>
         )
       },
+    },
+    {
+      title: '관리',
+      key: 'action',
+      width: 100,
+      render: (_, record) => (
+        <Button
+          type="text"
+          icon={<EditOutlined />}
+          onClick={() => {
+            setEditingProduct(record)
+            setIsEditModalVisible(true)
+          }}
+        >
+          수정
+        </Button>
+      ),
     },
   ]
   const selectedAccount = settings.accounts.find(account => account.id === settings.selectedAccountId)
@@ -250,6 +273,16 @@ const Register: React.FC = () => {
           pagination={{ defaultPageSize: 50, showSizeChanger: true, pageSizeOptions: [10, 20, 50, 100, 200, 500] }}
         />
       </Card>
+
+      <EditProductModal
+        visible={isEditModalVisible}
+        product={editingProduct}
+        onSave={updateProduct}
+        onCancel={() => {
+          setIsEditModalVisible(false)
+          setEditingProduct(null)
+        }}
+      />
 
       <Card
         title="진행 정보"

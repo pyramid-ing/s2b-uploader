@@ -26,10 +26,14 @@ import {
   DownloadOutlined,
   CheckCircleOutlined,
   StopOutlined,
+  UploadOutlined,
 } from '@ant-design/icons'
 import { useLog } from '../hooks/useLog'
 import { useSourcing } from '../hooks/useSourcing'
 import { usePermission } from '../hooks/usePermission'
+import { useRegister } from '../hooks/useRegister'
+import { ProductData } from '../stores/registerStore'
+import { useNavigate } from 'react-router-dom'
 import {
   SourcingItem,
   videoCollapsedState,
@@ -55,6 +59,8 @@ const S2B_DEFAULT_PAGE_DELAY_SEC = 1
 
 const Sourcing: React.FC = () => {
   const [form] = Form.useForm()
+  const navigate = useNavigate()
+  const { addProducts } = useRegister()
   const [vendor, setVendor] = useState<string>(VENDORS[0].value)
   const [urlInput, setUrlInput] = useState<string>('')
   const [s2bKeyword, setS2bKeyword] = useState<string>('')
@@ -780,9 +786,43 @@ const Sourcing: React.FC = () => {
               >
                 수집하기({selectedRowKeys.length}개)
               </Button>
+              <Button
+                type="primary"
+                style={{ backgroundColor: '#52c41a' }}
+                icon={<UploadOutlined />}
+                onClick={() => {
+                  const collectedItems = items.filter(item => selectedRowKeys.includes(item.key) && item.isCollected)
+                  if (collectedItems.length === 0) {
+                    message.warning('수집 완료된 상품만 등록 페이지로 보낼 수 있습니다.')
+                    return
+                  }
+
+                  const newProducts: ProductData[] = collectedItems.map(item => ({
+                    key: `sourcing-${Date.now()}-${item.key}`,
+                    goodsName: item.name,
+                    spec: item.additionalInfo?.spec || '',
+                    modelName: item.additionalInfo?.modelName || '',
+                    originalData: {
+                      ...item,
+                      goodsName: item.name,
+                      price: item.price,
+                      // S2B 등록에 필요한 필드들 매핑
+                      images: item.additionalInfo?.images || [],
+                      content: item.additionalInfo?.content || '',
+                      options: item.additionalInfo?.options || [],
+                    },
+                  }))
+
+                  addProducts(newProducts)
+                  navigate('/register')
+                }}
+              >
+                등록 페이지로 이동({selectedRowKeys.length}개)
+              </Button>
               <Button danger icon={<DeleteOutlined />} onClick={handleBulkDelete}>
                 선택 삭제({selectedRowKeys.length}개)
               </Button>
+
               <Button type="primary" danger icon={<StopOutlined />} onClick={cancelSourcing} disabled={!loading}>
                 중단
               </Button>
