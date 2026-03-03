@@ -50,53 +50,58 @@ export const useRegister = () => {
     [],
   )
 
-  // Excel 데이터 로드
-  const loadExcelData = useRecoilCallback(
+  // Excel 데이터 업로드 (LS 저장)
+  const uploadExcelData = useRecoilCallback(
     ({ set }) =>
-      async () => {
+      async (filePath: string) => {
         try {
           const settingsData = await ipcRenderer.invoke('get-settings')
-          await syncAccountPresets(settingsData)
-          if (!settingsData?.excelPath) {
-            message.warning('Excel 파일 경로가 설정되지 않았습니다.')
-            return
-          }
           if (!settingsData?.fileDir) {
-            message.warning('파일 폴더가 설정되지 않았습니다.')
+            message.warning('파일 폴더가 설정되지 않았습니다. 설정에서 먼저 지정해주세요.')
             return
           }
 
           set(registerSettingsState, prev => ({ ...prev, loading: true }))
 
           const productsData = await ipcRenderer.invoke('load-excel-data', {
-            excelPath: settingsData.excelPath,
+            excelPath: filePath,
             fileDir: settingsData.fileDir,
           })
 
           const loadedData = productsData.map((p: any, index: number) => ({
-            key: index.toString(),
-            goodsName: p.goodsName,
-            spec: p.spec,
-            modelName: p.modelName,
-            result: p.result || '',
+            key: `${Date.now()}-${index}`, // 고유 키 생성
+            goodsName: p.goodsName || '',
+            spec: p.spec || '',
+            modelName: p.modelName || '',
+            result: '',
             originalData: p,
           }))
 
+          // 기존 데이터 뒤에 추가할지, 덮어쓸지 선택 가능하나 일단 덮어쓰기(DB 교체)로 구현
           set(productDataState, loadedData)
           set(
             selectedProductKeysState,
-            loadedData.map(item => item.key),
+            loadedData.map((item: any) => item.key),
           )
 
-          message.success('Excel 데이터를 성공적으로 불러왔습니다.')
-          // 현재 선택된 엑셀 경로를 상태에 보관 (UI 표시용)
-          set(registerSettingsState, prev => ({ ...prev, excelPath: settingsData.excelPath }))
+          message.success(`${loadedData.length}개의 상품 정보를 DB(LocalStorage)에 저장했습니다.`)
         } catch (error) {
-          console.error('Failed to load Excel data:', error)
-          message.error('데이터 로드에 실패했습니다.')
+          console.error('Failed to upload Excel data:', error)
+          message.error('데이터 업로드에 실패했습니다.')
         } finally {
           set(registerSettingsState, prev => ({ ...prev, loading: false }))
         }
+      },
+    [],
+  )
+
+  // 모든 상품 삭제 (DB 초기화)
+  const clearProducts = useRecoilCallback(
+    ({ set }) =>
+      () => {
+        set(productDataState, [])
+        set(selectedProductKeysState, [])
+        message.success('등록 목록이 초기화되었습니다.')
       },
     [],
   )
@@ -287,11 +292,12 @@ export const useRegister = () => {
   return {
     products,
     selectedKeys,
+    setSelectedKeys,
     settings,
     permission,
-    setSelectedKeys,
     checkPermission,
-    loadExcelData,
+    uploadExcelData,
+    clearProducts,
     openResultFolder,
     registerProducts,
     extendManagementDate,

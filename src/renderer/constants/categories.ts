@@ -5,9 +5,14 @@ export interface CategoryOption {
 }
 
 /**
- * 카테고리 엑셀 파일 경로 (진행 중인 앱 루트 기준 상대 경로)
+ * 카테고리 로컬 스토리지 키
  */
-export const CATEGORY_EXCEL_PATH = 'files/s2b_categories.xlsx'
+export const CATEGORY_STORAGE_KEY = 's2b_categories_db'
+
+/**
+ * 카테고리 엑셀 파일 기본 경로 (최초 로드용)
+ */
+export const DEFAULT_CATEGORY_EXCEL_PATH = 'files/s2b_categories.xlsx'
 
 /**
  * 평면 구조의 카테고리 데이터를 Cascader용 트리 구조로 변환하는 함수
@@ -45,5 +50,3 @@ export const buildCategoryTree = (rows: any[]): CategoryOption[] => {
 
   return tree
 }
-
-

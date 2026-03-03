@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { Alert, Button, Card, Space, Table, Input, Select, Tag } from 'antd'
-import { FolderOpenOutlined, ReloadOutlined, StopOutlined, UploadOutlined, EditOutlined } from '@ant-design/icons'
+import { Alert, Button, Card, Space, Table, Select, Tag } from 'antd'
+import { StopOutlined, UploadOutlined, EditOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import { useLog } from '../hooks/useLog'
 import { useRegister } from '../hooks/useRegister'
@@ -16,7 +16,8 @@ const Register: React.FC = () => {
     permission,
     setSelectedKeys,
     checkPermission,
-    loadExcelData,
+    uploadExcelData,
+    clearProducts,
     openResultFolder,
     registerProducts,
     cancelRegistration,
@@ -40,9 +41,8 @@ const Register: React.FC = () => {
       await checkPermission(targetAccount?.loginId)
       const ipResult = await ipcRenderer.invoke('get-current-public-ip')
       setCurrentPublicIp(ipResult?.success ? ipResult.ip : '')
-      await loadExcelData()
     })()
-  }, [checkPermission, loadExcelData, syncAccountPresets])
+  }, [checkPermission, syncAccountPresets])
 
   // 로그 업데이트 시 스크롤을 맨 아래로 이동
   useEffect(() => {
@@ -165,12 +165,18 @@ const Register: React.FC = () => {
 
             <Space wrap size={[8, 8]}>
               <Button
-                icon={<ReloadOutlined />}
-                onClick={loadExcelData}
+                type="primary"
+                icon={<UploadOutlined />}
+                onClick={async () => {
+                  const filePath = await ipcRenderer.invoke('select-excel')
+                  if (filePath) {
+                    await uploadExcelData(filePath)
+                  }
+                }}
                 loading={settings.loading}
                 disabled={permission.hasPermission === false}
               >
-                새로고침
+                상품 엑셀 업로드
               </Button>
               <Button
                 type="primary"
@@ -193,41 +199,6 @@ const Register: React.FC = () => {
                 중단
               </Button>
             </Space>
-          </div>
-
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: '1fr auto',
-              gap: 8,
-              alignItems: 'center',
-              marginBottom: 10,
-            }}
-          >
-            <Input
-              readOnly
-              value={settings.excelPath}
-              placeholder="등록용 Excel 파일 경로"
-              addonAfter={
-                <Button
-                  type="text"
-                  icon={<FolderOpenOutlined />}
-                  onClick={async () => {
-                    const filePath = await ipcRenderer.invoke('select-excel')
-                    if (filePath) {
-                      await ipcRenderer.invoke('save-settings', { excelPath: filePath })
-                      await loadExcelData()
-                    }
-                  }}
-                  disabled={settings.loading}
-                >
-                  선택
-                </Button>
-              }
-            />
-            <Button type="default" icon={<FolderOpenOutlined />} onClick={openResultFolder}>
-              결과 폴더 열기
-            </Button>
           </div>
 
           <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 12 }}>

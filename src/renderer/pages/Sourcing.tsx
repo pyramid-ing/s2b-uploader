@@ -797,21 +797,81 @@ const Sourcing: React.FC = () => {
                     return
                   }
 
-                  const newProducts: ProductData[] = collectedItems.map(item => ({
-                    key: `sourcing-${Date.now()}-${item.key}`,
-                    goodsName: item.name,
-                    spec: item.additionalInfo?.spec || '',
-                    modelName: item.additionalInfo?.modelName || '',
-                    originalData: {
-                      ...item,
-                      goodsName: item.name,
-                      price: item.price,
-                      // S2B 등록에 필요한 필드들 매핑
-                      images: item.additionalInfo?.images || [],
-                      content: item.additionalInfo?.content || '',
-                      options: item.additionalInfo?.options || [],
-                    },
-                  }))
+                  const newProducts: ProductData[] = collectedItems.map(item => {
+                    const info = item.additionalInfo || {}
+                    const excel = (item as any).excelMapped?.[0] || {}
+
+                    // 엑셀 맵핑 데이터가 있으면 우선 사용, 없으면 크롤링 데이터에서 추출
+                    const brand = excel['제조사'] || info.brand || item.vendor || '상세설명참고'
+                    const material = excel['소재/재질'] || info.material || '상세설명참고'
+                    const detailHtml = excel['상세설명HTML'] || info.content || ''
+                    const price = excel['제시금액'] || item.price || 0
+
+                    // 카테고리
+                    const category1 = excel['카테고리1'] || info.category1 || ''
+                    const category2 = excel['카테고리2'] || info.category2 || ''
+                    const category3 = excel['카테고리3'] || info.category3 || ''
+
+                    // 이미지
+                    const image1 = excel['기본이미지1'] || info.images?.[0] || item.listThumbnail || ''
+                    const image2 = excel['기본이미지2'] || info.images?.[1] || ''
+                    const imageAdd1 = excel['추가이미지1'] || info.images?.[2] || ''
+                    const imageAdd2 = excel['추가이미지2'] || info.images?.[3] || ''
+                    const imageDetail = excel['상세이미지'] || info.imageDetail || info.images?.[4] || ''
+
+                    return {
+                      key: `sourcing-${Date.now()}-${item.key}`,
+                      goodsName: excel['물품명'] || item.name,
+                      spec: excel['규격'] || info.spec || '',
+                      modelName: excel['모델명'] || info.modelName || '상세설명참고',
+                      result: '',
+                      originalData: {
+                        ...item,
+                        ...info,
+                        ...excel,
+                        // EditProductModal에서 기대하는 키들로 중복 매핑
+                        goodsName: excel['물품명'] || item.name,
+                        price,
+                        estimateAmt: price,
+                        brand,
+                        factory: brand,
+                        material,
+                        detailHtml,
+                        // 카테고리
+                        category1,
+                        category2,
+                        category3,
+                        // 이미지
+                        image1,
+                        image2,
+                        imageAdd1,
+                        addImage1: imageAdd1,
+                        imageAdd2,
+                        addImage2: imageAdd2,
+                        imageDetail,
+                        detailImage: imageDetail,
+                        // 기타 상세 필드
+                        g2bItemNo: excel['G2B 물품목록번호'] || item.g2bItemNo || info.g2bItemNo || '',
+                        g2bNumber: excel['G2B 물품목록번호'] || item.g2bItemNo || info.g2bItemNo || '',
+                        originType: excel['원산지구분'] || info.originType || '',
+                        originKorea: excel['국내원산지'] || info.originKorea || '',
+                        originLocal: excel['국내원산지'] || info.originKorea || '',
+                        originOverseas: excel['해외원산지'] || info.originOverseas || '',
+                        originForeign: excel['해외원산지'] || info.originOverseas || '',
+                        // 배송 설정
+                        shippingFeeType: excel['배송비종류'] || info.shippingFeeType || '무료',
+                        deliveryFeeKindText: excel['배송비종류'] || info.shippingFeeType || '무료',
+                        shippingFee: excel['배송비'] || info.shippingFee || 0,
+                        deliveryFee: excel['배송비'] || info.shippingFee || 0,
+                        returnShippingFee: excel['반품배송비'] || info.returnShippingFee || 3500,
+                        returnFee: excel['반품배송비'] || info.returnShippingFee || 3500,
+                        warranty: excel['보증기간'] || info.warranty || '1년',
+                        assure: excel['보증기간'] || info.warranty || '1년',
+                        deliveryPeriod: excel['납품가능기간'] || info.deliveryPeriod || '7일',
+                        deliveryLimitText: excel['납품가능기간'] || info.deliveryPeriod || '7일',
+                      },
+                    }
+                  })
 
                   addProducts(newProducts)
                   navigate('/register')

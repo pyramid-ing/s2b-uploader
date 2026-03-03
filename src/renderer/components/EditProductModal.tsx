@@ -17,7 +17,7 @@ import {
 } from 'antd'
 import { FolderOpenOutlined } from '@ant-design/icons'
 import { ProductData } from '../stores/registerStore'
-import { buildCategoryTree, CATEGORY_EXCEL_PATH } from '../constants/categories'
+import { buildCategoryTree, CATEGORY_STORAGE_KEY, DEFAULT_CATEGORY_EXCEL_PATH } from '../constants/categories'
 
 const { ipcRenderer } = window.require('electron')
 
@@ -134,15 +134,28 @@ const EditProductModal: React.FC<EditProductModalProps> = ({ visible, product, o
   useEffect(() => {
     const loadCategories = async () => {
       try {
-        if (CATEGORY_EXCEL_PATH) {
-          const rawData = await ipcRenderer.invoke('read-excel-raw', CATEGORY_EXCEL_PATH)
+        // 1. LocalStorage에서 먼저 확인
+        const stored = localStorage.getItem(CATEGORY_STORAGE_KEY)
+        if (stored) {
+          const parsed = JSON.parse(stored)
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setCategories(parsed)
+            return
+          }
+        }
+
+        // 2. LocalStorage에 없으면 기본 엑셀 경로에서 최초 로드 시도
+        if (DEFAULT_CATEGORY_EXCEL_PATH) {
+          const rawData = await ipcRenderer.invoke('read-excel-raw', DEFAULT_CATEGORY_EXCEL_PATH)
           if (rawData && Array.isArray(rawData) && rawData.length > 0) {
             const parsed = buildCategoryTree(rawData)
             setCategories(parsed)
+            // LocalStorage에 저장하여 DB처럼 활용
+            localStorage.setItem(CATEGORY_STORAGE_KEY, JSON.stringify(parsed))
           }
         }
       } catch (error) {
-        console.error('Failed to load external categories:', error)
+        console.error('Failed to load categories:', error)
       }
     }
     if (visible) {
@@ -153,90 +166,99 @@ const EditProductModal: React.FC<EditProductModalProps> = ({ visible, product, o
   useEffect(() => {
     if (visible && product) {
       const d = product.originalData || {}
-      const categoryPath = [d.category1, d.category2, d.category3].filter(Boolean)
+      const categoryPath = [
+        d.category1 || d['카테고리1'] || '',
+        d.category2 || d['카테고리2'] || '',
+        d.category3 || d['카테고리3'] || '',
+      ].filter(Boolean)
+
       form.setFieldsValue({
         // 기본 정보
         categoryPath,
-        registrationType: d.registrationType || '물품',
-        goodsName: product.goodsName,
-        spec: product.spec,
-        modelName: product.modelName,
-        price: d.price || 0,
-        brand: d.brand || '',
-        material: d.material || '',
-        stock: d.stock || 999,
-        saleUnit: d.saleUnit || 'ea',
+        registrationType: d.registrationType || d.saleTypeText || d['등록구분'] || '물품',
+        goodsName: product.goodsName || d.goodsName || d['물품명'] || '',
+        spec: product.spec || d.spec || d['규격'] || '',
+        modelName: product.modelName || d.modelName || d['모델명'] || '상세설명참고',
+        price: d.price || d.estimateAmt || d['제시금액'] || 0,
+        brand: d.brand || d.factory || d['제조사'] || '',
+        material: d.material || d['소재/재질'] || '',
+        stock: d.stock || d.remainQnt || d['재고수량'] || 999,
+        saleUnit: d.saleUnit || d.salesUnit || d['판매단위'] || '개',
 
         // 배송/납품
-        warranty: d.warranty || '1년',
-        deliveryPeriod: d.deliveryPeriod || '7일',
-        quoteValidity: d.quoteValidity || '',
-        shippingFeeType: d.shippingFeeType || '무료',
-        shippingFee: d.shippingFee || 0,
-        returnShippingFee: d.returnShippingFee || 3500,
-        bundleShipping: d.bundleShipping || 'Y',
-        jejuShipping: d.jejuShipping || 'Y',
-        jejuAdditionalFee: d.jejuAdditionalFee || 0,
-        shippingMethod: d.shippingMethod || '택배',
-        shippingArea: d.shippingArea
+        warranty: d.warranty || d.assure || d['보증기간'] || '1년',
+        deliveryPeriod: d.deliveryPeriod || d.deliveryLimitText || d['납품가능기간'] || '7일',
+        quoteValidity: d.quoteValidity || d.estimateValidity || d['견적서 유효기간'] || '',
+        shippingFeeType: d.shippingFeeType || d.deliveryFeeKindText || d['배송비종류'] || '무료',
+        shippingFee: d.shippingFee || d.deliveryFee || d['배송비'] || 0,
+        returnShippingFee: d.returnShippingFee || d.returnFee || d['반품배송비'] || 3500,
+        bundleShipping: d.bundleShipping || d.deliveryGroupYn || d['묶음배송여부'] || 'Y',
+        jejuShipping: d.jejuShipping || d.jejuDeliveryYn || d['제주배송여부'] || 'Y',
+        jejuAdditionalFee: d.jejuAdditionalFee || d.jejuDeliveryFee || d['제주추가배송비'] || 0,
+        shippingMethod: d.shippingMethod || d.deliveryMethod || d['배송방법'] || '택배',
+        shippingArea: Array.isArray(d.shippingArea)
           ? d.shippingArea
-            .split(',')
-            .map((s: string) => s.trim())
-            .filter(Boolean)
-          : [],
+          : Array.isArray(d.deliveryAreas)
+            ? d.deliveryAreas
+            : [],
 
         // 상세 설명/이미지
-        detailHtml: d.detailHtml || '',
-        image1: d.image1 || '',
-        image2: d.image2 || '',
-        imageAdd1: d.imageAdd1 || '',
-        imageAdd2: d.imageAdd2 || '',
-        imageDetail: d.imageDetail || '',
+        detailHtml: d.detailHtml || d['상세설명HTML'] || '',
+        image1: d.image1 || d['기본이미지1'] || '',
+        image2: d.image2 || d['기본이미지2'] || '',
+        imageAdd1: d.imageAdd1 || d.addImage1 || d['추가이미지1'] || '',
+        imageAdd2: d.imageAdd2 || d.addImage2 || d['추가이미지2'] || '',
+        imageDetail: d.imageDetail || d.detailImage || d['상세이미지'] || '',
 
         // 기술 사양
         originPath:
-          d.originType === '국내' ? ['국내', d.originKorea] : d.originType === '국외' ? ['국외', d.originOverseas] : [],
-        g2bItemNo: d.g2bItemNo || '',
-        voltage: d.voltage || '',
-        sizeWeight: d.sizeWeight || '',
-        releaseDate: d.releaseDate || '',
-        coolingArea: d.coolingArea || '',
-        composition: d.composition || '',
-        safetyMark: d.safetyMark || '',
-        capacity: d.capacity || '',
-        mainSpec: d.mainSpec || '',
+          d.originPath ||
+          (d.originType === '국내' || d['원산지구분'] === '국내'
+            ? ['국내', d.originKorea || d.originLocal || d['국내원산지']]
+            : d.originType === '국외' || d['원산지구분'] === '국외'
+              ? ['국외', d.originOverseas || d.originForeign || d['해외원산지']]
+              : []),
+        g2bItemNo: d.g2bItemNo || d.g2bNumber || d['G2B 물품목록번호'] || '',
+        voltage: d.voltage || d.selPower || d['정격전압/소비전력'] || '',
+        sizeWeight: d.sizeWeight || d.selWeight || d['크기및무게'] || '',
+        releaseDate: d.releaseDate || d.selSameDate || d['동일모델출시년월'] || '',
+        coolingArea: d.coolingArea || d['냉난방면적'] || '',
+        composition: d.composition || d['제품구성'] || '',
+        safetyMark: d.safetyMark || d['안전표시'] || '',
+        capacity: d.capacity || d['용량'] || '',
+        mainSpec: d.mainSpec || d['주요사양'] || '',
 
         // 소비기한/하차확인
-        expiryDateType: d.expiryDateType || '제품에 별도 표시',
-        expiryDateInput: d.expiryDateInput || '',
-        childAlightingType: d.childAlightingType || '',
-        childAlightingNo: d.childAlightingNo || '',
-        childAlightingFile: d.childAlightingFile || '',
+        expiryDateType: d.expiryDateType || d['소비기한선택'] || '제품에 별도 표시',
+        expiryDateInput: d.expiryDateInput || d['소비기한입력'] || '',
+        childAlightingType: d.childAlightingType || d.childExitCheckerKcType || d['어린이하차확인장치타입'] || '',
+        childAlightingNo: d.childAlightingNo || d.childExitCheckerKcCertId || d['어린이하차확인장치인증번호'] || '',
+        childAlightingFile: d.childAlightingFile || d.childExitCheckerKcFile || d['어린이하차확인장치첨부파일'] || '',
 
         // 안전확인/조달
-        safetyTargetType: d.safetyTargetType || '',
-        safetyTargetNo: d.safetyTargetNo || '',
-        safetyTargetFile: d.safetyTargetFile || '',
-        g2bContracted: d.g2bContracted || 'N',
-        contractStartDate: d.contractStartDate || '',
-        contractEndDate: d.contractEndDate || '',
-        phone: d.phone || '',
-        asPhone: d.asPhone || '',
-        taxable: d.taxable || '과세(세금계산서)',
+        safetyTargetType: d.safetyTargetType || d.safetyCheckKcType || d['안전확인대상타입'] || '',
+        safetyTargetNo: d.safetyTargetNo || d.safetyCheckKcCertId || d['안전확인대상신고번호'] || '',
+        safetyTargetFile: d.safetyTargetFile || d.safetyCheckKcFile || d['안전확인대상첨부파일'] || '',
+        g2bContracted: d.g2bContracted || d.ppsContractYn || d['조달청계약여부'] || 'N',
+        contractStartDate: d.contractStartDate || d.ppsContractStartDate || d['계약시작일'] || '',
+        contractEndDate: d.contractEndDate || d.ppsContractEndDate || d['계약종료일'] || '',
+        phone: d.phone || d.asTelephone1 || d['전화번호'] || '',
+        asPhone: d.asPhone || d.asTelephone2 || d['제조사 A/S전화번호'] || '',
+        taxable: d.taxable || d.taxType || d['과세여부'] || '과세(세금계산서)',
 
         // KC/각종인증
-        childKcType: d.childKcType || '',
-        childKcNo: d.childKcNo || '',
-        childKcReport: d.childKcReport || '',
-        elecKcType: d.elecKcType || '',
-        elecKcNo: d.elecKcNo || '',
-        elecKcReport: d.elecKcReport || '',
-        lifeKcType: d.lifeKcType || '',
-        lifeKcNo: d.lifeKcNo || '',
-        lifeKcReport: d.lifeKcReport || '',
-        commKcType: d.commKcType || '',
-        commKcNo: d.commKcNo || '',
-        commKcReport: d.commKcReport || '',
+        childKcType: d.childKcType || d.kidsKcType || d['어린이제품KC유형'] || '',
+        childKcNo: d.childKcNo || d.kidsKcCertId || d['어린이제품KC인증번호'] || '',
+        childKcReport: d.childKcReport || d.kidsKcFile || d['어린이제품KC성적서'] || '',
+        elecKcType: d.elecKcType || d['전기용품KC유형'] || '',
+        elecKcNo: d.elecKcNo || d.elecKcCertId || d['전기용품KC인증번호'] || '',
+        elecKcReport: d.elecKcReport || d.elecKcFile || d['전기용품KC성적서'] || '',
+        lifeKcType: d.lifeKcType || d['생활용품KC유형'] || '',
+        lifeKcNo: d.lifeKcNo || d.dailyKcCertId || d['생활용품KC인증번호'] || '',
+        lifeKcReport: d.lifeKcReport || d.dailyKcFile || d['생활용품KC성적서'] || '',
+        commKcType: d.commKcType || d.broadcastingKcType || d['방송통신KC유형'] || '',
+        commKcNo: d.commKcNo || d.broadcastingKcCertId || d['방송통신KC인증번호'] || '',
+        commKcReport: d.commKcReport || d.broadcastingKcFile || d['방송통신KC성적서'] || '',
 
         // 기업 인증
         femaleCorp: d.femaleCorp || '',
@@ -595,7 +617,7 @@ const EditProductModal: React.FC<EditProductModalProps> = ({ visible, product, o
     },
     {
       key: '4',
-      label: '기술 사양/인증',
+      label: '기술 사양',
       children: (
         <div style={{ maxHeight: '60vh', overflowY: 'auto', paddingRight: 8 }}>
           <Row gutter={16}>
@@ -656,7 +678,14 @@ const EditProductModal: React.FC<EditProductModalProps> = ({ visible, product, o
               </Form.Item>
             </Col>
           </Row>
-          <Divider orientation="left">KC 인증</Divider>
+        </div>
+      ),
+    },
+    {
+      key: 'kc',
+      label: 'KC 인증',
+      children: (
+        <div style={{ maxHeight: '60vh', overflowY: 'auto', paddingRight: 8 }}>
           <Row gutter={16}>
             <Col span={12}>
               <KCFieldGroup namePrefix="childKc" label="어린이제품 KC" />
