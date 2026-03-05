@@ -42,13 +42,8 @@ import { usePermission } from '../hooks/usePermission'
 import { useRegister } from '../hooks/useRegister'
 import { Product } from '../stores/registerStore'
 import { useNavigate } from 'react-router-dom'
-import {
-  SourcingItem,
-  videoCollapsedState,
-  sourcingConfigSetsState,
-  activeConfigSetIdState,
-  SourcingConfigSet,
-} from '../stores/sourcingStore'
+import type { SourcingItem, SourcingConfigSet } from '../stores/sourcingStore'
+import { videoCollapsedState, sourcingConfigSetsState, activeConfigSetIdState } from '../stores/sourcingStore'
 import { fetchCredits } from '../api/creditsApi'
 import ConfigSetManager from '../components/ConfigSetManager'
 

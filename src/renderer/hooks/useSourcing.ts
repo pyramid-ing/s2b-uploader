@@ -1,12 +1,8 @@
 import { useRecoilState, useRecoilCallback } from 'recoil'
 import { message } from 'antd'
 import { random } from 'lodash'
-import {
-  sourcingItemsState,
-  selectedSourcingKeysState,
-  sourcingSettingsState,
-  SourcingItem,
-} from '../stores/sourcingStore'
+import { sourcingItemsState, selectedSourcingKeysState, sourcingSettingsState } from '../stores/sourcingStore'
+import type { SourcingItem } from '../stores/sourcingStore'
 
 const { ipcRenderer } = window.require('electron')
 

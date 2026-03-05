@@ -11,7 +11,8 @@ import * as XLSX from 'xlsx'
 import dayjs from 'dayjs'
 import { autoUpdater } from 'electron-updater'
 import { ExcelRegistrationData, ConfigSet } from './types/excel'
-import { Product, SourcingItemPayload, productToExcelData, sourcingItemToProduct } from './types/product'
+import { productToExcelData, sourcingItemToProduct } from './types/product'
+import type { Product, SourcingItemPayload } from './types/product'
 import { envConfig, supabase } from './envConfig'
 import axios from 'axios'
 
@@ -386,8 +387,8 @@ function normalizeAccountList(settings: Partial<StoreSchema['settings']> | undef
 
       const filteredAreas = Array.isArray(account?.deliveryAreas)
         ? account.deliveryAreas
-          .map((area: any) => (typeof area === 'string' ? area.trim() : ''))
-          .filter((area: string) => VALID_DELIVERY_AREAS.includes(area as (typeof VALID_DELIVERY_AREAS)[number]))
+            .map((area: any) => (typeof area === 'string' ? area.trim() : ''))
+            .filter((area: string) => VALID_DELIVERY_AREAS.includes(area as (typeof VALID_DELIVERY_AREAS)[number]))
         : []
 
       const deliveryAreaPresetMode: DeliveryAreaPresetMode =

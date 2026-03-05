@@ -26,7 +26,8 @@ import {
 } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import { useRecoilState, useRecoilCallback } from 'recoil'
-import { sourcingConfigSetsState, activeConfigSetIdState, SourcingConfigSet } from '../stores/sourcingStore'
+import { sourcingConfigSetsState, activeConfigSetIdState } from '../stores/sourcingStore'
+import type { SourcingConfigSet } from '../stores/sourcingStore'
 
 const { TextArea } = Input
 const { Option } = Select

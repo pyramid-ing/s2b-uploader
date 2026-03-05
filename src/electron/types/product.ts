@@ -11,6 +11,9 @@ import {
   OriginType,
   TaxType,
 } from './excel'
+import type { SourcingItemPayload } from './sourcingItems'
+
+export type { SourcingItemPayload }
 
 // ---------- Product Interface ----------
 
@@ -156,24 +159,6 @@ export interface Product {
 
   // 등록 결과
   result: string
-}
-
-// ---------- SourcingItem Payload (from renderer) ----------
-
-export interface SourcingItemPayload {
-  key: string
-  name: string
-  url: string
-  vendor?: string
-  price: number
-  productCode?: string
-  g2bItemNo?: string
-  listThumbnail?: string
-  downloadDir?: string
-  additionalInfo?: any
-  isCollected?: boolean
-  origin?: string
-  excelMapped?: any[]
 }
 
 export interface ConfigSetPayload {
