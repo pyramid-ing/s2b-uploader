@@ -1,7 +1,9 @@
+import React from 'react'
 import { useRecoilState, useRecoilCallback } from 'recoil'
-import { message } from 'antd'
+import { message, Modal } from 'antd'
 import { productDataState, selectedProductKeysState, registerSettingsState, Product } from '../stores/registerStore'
 import { usePermission } from './usePermission'
+import { CATEGORY_STORAGE_KEY } from '../constants/categories'
 
 const { ipcRenderer } = window.require('electron')
 
@@ -216,9 +218,51 @@ export const useRegister = () => {
       async () => {
         try {
           const currentSelectedKeys = await snapshot.getPromise(selectedProductKeysState)
+          const currentProducts = await snapshot.getPromise(productDataState)
 
           if (currentSelectedKeys.length === 0) {
             message.warning('등록할 상품을 선택해주세요.')
+            return
+          }
+
+          // G2B 품목번호 체크: 물품 등록 시 필수 (카테고리 설정 기반)
+          const storedCategories = localStorage.getItem(CATEGORY_STORAGE_KEY)
+          const categoryTree = storedCategories ? JSON.parse(storedCategories) : []
+
+          const selectedItems = currentProducts.filter(p => currentSelectedKeys.includes(p.id))
+          const missingG2bItems = selectedItems.filter(p => {
+            const isGoods = p.saleType === '물품' || !p.saleType
+            if (!isGoods) return false
+
+            // 카테고리 트리에서 g2bRequired 여부 확인
+            const c1 = categoryTree.find((c: any) => c.value === p.category1)
+            const c2 = c1?.children?.find((c: any) => c.value === p.category2)
+            const c3 = c2?.children?.find((c: any) => c.value === p.category3)
+            const isRequired = !!c3?.g2bRequired
+
+            return isRequired && !p.g2bNumber
+          })
+
+          if (missingG2bItems.length > 0) {
+            Modal.error({
+              title: 'G2B 품목번호 누락',
+              content: React.createElement(
+                'div',
+                null,
+                React.createElement('p', null, '선택하신 카테고리 중 G2B 품목번호(8자리)가 필수인 상품이 있습니다.'),
+                React.createElement(
+                  'p',
+                  null,
+                  `다음 ${missingG2bItems.length}개 상품의 정보를 수정한 후 다시 시도해주세요:`,
+                ),
+                React.createElement(
+                  'ul',
+                  { style: { maxHeight: '200px', overflowY: 'auto', paddingLeft: '20px' } },
+                  missingG2bItems.map(item => React.createElement('li', { key: item.id }, item.name)),
+                ),
+              ),
+              okText: '확인',
+            })
             return
           }
 

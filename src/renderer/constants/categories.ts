@@ -2,6 +2,7 @@ export interface CategoryOption {
   label: string
   value: string
   children?: CategoryOption[]
+  g2bRequired?: boolean
 }
 
 /**
@@ -21,9 +22,10 @@ export const buildCategoryTree = (rows: any[]): CategoryOption[] => {
   const tree: CategoryOption[] = []
 
   rows.forEach(row => {
-    const c1 = row['1차 카테고리'] || row['카테고리1']
-    const c2 = row['2차 카테고리'] || row['카테고리2']
-    const c3 = row['3차 카테고리'] || row['카테고리3']
+    const c1 = row['1차 카테고리'] || row['1차카테고리'] || row['카테고리1']
+    const c2 = row['2차 카테고리'] || row['2차카테고리'] || row['카테고리2']
+    const c3 = row['3차 카테고리'] || row['3차카테고리'] || row['카테고리3']
+    const g2bValue = row['G2B'] || row['g2b']
 
     if (!c1) return
 
@@ -43,7 +45,8 @@ export const buildCategoryTree = (rows: any[]): CategoryOption[] => {
     if (!c3) return
     let node3 = node2.children!.find(n => n.value === c3)
     if (!node3) {
-      node3 = { label: c3, value: c3 }
+      const g2bRequired = g2bValue !== undefined && g2bValue !== null && String(g2bValue).trim() !== ''
+      node3 = { label: c3, value: c3, g2bRequired }
       node2.children!.push(node3)
     }
   })

@@ -16,8 +16,9 @@ import {
   Cascader,
   Tooltip,
   Alert,
+  message,
 } from 'antd'
-import { FolderOpenOutlined, LinkOutlined, InfoCircleOutlined } from '@ant-design/icons'
+import { FolderOpenOutlined, LinkOutlined, InfoCircleOutlined, SearchOutlined } from '@ant-design/icons'
 import { Product } from '../stores/registerStore'
 import { buildCategoryTree, CATEGORY_STORAGE_KEY, DEFAULT_CATEGORY_EXCEL_PATH } from '../constants/categories'
 
@@ -247,6 +248,7 @@ const EditProductModal: React.FC<EditProductModalProps> = ({ visible, product, o
           const rawData = await ipcRenderer.invoke('read-excel-raw', DEFAULT_CATEGORY_EXCEL_PATH)
           if (rawData && Array.isArray(rawData) && rawData.length > 0) {
             const parsed = buildCategoryTree(rawData)
+            console.log(rawData)
             setCategories(parsed)
             // LocalStorage에 저장하여 DB처럼 활용
             localStorage.setItem(CATEGORY_STORAGE_KEY, JSON.stringify(parsed))
@@ -549,10 +551,12 @@ const EditProductModal: React.FC<EditProductModalProps> = ({ visible, product, o
         }
 
         onSave(product.id, updatedProduct)
+        message.success('상품 정보가 성공적으로 저장되었습니다.')
       }
       onCancel()
     } catch (error) {
       console.error('Validation failed:', error)
+      message.error('필수 항목을 모두 입력해주세요.')
     }
   }
 
@@ -1112,13 +1116,58 @@ const EditProductModal: React.FC<EditProductModalProps> = ({ visible, product, o
             style={{ marginBottom: 16 }}
           />
           <Form.Item
-            name="g2bNumber"
-            label={labelWithTooltip(
-              'G2B 물품목록번호',
-              '나라장터(G2B) 물품목록번호 8자리 숫자입니다. 특정 카테고리에서 필수입니다.',
-            )}
+            noStyle
+            shouldUpdate={(prev, cur) =>
+              prev.saleTypeText !== cur.saleTypeText || prev.categoryPath !== cur.categoryPath
+            }
           >
-            <Input placeholder="예: 12345678" maxLength={8} />
+            {({ getFieldValue }) => {
+              const saleType = getFieldValue('saleTypeText')
+              const categoryPath = getFieldValue('categoryPath') || []
+              let isG2bRequiredByCategory = false
+
+              if (categoryPath.length === 3 && categories.length > 0) {
+                const c1 = categories.find((c: any) => c.value === categoryPath[0])
+                const c2 = c1?.children?.find((c: any) => c.value === categoryPath[1])
+                const c3 = c2?.children?.find((c: any) => c.value === categoryPath[2])
+                if (c3?.g2bRequired) {
+                  isG2bRequiredByCategory = true
+                }
+              }
+
+              const isRequired = saleType === '물품' && isG2bRequiredByCategory
+              return (
+                <Form.Item
+                  name="g2bNumber"
+                  label={labelWithTooltip(
+                    'G2B 물품목록번호',
+                    '나라장터(G2B) 물품목록번호 8자리 숫자입니다. 선택하신 카테고리는 G2B 번호가 필수로 요구되는 품목입니다.',
+                  )}
+                  rules={[
+                    { required: isRequired, message: '선택하신 카테고리는 G2B 번호가 필수입니다.' },
+                    { pattern: /^\d{8}$/, message: '8자리 숫자를 입력해주세요.' },
+                  ]}
+                  extra={
+                    <div style={{ marginTop: 4 }}>
+                      <Button
+                        type="link"
+                        size="small"
+                        icon={<SearchOutlined />}
+                        onClick={() => {
+                          const { shell } = window.require('electron')
+                          shell.openExternal('https://goods.g2b.go.kr:8053//search/unifiedSearch.do')
+                        }}
+                        style={{ padding: 0 }}
+                      >
+                        G2B 물품목록번호 조회하기 (나라장터)
+                      </Button>
+                    </div>
+                  }
+                >
+                  <Input placeholder="예: 12345678" maxLength={8} />
+                </Form.Item>
+              )
+            }}
           </Form.Item>
           <Row gutter={16}>
             <Col span={12}>
