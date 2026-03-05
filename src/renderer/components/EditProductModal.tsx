@@ -395,11 +395,15 @@ const EditProductModal: React.FC<EditProductModalProps> = ({ visible, product, o
     }
   }
 
-  const ImageInputWithPreview: React.FC<{ name: string; label: string }> = ({ name, label }) => {
+  const ImageInputWithPreview: React.FC<{ name: string; label: string; required?: boolean }> = ({
+    name,
+    label,
+    required = false,
+  }) => {
     const value = Form.useWatch(name, form)
     return (
       <Card size="small" style={{ marginBottom: 16 }}>
-        <Form.Item name={name} label={label}>
+        <Form.Item name={name} label={label} rules={required ? [{ required: true }] : undefined}>
           <Input
             placeholder="URL 또는 파일 경로"
             addonAfter={
@@ -473,7 +477,7 @@ const EditProductModal: React.FC<EditProductModalProps> = ({ visible, product, o
           </Row>
           <Row gutter={16}>
             <Col span={24}>
-              <Form.Item name="categoryPath" label="카테고리">
+              <Form.Item name="categoryPath" label="카테고리" rules={[{ required: true }]}>
                 <Cascader
                   options={categories}
                   placeholder="카테고리를 선택하세요"
@@ -503,12 +507,12 @@ const EditProductModal: React.FC<EditProductModalProps> = ({ visible, product, o
           </Form.Item>
           <Row gutter={16}>
             <Col span={12}>
-              <Form.Item name="spec" label="규격">
+              <Form.Item name="spec" label="규격" rules={[{ required: true }]}>
                 <Input placeholder="제품 규격/사양" />
               </Form.Item>
             </Col>
             <Col span={12}>
-              <Form.Item name="modelName" label="모델명">
+              <Form.Item name="modelName" label="모델명" rules={[{ required: true }]}>
                 <Input placeholder="모델명(형식)" />
               </Form.Item>
             </Col>
@@ -520,31 +524,31 @@ const EditProductModal: React.FC<EditProductModalProps> = ({ visible, product, o
               </Form.Item>
             </Col>
             <Col span={6}>
-              <Form.Item name="remainQnt" label="재고수량">
+              <Form.Item name="remainQnt" label="재고수량" rules={[{ required: true }]}>
                 <Input placeholder="재고 수량" />
               </Form.Item>
             </Col>
             <Col span={6}>
-              <Form.Item name="salesUnit" label="판매단위">
+              <Form.Item name="salesUnit" label="판매단위" rules={[{ required: true }]}>
                 <Input placeholder="예: 개, set" />
               </Form.Item>
             </Col>
           </Row>
           <Row gutter={16}>
             <Col span={12}>
-              <Form.Item name="factory" label="제조사">
+              <Form.Item name="factory" label="제조사" rules={[{ required: true }]}>
                 <Input placeholder="제조사 또는 브랜드" />
               </Form.Item>
             </Col>
             <Col span={12}>
-              <Form.Item name="material" label="소재/재질">
+              <Form.Item name="material" label="소재/재질" rules={[{ required: true }]}>
                 <Input placeholder="제품 소재 및 재질" />
               </Form.Item>
             </Col>
           </Row>
           <Row gutter={16}>
             <Col span={24}>
-              <Form.Item name="originPath" label="원산지구분">
+              <Form.Item name="originPath" label="원산지구분" rules={[{ required: true }]}>
                 <Cascader options={ORIGIN_OPTIONS} expandTrigger="hover" placeholder="원산지를 선택하세요" />
               </Form.Item>
             </Col>
@@ -559,12 +563,12 @@ const EditProductModal: React.FC<EditProductModalProps> = ({ visible, product, o
         <div style={{ maxHeight: '60vh', overflowY: 'auto', paddingRight: 8 }}>
           <Row gutter={16}>
             <Col span={12}>
-              <Form.Item name="assure" label="보증기간">
+              <Form.Item name="assure" label="보증기간" rules={[{ required: true }]}>
                 <Select options={WARRANTY_OPTIONS} placeholder="보증기간 선택" />
               </Form.Item>
             </Col>
             <Col span={12}>
-              <Form.Item name="deliveryLimitText" label="납품가능기간">
+              <Form.Item name="deliveryLimitText" label="납품가능기간" rules={[{ required: true }]}>
                 <Select options={DELIVERY_PERIOD_OPTIONS} placeholder="납품가능기간 선택" />
               </Form.Item>
             </Col>
@@ -575,46 +579,46 @@ const EditProductModal: React.FC<EditProductModalProps> = ({ visible, product, o
           <Divider orientation="left">배송 설정</Divider>
           <Row gutter={16}>
             <Col span={8}>
-              <Form.Item name="deliveryFeeKindText" label="배송비종류">
+              <Form.Item name="deliveryFeeKindText" label="배송비종류" rules={[{ required: true }]}>
                 <Select options={SHIPPING_FEE_TYPE_OPTIONS} placeholder="정책 선택" />
               </Form.Item>
             </Col>
             <Col span={8}>
-              <Form.Item name="deliveryFee" label="배송비">
+              <Form.Item name="deliveryFee" label="배송비" rules={[{ required: true }]}>
                 <Input placeholder="금액 입력" />
               </Form.Item>
             </Col>
             <Col span={8}>
-              <Form.Item name="returnFee" label="반품배송비">
+              <Form.Item name="returnFee" label="반품배송비" rules={[{ required: true }]}>
                 <Input placeholder="금액 입력" />
               </Form.Item>
             </Col>
           </Row>
           <Row gutter={16}>
             <Col span={8}>
-              <Form.Item name="deliveryGroupYn" label="묶음배송여부">
+              <Form.Item name="deliveryGroupYn" label="묶음배송여부" rules={[{ required: true }]}>
                 <Radio.Group options={YN_OPTIONS} optionType="button" buttonStyle="solid" />
               </Form.Item>
             </Col>
             <Col span={8}>
-              <Form.Item name="jejuDeliveryYn" label="제주배송여부">
+              <Form.Item name="jejuDeliveryYn" label="제주배송여부" rules={[{ required: true }]}>
                 <Radio.Group options={YN_OPTIONS} optionType="button" buttonStyle="solid" />
               </Form.Item>
             </Col>
             <Col span={8}>
-              <Form.Item name="jejuDeliveryFee" label="제주추가배송비">
+              <Form.Item name="jejuDeliveryFee" label="제주추가배송비" rules={[{ required: true }]}>
                 <Input placeholder="제주 추가 금액" />
               </Form.Item>
             </Col>
           </Row>
           <Row gutter={16}>
             <Col span={12}>
-              <Form.Item name="deliveryMethod" label="배송방법">
+              <Form.Item name="deliveryMethod" label="배송방법" rules={[{ required: true }]}>
                 <Select options={SHIPPING_METHOD_OPTIONS} placeholder="배송 수단 선택" />
               </Form.Item>
             </Col>
             <Col span={12}>
-              <Form.Item name="deliveryAreas" label="배송지역">
+              <Form.Item name="deliveryAreas" label="배송지역" rules={[{ required: true }]}>
                 <Select
                   mode="multiple"
                   options={SHIPPING_AREA_OPTIONS}
@@ -639,7 +643,7 @@ const EditProductModal: React.FC<EditProductModalProps> = ({ visible, product, o
         <div style={{ maxHeight: '60vh', overflowY: 'auto', paddingRight: 8 }}>
           <Row gutter={16}>
             <Col span={12}>
-              <ImageInputWithPreview name="image1" label="기본이미지1" />
+              <ImageInputWithPreview name="image1" label="기본이미지1" required={true} />
             </Col>
             <Col span={12}>
               <ImageInputWithPreview name="image2" label="기본이미지2" />
@@ -653,7 +657,7 @@ const EditProductModal: React.FC<EditProductModalProps> = ({ visible, product, o
               <ImageInputWithPreview name="addImage2" label="추가이미지2" />
             </Col>
           </Row>
-          <ImageInputWithPreview name="detailImage" label="상세이미지" />
+          <ImageInputWithPreview name="detailImage" label="상세이미지" required={true} />
         </div>
       ),
     },
@@ -662,7 +666,7 @@ const EditProductModal: React.FC<EditProductModalProps> = ({ visible, product, o
       label: '상세 설명',
       children: (
         <div style={{ maxHeight: '60vh', overflowY: 'auto', paddingRight: 8 }}>
-          <Form.Item name="detailHtml" label="상세설명HTML">
+          <Form.Item name="detailHtml" label="상세설명HTML" rules={[{ required: true }]}>
             <Input.TextArea rows={12} placeholder="상세 설명 HTML 코드를 붙여넣으세요" />
           </Form.Item>
         </div>
@@ -732,10 +736,7 @@ const EditProductModal: React.FC<EditProductModalProps> = ({ visible, product, o
               </Form.Item>
             </Col>
             <Col span={12}>
-              <Form.Item
-                noStyle
-                shouldUpdate={(prev, cur) => prev.validateRadio !== cur.validateRadio}
-              >
+              <Form.Item noStyle shouldUpdate={(prev, cur) => prev.validateRadio !== cur.validateRadio}>
                 {({ getFieldValue }) =>
                   getFieldValue('validateRadio') === '직접입력' ? (
                     <Form.Item name="fValidate" label="소비기한입력">
@@ -829,7 +830,14 @@ const EditProductModal: React.FC<EditProductModalProps> = ({ visible, product, o
               </Form.Item>
             </Col>
           </Row>
-          <Form.Item noStyle shouldUpdate={(prev, cur) => prev.ppsContractYn !== cur.ppsContractYn || prev.naraRegisterYn !== cur.naraRegisterYn || prev.otherSiteRegisterYn !== cur.otherSiteRegisterYn}>
+          <Form.Item
+            noStyle
+            shouldUpdate={(prev, cur) =>
+              prev.ppsContractYn !== cur.ppsContractYn ||
+              prev.naraRegisterYn !== cur.naraRegisterYn ||
+              prev.otherSiteRegisterYn !== cur.otherSiteRegisterYn
+            }
+          >
             {({ getFieldValue }) => (
               <>
                 {getFieldValue('ppsContractYn') === 'Y' && (
@@ -882,6 +890,10 @@ const EditProductModal: React.FC<EditProductModalProps> = ({ visible, product, o
     },
   ]
 
+  const validateMessages = {
+    required: '${label}은(는) 필수 입력 항목입니다.',
+  }
+
   return (
     <Modal
       title="상품 정보 상세 수정"
@@ -893,7 +905,7 @@ const EditProductModal: React.FC<EditProductModalProps> = ({ visible, product, o
       cancelText="취소"
       centered
     >
-      <Form form={form} layout="vertical">
+      <Form form={form} layout="vertical" validateMessages={validateMessages}>
         <Tabs activeKey={activeTab} onChange={setActiveTab} items={items} />
       </Form>
     </Modal>

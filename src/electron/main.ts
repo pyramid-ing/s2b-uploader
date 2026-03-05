@@ -845,6 +845,58 @@ function setupIpcHandlers() {
               productWithPreset.deliveryMethod = '1'
             }
 
+            // 필수 필드 검증
+            const missingFields: string[] = []
+            if (!productWithPreset.category1) missingFields.push('카테고리1')
+            if (!productWithPreset.category2) missingFields.push('카테고리2')
+            if (!productWithPreset.category3) missingFields.push('카테고리3')
+            if (!productWithPreset.goodsName) missingFields.push('물품명')
+            if (!productWithPreset.spec) missingFields.push('규격')
+            if (!productWithPreset.modelName) missingFields.push('모델명')
+            if (!productWithPreset.estimateAmt) missingFields.push('제시금액')
+            if (!productWithPreset.material) missingFields.push('소재/재질')
+            if (!productWithPreset.factory) missingFields.push('제조사')
+            if (!productWithPreset.remainQnt) missingFields.push('재고수량')
+            if (!productWithPreset.salesUnit) missingFields.push('판매단위')
+            if (!productWithPreset.assure) missingFields.push('보증기간')
+            if (!productWithPreset.deliveryLimitText) missingFields.push('납품가능기간')
+            if (!productWithPreset.deliveryFeeKindText) missingFields.push('배송비종류')
+            if (
+              productWithPreset.deliveryFee === undefined ||
+              productWithPreset.deliveryFee === null ||
+              productWithPreset.deliveryFee === ''
+            )
+              missingFields.push('배송비')
+            if (
+              productWithPreset.returnFee === undefined ||
+              productWithPreset.returnFee === null ||
+              productWithPreset.returnFee === ''
+            )
+              missingFields.push('반품배송비')
+            if (!productWithPreset.deliveryGroupYn) missingFields.push('묶음배송여부')
+            if (!productWithPreset.jejuDeliveryYn) missingFields.push('제주배송여부')
+            if (
+              productWithPreset.jejuDeliveryFee === undefined ||
+              productWithPreset.jejuDeliveryFee === null ||
+              productWithPreset.jejuDeliveryFee === ''
+            )
+              missingFields.push('제주추가배송비')
+            if (!productWithPreset.detailHtml) missingFields.push('상세설명HTML')
+            if (!productWithPreset.image1) missingFields.push('기본이미지1')
+            if (!productWithPreset.detailImage) missingFields.push('상세이미지')
+            if (!productWithPreset.originType) missingFields.push('원산지구분')
+            if (productWithPreset.originType === '국내' && !productWithPreset.originLocal)
+              missingFields.push('국내원산지')
+            if (productWithPreset.originType === '국외' && !productWithPreset.originForeign)
+              missingFields.push('해외원산지')
+            if (!productWithPreset.deliveryMethod) missingFields.push('배송방법')
+            if (!productWithPreset.deliveryAreas || productWithPreset.deliveryAreas.length === 0)
+              missingFields.push('배송지역')
+
+            if (missingFields.length > 0) {
+              throw new Error(`상품등록전 필수 필드를 입력해야합니다: ${missingFields.join(', ')}`)
+            }
+
             await registration.registerProduct(productWithPreset)
             product.result = '성공' // ✅ 성공한 경우 결과 업데이트
             successCount += 1
