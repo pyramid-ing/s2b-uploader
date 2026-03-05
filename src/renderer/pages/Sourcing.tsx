@@ -24,10 +24,8 @@ import {
   DeleteOutlined,
   PlusOutlined,
   SendOutlined,
-  DownloadOutlined,
   CheckCircleOutlined,
   StopOutlined,
-  UploadOutlined,
   GlobalOutlined,
   ShopOutlined,
   SearchOutlined,
@@ -108,7 +106,6 @@ const Sourcing: React.FC = () => {
     fetchOneByUrl,
     deleteItem,
     requestRegister,
-    downloadExcel,
     openVendorSite,
     cancelSourcing,
   } = useSourcing()
@@ -323,11 +320,7 @@ const Sourcing: React.FC = () => {
               </Tag>
             )
           }
-          return (
-            <Tag style={{ borderRadius: 12, padding: '2px 10px' }}>
-              대기
-            </Tag>
-          )
+          return <Tag style={{ borderRadius: 12, padding: '2px 10px' }}>대기</Tag>
         },
       },
       {
@@ -624,20 +617,33 @@ const Sourcing: React.FC = () => {
 
     const newProducts: ProductData[] = collectedItems.map(item => {
       const info = item.additionalInfo || {}
-      const excel = (item as any).excelMapped?.[0] || {}
-      const brand = excel['제조사'] || info.brand || item.vendor || '상세설명참고'
-      const material = excel['소재/재질'] || info.material || '상세설명참고'
-      const detailHtml = excel['상세설명HTML'] || info.content || ''
-      const price = excel['제시금액'] || item.price || 0
-      const category1 = excel['카테고리1'] || info.category1 || ''
-      const category2 = excel['카테고리2'] || info.category2 || ''
-      const category3 = excel['카테고리3'] || info.category3 || ''
-      const image1 = excel['기본이미지1'] || info.images?.[0] || item.listThumbnail || ''
-      const image2 = excel['기본이미지2'] || info.images?.[1] || ''
-      const imageAdd1 = excel['추가이미지1'] || info.images?.[2] || ''
-      const imageAdd2 = excel['추가이미지2'] || info.images?.[3] || ''
-      const imageDetail = excel['상세이미지'] || info.imageDetail || info.images?.[4] || ''
+      const excel = item.excelMapped?.[0] || {}
 
+      // 원산지 파싱 로직 (예: "수입산 / 아시아 / 중국" -> "국외/중국")
+      const originStr = excel['원산지구분'] || info.originType || item.origin || ''
+      const overseasStr = excel['해외원산지'] || info.originOverseas || ''
+      let originType = '국내'
+      let originLocal = ''
+      let originForeign = ''
+
+      if (
+        originStr.includes('수입') ||
+        originStr.includes('국외') ||
+        originStr.includes('중국') ||
+        originStr.includes('아시아')
+      ) {
+        originType = '국외'
+        if (overseasStr.includes('중국') || originStr.includes('중국')) originForeign = '중국'
+        else if (overseasStr.includes('베트남') || originStr.includes('베트남')) originForeign = '베트남'
+        else originForeign = '기타'
+      } else if (originStr.includes('국내') || originStr.includes('한국')) {
+        originType = '국내'
+        originLocal = '기타'
+      }
+
+      const estimateAmt = (excel['제시금액'] || item.price || 0).toString()
+
+      // ExcelRegistrationData 필드명만 사용
       return {
         key: `sourcing-${Date.now()}-${item.key}`,
         goodsName: excel['물품명'] || item.name,
@@ -645,44 +651,78 @@ const Sourcing: React.FC = () => {
         modelName: excel['모델명'] || info.modelName || '상세설명참고',
         result: '',
         originalData: {
-          ...item,
-          ...info,
-          ...excel,
+          // 기본 상품 정보
           goodsName: excel['물품명'] || item.name,
-          price,
-          estimateAmt: price,
-          brand,
-          factory: brand,
-          material,
-          detailHtml,
-          category1,
-          category2,
-          category3,
-          image1,
-          image2,
-          imageAdd1,
-          addImage1: imageAdd1,
-          imageAdd2,
-          addImage2: imageAdd2,
-          imageDetail,
-          detailImage: imageDetail,
-          g2bItemNo: excel['G2B 물품목록번호'] || item.g2bItemNo || info.g2bItemNo || '',
-          g2bNumber: excel['G2B 물품목록번호'] || item.g2bItemNo || info.g2bItemNo || '',
-          originType: excel['원산지구분'] || info.originType || '',
-          originKorea: excel['국내원산지'] || info.originKorea || '',
-          originLocal: excel['국내원산지'] || info.originKorea || '',
-          originOverseas: excel['해외원산지'] || info.originOverseas || '',
-          originForeign: excel['해외원산지'] || info.originOverseas || '',
-          shippingFeeType: excel['배송비종류'] || info.shippingFeeType || '무료',
-          deliveryFeeKindText: excel['배송비종류'] || info.shippingFeeType || '무료',
-          shippingFee: excel['배송비'] || info.shippingFee || 0,
-          deliveryFee: excel['배송비'] || info.shippingFee || 0,
-          returnShippingFee: excel['반품배송비'] || info.returnShippingFee || 3500,
-          returnFee: excel['반품배송비'] || info.returnShippingFee || 3500,
-          warranty: excel['보증기간'] || info.warranty || '1년',
+          spec: excel['규격'] || info.spec || '',
+          modelName: excel['모델명'] || info.modelName || '상세설명참고',
+          estimateAmt,
+          factory: excel['제조사'] || info.brand || item.vendor || '상세설명참고',
+          material: excel['소재/재질'] || info.material || '상세설명참고',
+          remainQnt: (excel['재고수량'] ?? info.stock ?? 9999).toString(),
+          salesUnit: excel['판매단위'] || info.salesUnit || '개',
+          taxType: excel['과세여부'] || info.taxType || '과세(세금계산서)',
+          saleTypeText: excel['등록구분'] || info.saleTypeText || '물품',
+
+          // 카테고리
+          category1: excel['카테고리1'] || info.category1 || '',
+          category2: excel['카테고리2'] || info.category2 || '',
+          category3: excel['카테고리3'] || info.category3 || '',
+
+          // 배송/납품
           assure: excel['보증기간'] || info.warranty || '1년',
-          deliveryPeriod: excel['납품가능기간'] || info.deliveryPeriod || '7일',
           deliveryLimitText: excel['납품가능기간'] || info.deliveryPeriod || '7일',
+          estimateValidity: excel['견적서 유효기간'] || info.estimateValidity || '30일',
+          deliveryFeeKindText: excel['배송비종류'] || info.shippingFeeType || '무료',
+          deliveryFee: (excel['배송비'] || info.shippingFee || 0).toString(),
+          returnFee: (excel['반품배송비'] || info.returnShippingFee || 3500).toString(),
+          deliveryGroupYn: excel['묶음배송여부'] || 'Y',
+          jejuDeliveryYn: excel['제주배송여부'] || 'N',
+          jejuDeliveryFee: (excel['제주추가배송비'] || 0).toString(),
+          deliveryMethod: excel['배송방법'] || '택배',
+          deliveryAreas: (excel['배송지역']?.toString().split(',') || []).map((a: string) => a.trim()).filter(Boolean),
+
+          // 이미지
+          image1: excel['기본이미지1'] || info.images?.[0] || item.listThumbnail || '',
+          image2: excel['기본이미지2'] || info.images?.[1] || '',
+          addImage1: excel['추가이미지1'] || info.images?.[2] || '',
+          addImage2: excel['추가이미지2'] || info.images?.[3] || '',
+          detailImage: excel['상세이미지'] || info.imageDetail || info.images?.[4] || '',
+          detailHtml: excel['상세설명HTML'] || info.content || '',
+
+          // 원산지
+          originType,
+          originLocal,
+          originForeign,
+
+          // G2B
+          g2bNumber: excel['G2B 물품목록번호'] || item.g2bItemNo || info.g2bItemNo || '',
+
+          // KC 인증
+          kidsKcType: excel['어린이제품KC유형'] || 'N',
+          kidsKcCertId: excel['어린이제품KC인증번호'] || '',
+          kidsKcFile: excel['어린이제품KC성적서'] || '',
+          elecKcType: excel['전기용품KC유형'] || 'N',
+          elecKcCertId: excel['전기용품KC인증번호'] || '',
+          elecKcFile: excel['전기용품KC성적서'] || '',
+          dailyKcType: excel['생활용품KC유형'] || 'N',
+          dailyKcCertId: excel['생활용품KC인증번호'] || '',
+          dailyKcFile: excel['생활용품KC성적서'] || '',
+          broadcastingKcType: excel['방송통신KC유형'] || 'N',
+          broadcastingKcCertId: excel['방송통신KC인증번호'] || '',
+          broadcastingKcFile: excel['방송통신KC성적서'] || '',
+
+          // 기타
+          childExitCheckerKcType: excel['어린이하차확인장치타입'] || 'N',
+          safetyCheckKcType: excel['안전확인대상타입'] || 'N',
+          asTelephone1: excel['전화번호'] || '',
+          asTelephone2: excel['제조사 A/S전화번호'] || '',
+          naraRegisterYn: excel['나라장터등록여부'] || 'N',
+          otherSiteRegisterYn: excel['타사이트등록여부'] || 'N',
+          approvalRequest: excel['승인관련 요청사항'] || '',
+
+          // 참고용 (소싱 원본 정보)
+          sourceUrl: item.url || info.url || '',
+          listThumbnail: item.listThumbnail || '',
         },
       }
     })
@@ -691,12 +731,12 @@ const Sourcing: React.FC = () => {
     navigate('/register')
   }
 
-  const handleDownloadExcel = async () => {
-    await downloadExcel()
-  }
-
   return (
-    <Space direction="vertical" size="large" style={{ width: '100%', maxWidth: 1200, margin: '0 auto', padding: '24px 0' }}>
+    <Space
+      direction="vertical"
+      size="large"
+      style={{ width: '100%', maxWidth: 1200, margin: '0 auto', padding: '24px 0' }}
+    >
       {permission.hasPermission === false && (
         <Alert
           message="계정 인증 실패"
@@ -916,7 +956,9 @@ const Sourcing: React.FC = () => {
 
                 <div style={{ display: 'flex', gap: 12 }}>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 13, color: '#666', marginBottom: 6, fontWeight: 500 }}>페이지 지연 (초)</div>
+                    <div style={{ fontSize: 13, color: '#666', marginBottom: 6, fontWeight: 500 }}>
+                      페이지 지연 (초)
+                    </div>
                     <InputNumber
                       size="large"
                       style={{ width: '100%', borderRadius: 10 }}
@@ -1043,7 +1085,7 @@ const Sourcing: React.FC = () => {
         </Space>
 
         <Space size={12}>
-          {hasSelection ? (
+          {hasSelection && (
             <>
               <Button
                 size="large"
@@ -1073,16 +1115,6 @@ const Sourcing: React.FC = () => {
                 style={{ borderRadius: 10, fontWeight: 600 }}
               />
             </>
-          ) : (
-            <Button
-              size="large"
-              icon={<DownloadOutlined />}
-              onClick={handleDownloadExcel}
-              disabled={items.length === 0}
-              style={{ borderRadius: 10, fontWeight: 600 }}
-            >
-              엑셀 다운로드
-            </Button>
           )}
 
           <Button
@@ -1099,8 +1131,14 @@ const Sourcing: React.FC = () => {
         </Space>
       </div>
 
-      <Spin spinning={listLoading} tip="목록을 수집 중입니다..." indicator={<LoadingOutlined style={{ fontSize: 24 }} spin />}>
-        <div style={{ background: '#fff', borderRadius: 16, overflow: 'hidden', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
+      <Spin
+        spinning={listLoading}
+        tip="목록을 수집 중입니다..."
+        indicator={<LoadingOutlined style={{ fontSize: 24 }} spin />}
+      >
+        <div
+          style={{ background: '#fff', borderRadius: 16, overflow: 'hidden', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}
+        >
           <Table<SourcingItem>
             rowKey="key"
             columns={columns}
@@ -1111,7 +1149,7 @@ const Sourcing: React.FC = () => {
               showSizeChanger: true,
               pageSizeOptions: [10, 20, 50, 100, 200, 500],
               position: ['bottomCenter'],
-              style: { padding: '16px 0' }
+              style: { padding: '16px 0' },
             }}
             className="premium-table"
           />
@@ -1122,7 +1160,15 @@ const Sourcing: React.FC = () => {
         bordered={false}
         title={
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: loading || listLoading ? '#52c41a' : '#bfbfbf', animation: loading || listLoading ? 'pulse 2s infinite' : 'none' }} />
+            <div
+              style={{
+                width: 10,
+                height: 10,
+                borderRadius: '50%',
+                backgroundColor: loading || listLoading ? '#52c41a' : '#bfbfbf',
+                animation: loading || listLoading ? 'pulse 2s infinite' : 'none',
+              }}
+            />
             <span style={{ fontWeight: 600 }}>실시간 수집 로그</span>
           </div>
         }
@@ -1154,7 +1200,9 @@ const Sourcing: React.FC = () => {
           }}
         >
           {logs.length === 0 ? (
-            <div style={{ color: '#666', fontStyle: 'italic' }}>수집을 시작하면 실시간 작업 내역이 여기에 표시됩니다.</div>
+            <div style={{ color: '#666', fontStyle: 'italic' }}>
+              수집을 시작하면 실시간 작업 내역이 여기에 표시됩니다.
+            </div>
           ) : (
             logs.map((log, index) => (
               <div

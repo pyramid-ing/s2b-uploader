@@ -276,12 +276,14 @@ async function getCreditsBalanceByS2bId(s2bId: string): Promise<number | null> {
  * @param value - 정리할 값
  * @returns 정리된 문자열 또는 원래 값
  */
-function sanitizeString(value: any): any {
-  if (typeof value === 'string') {
-    // \u00A0 -> 띄어쓰기에서 이상한 문자섞이는 경우 있음
-    return value.replace(/\u00A0/g, ' ').trim()
+function sanitizeString(value: any): string {
+  if (value === null || value === undefined) {
+    return ''
   }
-  return value
+  return String(value)
+    .replace(/[\x00-\x1F\x7F-\x9F]/g, '') // 제어 문자 제거 (\b 등)
+    .replace(/\u00A0/g, ' ')
+    .trim()
 }
 
 /**
@@ -771,6 +773,77 @@ function setupIpcHandlers() {
             // ✅ 상품 등록 전 데이터 정리
             const sanitizedProduct = sanitizeProductData(product)
             const productWithPreset = applyAccountDeliveryPreset(sanitizedProduct, selectedAccount)
+
+            // estimateAmt(제시금액): 0이거나 없으면 기본값 보정
+            if (!productWithPreset.estimateAmt || productWithPreset.estimateAmt === '0') {
+              productWithPreset.estimateAmt = '0'
+            }
+
+            // remainQnt(재고수량): 없으면 기본값 보정
+            if (!productWithPreset.remainQnt || productWithPreset.remainQnt === '0') {
+              productWithPreset.remainQnt = '9999'
+            }
+
+            // 필수 필드 기본값 보정 (데이터가 ExcelRegistrationData 형태로 이미 제공됨)
+            if (!productWithPreset.kidsKcType) productWithPreset.kidsKcType = 'N'
+            if (!productWithPreset.elecKcType) productWithPreset.elecKcType = 'N'
+            if (!productWithPreset.dailyKcType) productWithPreset.dailyKcType = 'N'
+            if (!productWithPreset.broadcastingKcType) productWithPreset.broadcastingKcType = 'N'
+            if (!productWithPreset.childExitCheckerKcType) productWithPreset.childExitCheckerKcType = 'N'
+            if (!productWithPreset.safetyCheckKcType) productWithPreset.safetyCheckKcType = 'N'
+            if (!productWithPreset.deliveryGroupYn) productWithPreset.deliveryGroupYn = 'Y'
+            if (!productWithPreset.jejuDeliveryYn) productWithPreset.jejuDeliveryYn = 'N'
+            if (!productWithPreset.deliveryFeeKindText) productWithPreset.deliveryFeeKindText = '무료'
+            if (!productWithPreset.deliveryFee) productWithPreset.deliveryFee = '0'
+            if (!productWithPreset.salesUnit) productWithPreset.salesUnit = '개'
+            if (!productWithPreset.taxType) productWithPreset.taxType = '과세(세금계산서)'
+            if (!productWithPreset.saleTypeText) productWithPreset.saleTypeText = '물품'
+            if (!productWithPreset.assure) productWithPreset.assure = '1년'
+            if (!productWithPreset.estimateValidity) productWithPreset.estimateValidity = '7일'
+            if (!productWithPreset.originType) productWithPreset.originType = '국내'
+            if (!productWithPreset.originLocal) productWithPreset.originLocal = ''
+            if (!productWithPreset.originForeign) productWithPreset.originForeign = ''
+
+            // readExcelFile과 동일한 검증 및 코드 변환
+            const SALE_TYPE_CODE: Record<string, string> = { 물품: '1', 용역: '3' }
+            const DELIVERY_FEE_CODE: Record<string, string> = { 무료: '1', 유료: '2', 조건부무료: '3' }
+            const DELIVERY_LIMIT_CODE: Record<string, string> = {
+              '3일': 'ZD000001',
+              '5일': 'ZD000002',
+              '7일': 'ZD000003',
+              '15일': 'ZD000004',
+              '30일': 'ZD000005',
+              '45일': 'ZD000006',
+            }
+            const DELIVERY_METHOD_CODE: Record<string, string> = { 택배: '1', 직배송: '2', '우편 또는 등기': '3' }
+            const VALID_DELIVERY_LIMITS = ['3일', '5일', '7일', '15일', '30일', '45일']
+            const VALID_SALE_TYPES = ['물품', '용역']
+            const VALID_DELIVERY_FEE_TYPES = ['무료', '유료', '조건부무료']
+
+            // saleTypeText 검증 → saleType 코드 변환
+            if (!VALID_SALE_TYPES.includes(productWithPreset.saleTypeText)) {
+              productWithPreset.saleTypeText = '물품'
+            }
+            productWithPreset.saleType = SALE_TYPE_CODE[productWithPreset.saleTypeText] || '1'
+
+            // deliveryFeeKindText 검증 → deliveryFeeKind 코드 변환
+            if (!VALID_DELIVERY_FEE_TYPES.includes(productWithPreset.deliveryFeeKindText)) {
+              productWithPreset.deliveryFeeKindText = '무료'
+            }
+            productWithPreset.deliveryFeeKind = DELIVERY_FEE_CODE[productWithPreset.deliveryFeeKindText] || '1'
+
+            // deliveryLimitText 검증 → deliveryLimit 코드 변환
+            if (!VALID_DELIVERY_LIMITS.includes(productWithPreset.deliveryLimitText || '')) {
+              productWithPreset.deliveryLimitText = '7일'
+            }
+            productWithPreset.deliveryLimit = DELIVERY_LIMIT_CODE[productWithPreset.deliveryLimitText] || 'ZD000003'
+
+            // deliveryMethod 코드 변환 (텍스트로 들어온 경우)
+            if (productWithPreset.deliveryMethod && DELIVERY_METHOD_CODE[productWithPreset.deliveryMethod]) {
+              productWithPreset.deliveryMethod = DELIVERY_METHOD_CODE[productWithPreset.deliveryMethod]
+            } else if (!productWithPreset.deliveryMethod) {
+              productWithPreset.deliveryMethod = '1'
+            }
 
             await registration.registerProduct(productWithPreset)
             product.result = '성공' // ✅ 성공한 경우 결과 업데이트

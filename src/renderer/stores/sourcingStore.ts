@@ -18,6 +18,8 @@ export interface SourcingItem {
   additionalInfo?: any
   isCollected?: boolean // 수집완료 상태
   loading?: boolean // 수집 중 상태
+  origin?: string // 원산지 정보
+  excelMapped?: any[] // 엑셀 매핑 정보
   result?: string // 수집 결과
 }
 

@@ -5,8 +5,6 @@ import {
   sourcingItemsState,
   selectedSourcingKeysState,
   sourcingSettingsState,
-  sourcingConfigSetsState,
-  activeConfigSetIdState,
   SourcingItem,
 } from '../stores/sourcingStore'
 
@@ -312,45 +310,6 @@ export const useSourcing = () => {
     [],
   )
 
-  // 엑셀 다운로드
-  const downloadExcel = useRecoilCallback(
-    ({ snapshot }) =>
-      async () => {
-        try {
-          const currentSelectedKeys = await snapshot.getPromise(selectedSourcingKeysState)
-          const currentItems = await snapshot.getPromise(sourcingItemsState)
-          const configSets = await snapshot.getPromise(sourcingConfigSetsState)
-          const activeConfigSetId = await snapshot.getPromise(activeConfigSetIdState)
-
-          if (currentSelectedKeys.length === 0) {
-            message.warning('다운로드할 소싱 데이터를 선택해주세요.')
-            return
-          }
-
-          // 선택된 항목만 필터링
-          const selectedItems = currentItems.filter(item => currentSelectedKeys.includes(item.key))
-
-          // 현재 활성화된 설정값 세트 찾기
-          const activeConfigSet = configSets.find(cs => cs.id === activeConfigSetId)
-
-          const result = await ipcRenderer.invoke('download-sourcing-excel', {
-            sourcingItems: selectedItems,
-            configSet: activeConfigSet,
-          })
-
-          if (result.success) {
-            message.success(`선택된 소싱 데이터 엑셀 파일이 성공적으로 저장되었습니다: ${result.fileName}`)
-          } else {
-            message.error(`엑셀 다운로드 실패: ${result.error}`)
-          }
-        } catch (error) {
-          console.error('Sourcing Excel download failed:', error)
-          message.error('엑셀 다운로드 중 오류가 발생했습니다.')
-        }
-      },
-    [],
-  )
-
   // 사이트 열기
   const openVendorSite = useRecoilCallback(
     () => async (vendor: string) => {
@@ -401,7 +360,6 @@ export const useSourcing = () => {
     fetchOneByUrl,
     deleteItem,
     requestRegister,
-    downloadExcel,
     openVendorSite,
     cancelSourcing,
   }

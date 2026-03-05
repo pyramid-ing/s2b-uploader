@@ -44,7 +44,7 @@ const Register: React.FC = () => {
   const [editingProduct, setEditingProduct] = useState<ProductData | null>(null)
 
   useEffect(() => {
-    ; (async () => {
+    ;(async () => {
       const synced = await syncAccountPresets()
       const targetAccount = synced.accounts.find((account: any) => account.id === synced.selectedAccountId)
       await checkPermission(targetAccount?.loginId)
@@ -66,7 +66,7 @@ const Register: React.FC = () => {
       key: 'productInfo',
       render: (_, record) => {
         const d = record.originalData || {}
-        const thumbnail = d['기본이미지1'] || d.image1 || d.listThumbnail
+        const thumbnail = d.image1 || d.listThumbnail
         return (
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <div
@@ -151,7 +151,7 @@ const Register: React.FC = () => {
       width: 120,
       align: 'right',
       render: (_, record) => {
-        const price = record.originalData?.price || record.originalData?.estimateAmt || 0
+        const price = Number(record.originalData?.estimateAmt) || 0
         return <div style={{ fontWeight: 500, color: '#111' }}>{price.toLocaleString()}원</div>
       },
     },
@@ -239,11 +239,32 @@ const Register: React.FC = () => {
           <h1 style={{ fontSize: 28, fontWeight: 700, margin: 0, color: '#111' }}>상품 등록 관리</h1>
           <Space size={16}>
             <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: 13, color: '#666', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }}>
-                <GlobalOutlined /> 현재 IP: <span style={{ color: '#111', fontWeight: 600 }}>{currentPublicIp || '-'}</span>
+              <div
+                style={{
+                  fontSize: 13,
+                  color: '#666',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'flex-end',
+                  gap: 6,
+                }}
+              >
+                <GlobalOutlined /> 현재 IP:{' '}
+                <span style={{ color: '#111', fontWeight: 600 }}>{currentPublicIp || '-'}</span>
               </div>
-              <div style={{ fontSize: 13, color: '#666', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6, marginTop: 4 }}>
-                <UserOutlined /> 계정 마지막 등록 IP: <span style={{ color: '#111', fontWeight: 600 }}>{selectedAccount?.lastRegisteredIp || '-'}</span>
+              <div
+                style={{
+                  fontSize: 13,
+                  color: '#666',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'flex-end',
+                  gap: 6,
+                  marginTop: 4,
+                }}
+              >
+                <UserOutlined /> 계정 마지막 등록 IP:{' '}
+                <span style={{ color: '#111', fontWeight: 600 }}>{selectedAccount?.lastRegisteredIp || '-'}</span>
               </div>
             </div>
           </Space>
@@ -258,17 +279,28 @@ const Register: React.FC = () => {
             opacity: permission.hasPermission === false ? 0.6 : 1,
           }}
         >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, gap: 16, flexWrap: 'wrap' }}>
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: 24,
+              gap: 16,
+              flexWrap: 'wrap',
+            }}
+          >
             <Space size={12} align="center">
-              <div style={{
-                background: '#f5f5f5',
-                padding: '4px 12px',
-                borderRadius: 12,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                border: '1px solid #e8e8e8'
-              }}>
+              <div
+                style={{
+                  background: '#f5f5f5',
+                  padding: '4px 12px',
+                  borderRadius: 12,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  border: '1px solid #e8e8e8',
+                }}
+              >
                 <UserOutlined style={{ color: '#888' }} />
                 <Select
                   variant="borderless"
@@ -293,7 +325,7 @@ const Register: React.FC = () => {
                   margin: 0,
                   border: 'none',
                   backgroundColor: selectedCount > 0 ? '#e6f4ff' : '#f5f5f5',
-                  color: selectedCount > 0 ? '#0958d9' : '#8c8c8c'
+                  color: selectedCount > 0 ? '#0958d9' : '#8c8c8c',
                 }}
               >
                 선택 {selectedCount.toLocaleString()} / 전체 {totalCount.toLocaleString()}
@@ -360,7 +392,7 @@ const Register: React.FC = () => {
               showSizeChanger: true,
               pageSizeOptions: [10, 20, 50, 100, 200, 500],
               position: ['bottomCenter'],
-              style: { marginTop: 24 }
+              style: { marginTop: 24 },
             }}
             style={{ marginTop: 8 }}
             className="premium-table"
@@ -381,7 +413,15 @@ const Register: React.FC = () => {
       <Card
         title={
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: settings.loading ? '#52c41a' : '#bfbfbf', animation: settings.loading ? 'pulse 2s infinite' : 'none' }} />
+            <div
+              style={{
+                width: 10,
+                height: 10,
+                borderRadius: '50%',
+                backgroundColor: settings.loading ? '#52c41a' : '#bfbfbf',
+                animation: settings.loading ? 'pulse 2s infinite' : 'none',
+              }}
+            />
             <span>실시간 등록 진행 결과</span>
           </div>
         }
