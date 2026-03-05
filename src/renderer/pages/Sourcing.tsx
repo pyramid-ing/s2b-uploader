@@ -40,7 +40,7 @@ import { useLog } from '../hooks/useLog'
 import { useSourcing } from '../hooks/useSourcing'
 import { usePermission } from '../hooks/usePermission'
 import { useRegister } from '../hooks/useRegister'
-import { ProductData } from '../stores/registerStore'
+import { Product } from '../stores/registerStore'
 import { useNavigate } from 'react-router-dom'
 import {
   SourcingItem,
@@ -52,7 +52,7 @@ import {
 import { fetchCredits } from '../api/creditsApi'
 import ConfigSetManager from '../components/ConfigSetManager'
 
-const { shell } = window.require('electron')
+const { shell, ipcRenderer } = window.require('electron')
 
 const VENDORS = [
   { label: '도매꾹', value: 'domeggook' },
@@ -604,7 +604,7 @@ const Sourcing: React.FC = () => {
     })
   }
 
-  const handleMoveToRegister = (keys: React.Key[]) => {
+  const handleMoveToRegister = async (keys: React.Key[]) => {
     const collectedItems = items.filter(item => keys.includes(item.key) && item.isCollected)
     if (collectedItems.length === 0) {
       if (keys.length === 1) {
@@ -615,120 +615,32 @@ const Sourcing: React.FC = () => {
       return
     }
 
-    const newProducts: ProductData[] = collectedItems.map(item => {
-      const info = item.additionalInfo || {}
-      const excel = item.excelMapped?.[0] || {}
+    try {
+      // 서버에서 sourcing → product 변환
+      const products: Product[] = await ipcRenderer.invoke('convert-sourcing-to-products', {
+        items: collectedItems.map(item => ({
+          key: item.key,
+          name: item.name,
+          url: item.url,
+          vendor: item.vendor,
+          price: item.price,
+          productCode: item.productCode,
+          g2bItemNo: item.g2bItemNo,
+          listThumbnail: item.listThumbnail,
+          downloadDir: item.downloadDir,
+          additionalInfo: item.additionalInfo,
+          isCollected: item.isCollected,
+          origin: item.origin,
+          excelMapped: item.excelMapped,
+        })),
+      })
 
-      // 원산지 파싱 로직 (예: "수입산 / 아시아 / 중국" -> "국외/중국")
-      const originStr = excel['원산지구분'] || info.originType || item.origin || ''
-      const overseasStr = excel['해외원산지'] || info.originOverseas || ''
-      let originType = '국내'
-      let originLocal = ''
-      let originForeign = ''
-
-      if (
-        originStr.includes('수입') ||
-        originStr.includes('국외') ||
-        originStr.includes('중국') ||
-        originStr.includes('아시아')
-      ) {
-        originType = '국외'
-        if (overseasStr.includes('중국') || originStr.includes('중국')) originForeign = '중국'
-        else if (overseasStr.includes('베트남') || originStr.includes('베트남')) originForeign = '베트남'
-        else originForeign = '기타'
-      } else if (originStr.includes('국내') || originStr.includes('한국')) {
-        originType = '국내'
-        originLocal = '기타'
-      }
-
-      const estimateAmt = (excel['제시금액'] || item.price || 0).toString()
-
-      // ExcelRegistrationData 필드명만 사용
-      return {
-        key: `sourcing-${Date.now()}-${item.key}`,
-        goodsName: excel['물품명'] || item.name,
-        spec: excel['규격'] || info.spec || '',
-        modelName: excel['모델명'] || info.modelName || '상세설명참고',
-        result: '',
-        originalData: {
-          // 기본 상품 정보
-          goodsName: excel['물품명'] || item.name,
-          spec: excel['규격'] || info.spec || '',
-          modelName: excel['모델명'] || info.modelName || '상세설명참고',
-          estimateAmt,
-          factory: excel['제조사'] || info.brand || item.vendor || '상세설명참고',
-          material: excel['소재/재질'] || info.material || '상세설명참고',
-          remainQnt: (excel['재고수량'] ?? info.stock ?? 9999).toString(),
-          salesUnit: excel['판매단위'] || info.salesUnit || '개',
-          taxType: excel['과세여부'] || info.taxType || '과세(세금계산서)',
-          saleTypeText: excel['등록구분'] || info.saleTypeText || '물품',
-
-          // 카테고리
-          category1: excel['카테고리1'] || info.category1 || '',
-          category2: excel['카테고리2'] || info.category2 || '',
-          category3: excel['카테고리3'] || info.category3 || '',
-
-          // 배송/납품
-          assure: excel['보증기간'] || info.warranty || '1년',
-          deliveryLimitText: excel['납품가능기간'] || info.deliveryPeriod || '7일',
-          estimateValidity: excel['견적서 유효기간'] || info.estimateValidity || '30일',
-          deliveryFeeKindText: excel['배송비종류'] || info.shippingFeeType || '무료',
-          deliveryFee: (excel['배송비'] || info.shippingFee || 0).toString(),
-          returnFee: (excel['반품배송비'] || info.returnShippingFee || 3500).toString(),
-          deliveryGroupYn: excel['묶음배송여부'] || 'Y',
-          jejuDeliveryYn: excel['제주배송여부'] || 'N',
-          jejuDeliveryFee: (excel['제주추가배송비'] || 0).toString(),
-          deliveryMethod: excel['배송방법'] || '택배',
-          deliveryAreas: (excel['배송지역']?.toString().split(',') || []).map((a: string) => a.trim()).filter(Boolean),
-
-          // 이미지
-          image1: excel['기본이미지1'] || info.images?.[0] || item.listThumbnail || '',
-          image2: excel['기본이미지2'] || info.images?.[1] || '',
-          addImage1: excel['추가이미지1'] || info.images?.[2] || '',
-          addImage2: excel['추가이미지2'] || info.images?.[3] || '',
-          detailImage: excel['상세이미지'] || info.imageDetail || info.images?.[4] || '',
-          detailHtml: excel['상세설명HTML'] || info.content || '',
-
-          // 원산지
-          originType,
-          originLocal,
-          originForeign,
-
-          // G2B
-          g2bNumber: excel['G2B 물품목록번호'] || item.g2bItemNo || info.g2bItemNo || '',
-
-          // KC 인증
-          kidsKcType: excel['어린이제품KC유형'] || 'N',
-          kidsKcCertId: excel['어린이제품KC인증번호'] || '',
-          kidsKcFile: excel['어린이제품KC성적서'] || '',
-          elecKcType: excel['전기용품KC유형'] || 'N',
-          elecKcCertId: excel['전기용품KC인증번호'] || '',
-          elecKcFile: excel['전기용품KC성적서'] || '',
-          dailyKcType: excel['생활용품KC유형'] || 'N',
-          dailyKcCertId: excel['생활용품KC인증번호'] || '',
-          dailyKcFile: excel['생활용품KC성적서'] || '',
-          broadcastingKcType: excel['방송통신KC유형'] || 'N',
-          broadcastingKcCertId: excel['방송통신KC인증번호'] || '',
-          broadcastingKcFile: excel['방송통신KC성적서'] || '',
-
-          // 기타
-          childExitCheckerKcType: excel['어린이하차확인장치타입'] || 'N',
-          safetyCheckKcType: excel['안전확인대상타입'] || 'N',
-          asTelephone1: excel['전화번호'] || '',
-          asTelephone2: excel['제조사 A/S전화번호'] || '',
-          naraRegisterYn: excel['나라장터등록여부'] || 'N',
-          otherSiteRegisterYn: excel['타사이트등록여부'] || 'N',
-          approvalRequest: excel['승인관련 요청사항'] || '',
-
-          // 참고용 (소싱 원본 정보)
-          sourceUrl: item.url || info.url || '',
-          listThumbnail: item.listThumbnail || '',
-        },
-      }
-    })
-
-    addProducts(newProducts)
-    navigate('/register')
+      await addProducts(products)
+      navigate('/register')
+    } catch (error) {
+      console.error('Failed to convert sourcing to products:', error)
+      message.error('상품 변환 중 오류가 발생했습니다.')
+    }
   }
 
   return (

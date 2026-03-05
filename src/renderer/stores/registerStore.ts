@@ -1,14 +1,9 @@
 import { atom } from 'recoil'
 import dayjs, { type Dayjs } from 'dayjs'
+import type { Product } from '../../electron/types/product'
 
-export interface ProductData {
-  key: string
-  goodsName: string
-  spec: string
-  modelName: string
-  result?: string
-  originalData?: any
-}
+// Re-export Product type for convenience
+export type { Product }
 
 export interface RegisterSettings {
   dateRange: [Dayjs, Dayjs]
@@ -44,35 +39,14 @@ export const REGISTRATION_STATUS_LABELS = {
   [REGISTRATION_STATUS.STOPPED]: '등록중지',
 } as const
 
-// 상품 데이터를 저장하는 atom (LocalStorage 연동)
-export const productDataState = atom<ProductData[]>({
+// 상품 데이터를 저장하는 atom (서버에서 가져온 캐시)
+export const productDataState = atom<Product[]>({
   key: 'productDataState',
   default: [],
-  effects: [
-    ({ setSelf, onSet }) => {
-      const PRODUCT_STORAGE_KEY = 's2b_products_db'
-      const savedValue = localStorage.getItem(PRODUCT_STORAGE_KEY)
-      if (savedValue != null) {
-        try {
-          setSelf(JSON.parse(savedValue))
-        } catch (e) {
-          console.error('Failed to parse saved products:', e)
-        }
-      }
-
-      onSet((newValue, _, isReset) => {
-        if (isReset) {
-          localStorage.removeItem(PRODUCT_STORAGE_KEY)
-        } else {
-          localStorage.setItem(PRODUCT_STORAGE_KEY, JSON.stringify(newValue))
-        }
-      })
-    },
-  ],
 })
 
 // 선택된 상품 키들을 저장하는 atom
-export const selectedProductKeysState = atom<React.Key[]>({
+export const selectedProductKeysState = atom<string[]>({
   key: 'selectedProductKeysState',
   default: [],
 })

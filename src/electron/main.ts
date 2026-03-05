@@ -11,6 +11,7 @@ import * as XLSX from 'xlsx'
 import dayjs from 'dayjs'
 import { autoUpdater } from 'electron-updater'
 import { ExcelRegistrationData, ConfigSet } from './types/excel'
+import { Product, SourcingItemPayload, productToExcelData, sourcingItemToProduct } from './types/product'
 import { envConfig, supabase } from './envConfig'
 import axios from 'axios'
 
@@ -339,6 +340,7 @@ interface StoreSchema {
   }
   configSets: any[]
   activeConfigSetId: string | null
+  products: Product[]
 }
 
 type DeliveryAreaPresetMode = 'nationwide' | 'custom'
@@ -384,8 +386,8 @@ function normalizeAccountList(settings: Partial<StoreSchema['settings']> | undef
 
       const filteredAreas = Array.isArray(account?.deliveryAreas)
         ? account.deliveryAreas
-            .map((area: any) => (typeof area === 'string' ? area.trim() : ''))
-            .filter((area: string) => VALID_DELIVERY_AREAS.includes(area as (typeof VALID_DELIVERY_AREAS)[number]))
+          .map((area: any) => (typeof area === 'string' ? area.trim() : ''))
+          .filter((area: string) => VALID_DELIVERY_AREAS.includes(area as (typeof VALID_DELIVERY_AREAS)[number]))
         : []
 
       const deliveryAreaPresetMode: DeliveryAreaPresetMode =
@@ -522,6 +524,7 @@ const store = new Store<StoreSchema>({
     },
     configSets: [],
     activeConfigSetId: null,
+    products: [],
   },
   // 중요한 데이터는 암호화
   encryptionKey: 's2b-uploader-secret-key',
@@ -671,9 +674,61 @@ function setupIpcHandlers() {
     }
   })
 
+  // ---- Product CRUD IPC handlers (서버에서 데이터 관리) ----
+
+  ipcMain.handle('get-products', () => {
+    return store.get('products') || []
+  })
+
+  ipcMain.handle('save-products', async (_, { products: newProducts }: { products: Product[] }) => {
+    const existing = (store.get('products') || []) as Product[]
+    const existingIds = new Set(existing.map(p => p.id))
+    const toAdd = newProducts.filter(p => !existingIds.has(p.id))
+    const updated = [...existing, ...toAdd]
+    store.set('products', updated)
+    return updated
+  })
+
+  ipcMain.handle('update-product', async (_, { product }: { product: Product }) => {
+    const existing = (store.get('products') || []) as Product[]
+    const updated = existing.map(p => (p.id === product.id ? product : p))
+    store.set('products', updated)
+    return updated
+  })
+
+  ipcMain.handle('delete-products', async (_, { ids }: { ids: string[] }) => {
+    const existing = (store.get('products') || []) as Product[]
+    const idSet = new Set(ids)
+    const updated = existing.filter(p => !idSet.has(p.id))
+    store.set('products', updated)
+    return updated
+  })
+
+  ipcMain.handle('clear-products', async () => {
+    store.set('products', [])
+    return []
+  })
+
+  // ---- Sourcing → Product Conversion (서버에서 변환) ----
+
+  ipcMain.handle('convert-sourcing-to-products', async (_, { items }: { items: SourcingItemPayload[] }) => {
+    const products = items.filter(item => item.isCollected).map(item => sourcingItemToProduct(item))
+    return products
+  })
+
+  // ---- Product Registration (기존 핸들러 수정) ----
+
   ipcMain.handle(
     'start-and-register-products',
-    async (_, { allProducts, accountId }: { allProducts: ExcelRegistrationData[]; accountId?: string }) => {
+    async (_, { productIds, accountId }: { productIds: string[]; accountId?: string }) => {
+      const allStoredProducts = (store.get('products') || []) as Product[]
+      const idSet = new Set(productIds)
+      const allProducts: ExcelRegistrationData[] = allStoredProducts.map(p => {
+        const excelData = productToExcelData(p)
+        excelData.selected = idSet.has(p.id)
+        return excelData
+      })
+      const selectedProducts = allProducts.filter(p => p.selected)
       isCancelled = false // ✅ 시작 시 중단 상태 초기화
 
       try {
@@ -755,7 +810,7 @@ function setupIpcHandlers() {
         const maxDelay = Number.isFinite(maxDelayRaw) ? maxDelayRaw : fallbackDelay
         const lowerDelay = Math.max(0, Math.min(minDelay, maxDelay))
         const upperDelay = Math.max(0, Math.max(minDelay, maxDelay))
-        const selectedProducts = allProducts.filter(p => p.selected) // ✅ 선택된 상품만 필터링
+        // selectedProducts는 이미 위에서 필터링됨
         let successCount = 0
         let failCount = 0
 
@@ -766,8 +821,6 @@ function setupIpcHandlers() {
           }
 
           const product = selectedProducts[i]
-
-          if (!product.selected) continue // ✅ 선택되지 않은 상품은 무시
 
           try {
             // ✅ 상품 등록 전 데이터 정리
@@ -934,6 +987,20 @@ function setupIpcHandlers() {
           `사업자 마지막 등록 IP 저장: ${selectedAccount.name || selectedAccount.loginId} -> ${currentPublicIp}`,
           'info',
         )
+
+        // 등록 결과를 Product 저장소에 반영
+        const storedProducts = (store.get('products') || []) as Product[]
+        const productResultMap = new Map<string, string>()
+        const selectedStoredProducts = allStoredProducts.filter(sp => idSet.has(sp.id))
+        selectedProducts.forEach((p, idx) => {
+          if (idx < selectedStoredProducts.length) {
+            productResultMap.set(selectedStoredProducts[idx].id, p.result || '')
+          }
+        })
+        const updatedProducts = storedProducts.map(p =>
+          productResultMap.has(p.id) ? { ...p, result: productResultMap.get(p.id) || '' } : p,
+        )
+        store.set('products', updatedProducts)
 
         return {
           success: failCount === 0 && !isCancelled,

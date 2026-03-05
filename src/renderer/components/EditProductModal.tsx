@@ -18,15 +18,15 @@ import {
   Alert,
 } from 'antd'
 import { FolderOpenOutlined, LinkOutlined, InfoCircleOutlined } from '@ant-design/icons'
-import { ProductData } from '../stores/registerStore'
+import { Product } from '../stores/registerStore'
 import { buildCategoryTree, CATEGORY_STORAGE_KEY, DEFAULT_CATEGORY_EXCEL_PATH } from '../constants/categories'
 
 const { ipcRenderer } = window.require('electron')
 
 interface EditProductModalProps {
   visible: boolean
-  product: ProductData | null
-  onSave: (key: string, updatedData: Partial<ProductData>) => void
+  product: Product | null
+  onSave: (id: string, updatedData: Partial<Product>) => void
   onCancel: () => void
 }
 
@@ -241,147 +241,144 @@ const EditProductModal: React.FC<EditProductModalProps> = ({ visible, product, o
   }, [visible])
 
   /**
-   * product.originalData → ExcelRegistrationData 필드명으로 폼 초기화
-   * readExcelFile의 매핑 결과와 동일한 필드명을 사용
+   * product (Product 타입) 필드에서 직접 폼 초기화
    */
   useEffect(() => {
     if (visible && product) {
-      const d = product.originalData || {}
-
       // 카테고리 경로 조립
-      const categoryPath = [d.category1 || '', d.category2 || '', d.category3 || ''].filter(Boolean)
+      const categoryPath = [product.category1 || '', product.category2 || '', product.category3 || ''].filter(Boolean)
 
       // 원산지 경로 조립
       const originPath =
-        d.originType === '국내'
-          ? ['국내', d.originLocal || '']
-          : d.originType === '국외'
-            ? ['국외', d.originForeign || '']
+        product.originType === '국내'
+          ? ['국내', product.originLocal || '']
+          : product.originType === '국외'
+            ? ['국외', product.originForeign || '']
             : []
 
-      // 배송지역: deliveryAreas(string[]) → Select용 배열
-      const deliveryAreas = Array.isArray(d.deliveryAreas) ? d.deliveryAreas : []
+      // 배송지역
+      const deliveryAreas = Array.isArray(product.deliveryAreas) ? product.deliveryAreas : []
 
       form.setFieldsValue({
-        // === 기본 정보 (ExcelRegistrationData 필드명) ===
+        // === 기본 정보 ===
         categoryPath,
-        saleTypeText: d.saleTypeText || '물품',
-        goodsName: d.goodsName || '',
-        spec: d.spec || '',
-        modelName: d.modelName || '',
-        estimateAmt: d.estimateAmt || '',
-        factory: d.factory || '',
-        material: d.material || '',
-        remainQnt: d.remainQnt || '',
-        salesUnit: d.salesUnit || '개',
-        taxType: d.taxType || '과세(세금계산서)',
+        saleTypeText: product.saleType || '물품',
+        goodsName: product.name || '',
+        spec: product.spec || '',
+        modelName: product.modelName || '',
+        estimateAmt: product.price || '',
+        factory: product.manufacturer || '',
+        material: product.material || '',
+        remainQnt: product.stockQuantity || '',
+        salesUnit: product.salesUnit || '개',
+        taxType: product.taxType || '과세(세금계산서)',
 
         // === 배송/납품 ===
-        assure: d.assure || '1년',
-        deliveryLimitText: d.deliveryLimitText || '7일',
-        estimateValidity: d.estimateValidity || '30일',
-        deliveryFeeKindText: d.deliveryFeeKindText || '무료',
-        deliveryFee: d.deliveryFee || '',
-        returnFee: d.returnFee || '',
-        exchangeFee: d.exchangeFee || '',
-        deliveryGroupYn: d.deliveryGroupYn || 'Y',
-        jejuDeliveryYn: d.jejuDeliveryYn || 'N',
-        jejuDeliveryFee: d.jejuDeliveryFee || '',
-        deliveryMethod: d.deliveryMethod || '1',
+        assure: product.warranty || '1년',
+        deliveryLimitText: product.deliveryPeriod || '7일',
+        estimateValidity: product.quoteValidity || '30일',
+        deliveryFeeKindText: product.deliveryFeeType || '무료',
+        deliveryFee: product.deliveryFee || '',
+        returnFee: product.returnFee || '',
+        exchangeFee: '',
+        deliveryGroupYn: product.bundleShipping ? 'Y' : 'N',
+        jejuDeliveryYn: product.jejuShipping ? 'Y' : 'N',
+        jejuDeliveryFee: product.jejuAdditionalFee || '',
+        deliveryMethod: product.deliveryMethod || '택배',
         deliveryAreas,
 
         // === 이미지 ===
-        image1: d.image1 || '',
-        image2: d.image2 || '',
-        addImage1: d.addImage1 || '',
-        addImage2: d.addImage2 || '',
-        detailImage: d.detailImage || '',
-        detailHtml: d.detailHtml || '',
+        image1: product.image1 || '',
+        image2: product.image2 || '',
+        addImage1: product.addImage1 || '',
+        addImage2: product.addImage2 || '',
+        detailImage: product.detailImage || '',
+        detailHtml: product.detailHtml || '',
 
         // === 원산지/기술사양 ===
         originPath,
-        g2bNumber: d.g2bNumber || '',
-        selPower: d.selPower || '',
-        selWeight: d.selWeight || '',
-        selSameDate: d.selSameDate || '',
-        selArea: d.selArea || '',
-        selProduct: d.selProduct || '',
-        selSafety: d.selSafety || '',
-        selCapacity: d.selCapacity || '',
-        selSpecification: d.selSpecification || '',
+        g2bNumber: product.g2bNumber || '',
+        selPower: product.ratedPower || '',
+        selWeight: product.sizeAndWeight || '',
+        selSameDate: product.sameModelDate || '',
+        selArea: product.coolingHeatingArea || '',
+        selProduct: product.productComposition || '',
+        selSafety: product.safetyMark || '',
+        selCapacity: product.capacity || '',
+        selSpecification: product.mainSpec || '',
 
         // === 소비기한/하차확인 ===
-        validateRadio: d.validateRadio || '',
-        fValidate: d.fValidate || '',
-        childExitCheckerKcType: d.childExitCheckerKcType || 'N',
-        childExitCheckerKcCertId: d.childExitCheckerKcCertId || '',
-        childExitCheckerKcFile: d.childExitCheckerKcFile || '',
+        validateRadio: product.consumptionPeriodType || '',
+        fValidate: product.consumptionPeriodValue || '',
+        childExitCheckerKcType: product.childExitCheckerKcType || 'N',
+        childExitCheckerKcCertId: product.childExitCheckerKcCertId || '',
+        childExitCheckerKcFile: product.childExitCheckerKcFile || '',
 
         // === 안전확인/조달 ===
-        safetyCheckKcType: d.safetyCheckKcType || 'N',
-        safetyCheckKcCertId: d.safetyCheckKcCertId || '',
-        safetyCheckKcFile: d.safetyCheckKcFile || '',
-        ppsContractYn: d.ppsContractYn || 'N',
-        ppsContractStartDate: d.ppsContractStartDate || '',
-        ppsContractEndDate: d.ppsContractEndDate || '',
+        safetyCheckKcType: product.safetyCheckKcType || 'N',
+        safetyCheckKcCertId: product.safetyCheckKcCertId || '',
+        safetyCheckKcFile: product.safetyCheckKcFile || '',
+        ppsContractYn: product.ppsContractYn ? 'Y' : 'N',
+        ppsContractStartDate: product.ppsContractStartDate || '',
+        ppsContractEndDate: product.ppsContractEndDate || '',
 
         // === 연락처 ===
-        asTelephone1: d.asTelephone1 || '',
-        asTelephone2: d.asTelephone2 || '',
+        asTelephone1: product.phone || '',
+        asTelephone2: product.asPhone || '',
 
         // === KC 인증 ===
-        kidsKcType: d.kidsKcType || 'N',
-        kidsKcCertId: d.kidsKcCertId || '',
-        kidsKcFile: d.kidsKcFile || '',
-        elecKcType: d.elecKcType || 'N',
-        elecKcCertId: d.elecKcCertId || '',
-        elecKcFile: d.elecKcFile || '',
-        dailyKcType: d.dailyKcType || 'N',
-        dailyKcCertId: d.dailyKcCertId || '',
-        dailyKcFile: d.dailyKcFile || '',
-        broadcastingKcType: d.broadcastingKcType || 'N',
-        broadcastingKcCertId: d.broadcastingKcCertId || '',
-        broadcastingKcFile: d.broadcastingKcFile || '',
+        kidsKcType: product.kidsKcType || 'N',
+        kidsKcCertId: product.kidsKcCertId || '',
+        kidsKcFile: product.kidsKcFile || '',
+        elecKcType: product.elecKcType || 'N',
+        elecKcCertId: product.elecKcCertId || '',
+        elecKcFile: product.elecKcFile || '',
+        dailyKcType: product.dailyKcType || 'N',
+        dailyKcCertId: product.dailyKcCertId || '',
+        dailyKcFile: product.dailyKcFile || '',
+        broadcastingKcType: product.broadcastingKcType || 'N',
+        broadcastingKcCertId: product.broadcastingKcCertId || '',
+        broadcastingKcFile: product.broadcastingKcFile || '',
 
         // === 기업 인증 ===
-        womanCert: d.womanCert || 'N',
-        disabledCompanyCert: d.disabledCompanyCert || 'N',
-        foundationCert: d.foundationCert || 'N',
-        disabledCert: d.disabledCert || 'N',
-        severalCert: d.severalCert || 'N',
-        cooperationCert: d.cooperationCert || 'N',
-        societyCert: d.societyCert || 'N',
-        recycleCert: d.recycleCert || 'N',
-        environmentCert: d.environmentCert || 'N',
-        lowCarbonCert: d.lowCarbonCert || 'N',
-        swQualityCert: d.swQualityCert || 'N',
-        nepCert: d.nepCert || 'N',
-        netCert: d.netCert || 'N',
-        greenProductCert: d.greenProductCert || 'N',
-        epcCert: d.epcCert || 'N',
-        procureCert: d.procureCert || 'N',
-        seoulTownCert: d.seoulTownCert || 'N',
-        seoulSelfCert: d.seoulSelfCert || 'N',
-        seoulCollaborationCert: d.seoulCollaborationCert || 'N',
-        seoulReserveCert: d.seoulReserveCert || 'N',
+        womanCert: product.certWoman ? 'Y' : 'N',
+        disabledCompanyCert: product.certDisabledCompany ? 'Y' : 'N',
+        foundationCert: product.certFoundation ? 'Y' : 'N',
+        disabledCert: product.certDisabled ? 'Y' : 'N',
+        severalCert: product.certSevereDisabled ? 'Y' : 'N',
+        cooperationCert: product.certCooperation ? 'Y' : 'N',
+        societyCert: product.certSociety ? 'Y' : 'N',
+        recycleCert: product.certRecycle ? 'Y' : 'N',
+        environmentCert: product.certEnvironment ? 'Y' : 'N',
+        lowCarbonCert: product.certLowCarbon ? 'Y' : 'N',
+        swQualityCert: product.certSwQuality ? 'Y' : 'N',
+        nepCert: product.certNep ? 'Y' : 'N',
+        netCert: product.certNet ? 'Y' : 'N',
+        greenProductCert: product.certGreenProduct ? 'Y' : 'N',
+        epcCert: product.certEpc ? 'Y' : 'N',
+        procureCert: product.certProcure ? 'Y' : 'N',
+        seoulTownCert: product.certTown ? 'Y' : 'N',
+        seoulSelfCert: product.certSelf ? 'Y' : 'N',
+        seoulCollaborationCert: product.certCollaboration ? 'Y' : 'N',
+        seoulReserveCert: product.certReserve ? 'Y' : 'N',
 
         // === 나라장터/타사이트/기타 ===
-        naraRegisterYn: d.naraRegisterYn || 'N',
-        naraAmt: d.naraAmt || '',
-        siteName: d.siteName || '',
-        siteUrl: d.siteUrl || '',
-        otherSiteRegisterYn: d.otherSiteRegisterYn || 'N',
-        otherSiteAmt: d.otherSiteAmt || '',
-        approvalRequest: d.approvalRequest || '',
+        naraRegisterYn: product.naraRegistered ? 'Y' : 'N',
+        naraAmt: product.naraPrice || '',
+        siteName: product.otherSiteName || '',
+        siteUrl: product.otherSiteUrl || '',
+        otherSiteRegisterYn: product.otherSiteRegistered ? 'Y' : 'N',
+        otherSiteAmt: product.otherSitePrice || '',
+        approvalRequest: product.approvalRequest || '',
 
         // === 참고용 (소싱 원본) ===
-        sourceUrl: d.sourceUrl || d.url || '',
+        sourceUrl: product.sourceUrl || '',
       })
     }
   }, [visible, product, form])
 
   /**
-   * 저장 시 폼 값 → ExcelRegistrationData 형태로 변환하여 onSave
+   * 저장 시 폼 값 → Product 필드명으로 변환하여 onSave
    */
   const handleOk = async () => {
     try {
@@ -389,47 +386,148 @@ const EditProductModal: React.FC<EditProductModalProps> = ({ visible, product, o
 
       if (product) {
         // 카테고리 경로 → category1/2/3 분리
+        let category1 = '',
+          category2 = '',
+          category3 = ''
         if (Array.isArray(values.categoryPath)) {
-          const [c1, c2, c3] = values.categoryPath
-          values.category1 = c1 || ''
-          values.category2 = c2 || ''
-          values.category3 = c3 || ''
-          delete values.categoryPath
+          ;[category1 = '', category2 = '', category3 = ''] = values.categoryPath
         }
 
         // 원산지 경로 → originType/originLocal/originForeign 분리
+        let originType = product.originType
+        let originLocal = product.originLocal
+        let originForeign = product.originForeign
         if (Array.isArray(values.originPath)) {
           const [type, value] = values.originPath
-          values.originType = type || ''
+          originType = type || ''
           if (type === '국내') {
-            values.originLocal = value || ''
-            values.originForeign = ''
+            originLocal = value || ''
+            originForeign = ''
           } else if (type === '국외') {
-            values.originForeign = value || ''
-            values.originLocal = ''
-          }
-          delete values.originPath
-        }
-
-        // 배송지역: 전국 포함 시 전국만, 빈 배열이면 그대로
-        if (Array.isArray(values.deliveryAreas)) {
-          if (values.deliveryAreas.some((area: string) => area.includes('전국'))) {
-            values.deliveryAreas = ['전국']
+            originForeign = value || ''
+            originLocal = ''
           }
         }
 
-        // ExcelRegistrationData 형태 그대로 originalData에 저장
-        const excelData = { ...values }
+        // 배송지역: 전국 포함 시 전국만
+        let deliveryAreas = values.deliveryAreas || product.deliveryAreas
+        if (Array.isArray(deliveryAreas) && deliveryAreas.some((area: string) => area.includes('전국'))) {
+          deliveryAreas = ['전국']
+        }
 
-        onSave(product.key, {
-          goodsName: excelData.goodsName,
-          spec: excelData.spec,
-          modelName: excelData.modelName,
-          originalData: {
-            ...product.originalData,
-            ...excelData,
-          },
-        })
+        // 폼 값 → Product 필드명으로 매핑
+        const updatedProduct: Partial<Product> = {
+          name: values.goodsName,
+          spec: values.spec,
+          modelName: values.modelName,
+          price: parseInt(values.estimateAmt?.toString() || '0', 10) || 0,
+          manufacturer: values.factory,
+          material: values.material,
+          stockQuantity: parseInt(values.remainQnt?.toString() || '0', 10) || 0,
+          salesUnit: values.salesUnit,
+          taxType: values.taxType,
+          saleType: values.saleTypeText,
+
+          category1,
+          category2,
+          category3,
+
+          warranty: values.assure,
+          deliveryPeriod: values.deliveryLimitText,
+          quoteValidity: values.estimateValidity,
+          deliveryFeeType: values.deliveryFeeKindText,
+          deliveryFee: parseFloat(values.deliveryFee?.toString() || '0') || 0,
+          returnFee: parseFloat(values.returnFee?.toString() || '0') || 0,
+          bundleShipping: values.deliveryGroupYn === 'Y',
+          jejuShipping: values.jejuDeliveryYn === 'Y',
+          jejuAdditionalFee: parseFloat(values.jejuDeliveryFee?.toString() || '0') || 0,
+          deliveryMethod: values.deliveryMethod,
+          deliveryAreas,
+
+          image1: values.image1,
+          image2: values.image2,
+          addImage1: values.addImage1,
+          addImage2: values.addImage2,
+          detailImage: values.detailImage,
+          detailHtml: values.detailHtml,
+
+          originType,
+          originLocal,
+          originForeign,
+          g2bNumber: values.g2bNumber,
+
+          ratedPower: values.selPower,
+          sizeAndWeight: values.selWeight,
+          sameModelDate: values.selSameDate,
+          coolingHeatingArea: values.selArea,
+          productComposition: values.selProduct,
+          safetyMark: values.selSafety,
+          capacity: values.selCapacity,
+          mainSpec: values.selSpecification,
+
+          consumptionPeriodType: values.validateRadio,
+          consumptionPeriodValue: values.fValidate,
+
+          childExitCheckerKcType: values.childExitCheckerKcType,
+          childExitCheckerKcCertId: values.childExitCheckerKcCertId,
+          childExitCheckerKcFile: values.childExitCheckerKcFile,
+          safetyCheckKcType: values.safetyCheckKcType,
+          safetyCheckKcCertId: values.safetyCheckKcCertId,
+          safetyCheckKcFile: values.safetyCheckKcFile,
+
+          ppsContractYn: values.ppsContractYn === 'Y',
+          ppsContractStartDate: values.ppsContractStartDate,
+          ppsContractEndDate: values.ppsContractEndDate,
+
+          phone: values.asTelephone1,
+          asPhone: values.asTelephone2,
+
+          kidsKcType: values.kidsKcType,
+          kidsKcCertId: values.kidsKcCertId,
+          kidsKcFile: values.kidsKcFile,
+          elecKcType: values.elecKcType,
+          elecKcCertId: values.elecKcCertId,
+          elecKcFile: values.elecKcFile,
+          dailyKcType: values.dailyKcType,
+          dailyKcCertId: values.dailyKcCertId,
+          dailyKcFile: values.dailyKcFile,
+          broadcastingKcType: values.broadcastingKcType,
+          broadcastingKcCertId: values.broadcastingKcCertId,
+          broadcastingKcFile: values.broadcastingKcFile,
+
+          certWoman: values.womanCert === 'Y',
+          certDisabledCompany: values.disabledCompanyCert === 'Y',
+          certFoundation: values.foundationCert === 'Y',
+          certDisabled: values.disabledCert === 'Y',
+          certSevereDisabled: values.severalCert === 'Y',
+          certCooperation: values.cooperationCert === 'Y',
+          certSociety: values.societyCert === 'Y',
+          certRecycle: values.recycleCert === 'Y',
+          certEnvironment: values.environmentCert === 'Y',
+          certLowCarbon: values.lowCarbonCert === 'Y',
+          certSwQuality: values.swQualityCert === 'Y',
+          certNep: values.nepCert === 'Y',
+          certNet: values.netCert === 'Y',
+          certGreenProduct: values.greenProductCert === 'Y',
+          certEpc: values.epcCert === 'Y',
+          certProcure: values.procureCert === 'Y',
+          certTown: values.seoulTownCert === 'Y',
+          certSelf: values.seoulSelfCert === 'Y',
+          certCollaboration: values.seoulCollaborationCert === 'Y',
+          certReserve: values.seoulReserveCert === 'Y',
+
+          naraRegistered: values.naraRegisterYn === 'Y',
+          naraPrice: values.naraAmt,
+          otherSiteName: values.siteName,
+          otherSiteUrl: values.siteUrl,
+          otherSiteRegistered: values.otherSiteRegisterYn === 'Y',
+          otherSitePrice: values.otherSiteAmt,
+          approvalRequest: values.approvalRequest,
+
+          sourceUrl: values.sourceUrl,
+        }
+
+        onSave(product.id, updatedProduct)
       }
       onCancel()
     } catch (error) {
@@ -874,13 +972,15 @@ const EditProductModal: React.FC<EditProductModalProps> = ({ visible, product, o
             <Col span={12}>
               <Form.Item
                 name="deliveryAreas"
-                label={labelWithTooltip('배송지역', '"전국"을 선택하면 다른 지역은 자동 해제됩니다.')}
-                rules={[{ required: true }]}
+                label={labelWithTooltip(
+                  '배송지역 (선택)',
+                  '미선택 시 환경설정의 기본 배송지역이 적용됩니다. "전국"을 선택하면 다른 지역은 자동 해제됩니다.',
+                )}
               >
                 <Select
                   mode="multiple"
                   options={SHIPPING_AREA_OPTIONS}
-                  placeholder="배송 가능 지역을 선택하세요"
+                  placeholder="미선택 시 기본 배송지역 적용"
                   maxTagCount="responsive"
                   onChange={vals => {
                     if (vals && vals.some((v: string) => v.includes('전국'))) {
@@ -1340,7 +1440,11 @@ const EditProductModal: React.FC<EditProductModalProps> = ({ visible, product, o
       centered
     >
       <Form form={form} layout="vertical" validateMessages={validateMessages} size="large">
-        <Tabs activeKey={activeTab} onChange={setActiveTab} items={items} />
+        <Tabs
+          activeKey={activeTab}
+          onChange={setActiveTab}
+          items={items.map(item => ({ ...item, forceRender: true }))}
+        />
       </Form>
     </Modal>
   )

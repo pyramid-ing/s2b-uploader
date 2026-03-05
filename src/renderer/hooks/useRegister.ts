@@ -1,6 +1,6 @@
 import { useRecoilState, useRecoilCallback } from 'recoil'
 import { message } from 'antd'
-import { productDataState, selectedProductKeysState, registerSettingsState, ProductData } from '../stores/registerStore'
+import { productDataState, selectedProductKeysState, registerSettingsState, Product } from '../stores/registerStore'
 import { usePermission } from './usePermission'
 
 const { ipcRenderer } = window.require('electron')
@@ -10,6 +10,22 @@ export const useRegister = () => {
   const [selectedKeys, setSelectedKeys] = useRecoilState(selectedProductKeysState)
   const [settings, setSettings] = useRecoilState(registerSettingsState)
   const { permission, checkPermission } = usePermission()
+
+  // 서버에서 상품 목록 불러오기
+  const loadProducts = useRecoilCallback(
+    ({ set }) =>
+      async () => {
+        try {
+          const serverProducts = await ipcRenderer.invoke('get-products')
+          set(productDataState, serverProducts || [])
+          return serverProducts || []
+        } catch (error) {
+          console.error('Failed to load products from server:', error)
+          return []
+        }
+      },
+    [],
+  )
 
   const syncAccountPresets = useRecoilCallback(
     ({ set, snapshot }) =>
@@ -50,7 +66,7 @@ export const useRegister = () => {
     [],
   )
 
-  // Excel 데이터 업로드 (LS 저장)
+  // Excel 데이터 업로드 → 서버에 저장
   const uploadExcelData = useRecoilCallback(
     ({ set }) =>
       async (filePath: string) => {
@@ -63,28 +79,126 @@ export const useRegister = () => {
 
           set(registerSettingsState, prev => ({ ...prev, loading: true }))
 
+          // 서버에서 엑셀 로드 → ExcelRegistrationData[] 반환
           const productsData = await ipcRenderer.invoke('load-excel-data', {
             excelPath: filePath,
             fileDir: settingsData.fileDir,
           })
 
-          const loadedData = productsData.map((p: any, index: number) => ({
-            key: `${Date.now()}-${index}`, // 고유 키 생성
-            goodsName: p.goodsName || '',
-            spec: p.spec || '',
-            modelName: p.modelName || '',
+          // ExcelRegistrationData를 Product로 변환하여 서버에 저장
+          // 서버 측에서 convert 후 save
+          const products: Product[] = productsData.map((p: any, index: number) => ({
+            id: `excel-${Date.now()}-${index}`,
+            name: p.goodsName || p['물품명'] || '',
+            spec: p.spec || p['규격'] || '',
+            modelName: p.modelName || p['모델명'] || '',
+            manufacturer: p.factory || p['제조사'] || '',
+            material: p.material || p['소재/재질'] || '',
+            salesUnit: p.salesUnit || p['판매단위'] || '개',
+            stockQuantity: parseInt(p.remainQnt || '9999', 10) || 9999,
+            price: parseInt(p.estimateAmt || '0', 10) || 0,
+            taxType: p.taxType || '과세(세금계산서)',
+            saleType: p.saleTypeText || '물품',
+            warranty: p.assure || '1년',
+            category1: p.category1 || '',
+            category2: p.category2 || '',
+            category3: p.category3 || '',
+            g2bNumber: p.g2bNumber || '',
+            deliveryPeriod: p.deliveryLimitText || '7일',
+            quoteValidity: p.estimateValidity || '30일',
+            deliveryFeeType: p.deliveryFeeKindText || '무료',
+            deliveryFee: parseFloat(p.deliveryFee || '0') || 0,
+            returnFee: parseFloat(p.returnFee || '3500') || 3500,
+            bundleShipping: (p.deliveryGroupYn || 'Y') === 'Y',
+            jejuShipping: (p.jejuDeliveryYn || 'N') === 'Y',
+            jejuAdditionalFee: parseFloat(p.jejuDeliveryFee || '0') || 0,
+            deliveryMethod: p.deliveryMethod || '택배',
+            deliveryAreas: p.deliveryAreas || [],
+            image1: p.image1 || '',
+            image2: p.image2 || '',
+            addImage1: p.addImage1 || '',
+            addImage2: p.addImage2 || '',
+            detailImage: p.detailImage || '',
+            detailHtml: p.detailHtml || '',
+            originType: p.originType || '국내',
+            originLocal: p.originLocal || '',
+            originForeign: p.originForeign || '',
+            kidsKcType: p.kidsKcType || 'N',
+            kidsKcCertId: p.kidsKcCertId || '',
+            kidsKcFile: p.kidsKcFile || '',
+            elecKcType: p.elecKcType || 'N',
+            elecKcCertId: p.elecKcCertId || '',
+            elecKcFile: p.elecKcFile || '',
+            dailyKcType: p.dailyKcType || 'N',
+            dailyKcCertId: p.dailyKcCertId || '',
+            dailyKcFile: p.dailyKcFile || '',
+            broadcastingKcType: p.broadcastingKcType || 'N',
+            broadcastingKcCertId: p.broadcastingKcCertId || '',
+            broadcastingKcFile: p.broadcastingKcFile || '',
+            childExitCheckerKcType: p.childExitCheckerKcType || 'N',
+            childExitCheckerKcCertId: '',
+            childExitCheckerKcFile: '',
+            safetyCheckKcType: p.safetyCheckKcType || 'N',
+            safetyCheckKcCertId: '',
+            safetyCheckKcFile: '',
+            consumptionPeriodType: '',
+            consumptionPeriodValue: '',
+            ratedPower: '',
+            sizeAndWeight: '',
+            sameModelDate: '',
+            coolingHeatingArea: '',
+            productComposition: '',
+            safetyMark: '',
+            capacity: '',
+            mainSpec: '',
+            certWoman: false,
+            certDisabledCompany: false,
+            certFoundation: false,
+            certDisabled: false,
+            certSevereDisabled: false,
+            certCooperation: false,
+            certSociety: false,
+            certRecycle: false,
+            certEnvironment: false,
+            certLowCarbon: false,
+            certSwQuality: false,
+            certNep: false,
+            certNet: false,
+            certGreenProduct: false,
+            certEpc: false,
+            certProcure: false,
+            certTown: false,
+            certSelf: false,
+            certCollaboration: false,
+            certReserve: false,
+            ppsContractYn: false,
+            ppsContractStartDate: '',
+            ppsContractEndDate: '',
+            phone: p.asTelephone1 || '',
+            asPhone: p.asTelephone2 || '',
+            naraRegistered: false,
+            naraPrice: '',
+            otherSiteName: '',
+            otherSiteUrl: '',
+            otherSiteRegistered: false,
+            otherSitePrice: '',
+            addressCode: '',
+            address: '',
+            addressDetail: '',
+            approvalRequest: '',
+            sourceUrl: '',
+            listThumbnail: '',
             result: '',
-            originalData: p,
           }))
 
-          // 기존 데이터 뒤에 추가할지, 덮어쓸지 선택 가능하나 일단 덮어쓰기(DB 교체)로 구현
-          set(productDataState, loadedData)
+          const savedProducts = await ipcRenderer.invoke('save-products', { products })
+          set(productDataState, savedProducts)
           set(
             selectedProductKeysState,
-            loadedData.map((item: any) => item.key),
+            products.map((item: Product) => item.id),
           )
 
-          message.success(`${loadedData.length}개의 상품 정보를 DB(LocalStorage)에 저장했습니다.`)
+          message.success(`${products.length}개의 상품 정보를 저장했습니다.`)
         } catch (error) {
           console.error('Failed to upload Excel data:', error)
           message.error('데이터 업로드에 실패했습니다.')
@@ -95,10 +209,11 @@ export const useRegister = () => {
     [],
   )
 
-  // 모든 상품 삭제 (DB 초기화)
+  // 모든 상품 삭제
   const clearProducts = useRecoilCallback(
     ({ set }) =>
-      () => {
+      async () => {
+        await ipcRenderer.invoke('clear-products')
         set(productDataState, [])
         set(selectedProductKeysState, [])
         message.success('등록 목록이 초기화되었습니다.')
@@ -131,7 +246,6 @@ export const useRegister = () => {
       async () => {
         try {
           const currentSelectedKeys = await snapshot.getPromise(selectedProductKeysState)
-          const currentProducts = await snapshot.getPromise(productDataState)
 
           if (currentSelectedKeys.length === 0) {
             message.warning('등록할 상품을 선택해주세요.')
@@ -149,25 +263,15 @@ export const useRegister = () => {
 
           set(registerSettingsState, prev => ({ ...prev, loading: true }))
 
-          // 전체 데이터 유지, 선택 여부 포함
-          const allProducts = currentProducts.map(item => ({
-            ...item.originalData,
-            selected: currentSelectedKeys.includes(item.key),
-          }))
-
+          // 서버에 productIds를 전달 (Product → ExcelRegistrationData 변환은 서버에서)
           const result = await ipcRenderer.invoke('start-and-register-products', {
-            allProducts,
+            productIds: currentSelectedKeys,
             accountId: selectedAccount.id,
           })
 
-          if (Array.isArray(result?.productResults)) {
-            set(productDataState, prev =>
-              prev.map((item, index) => ({
-                ...item,
-                result: result.productResults[index] || '',
-              })),
-            )
-          }
+          // 서버에서 업데이트된 상품 목록 다시 불러오기
+          const updatedProducts = await ipcRenderer.invoke('get-products')
+          set(productDataState, updatedProducts)
 
           await syncAccountPresets()
 
@@ -262,17 +366,14 @@ export const useRegister = () => {
     [checkPermission],
   )
 
-  // 상품 추가 (소싱 페이지 등에서 호출)
+  // 상품 추가 (소싱 페이지 등에서 호출) → 서버에 저장
   const addProducts = useRecoilCallback(
     ({ set }) =>
-      (newProducts: ProductData[]) => {
-        set(productDataState, prev => {
-          // 중복 체크 (기존에 동일한 key나 데이터가 있는지 확인 가능하지만, 일단 단순 추가)
-          return [...prev, ...newProducts]
-        })
-        // 새로 추가된 상품들 선택 상태로 만들기
+      async (newProducts: Product[]) => {
+        const savedProducts = await ipcRenderer.invoke('save-products', { products: newProducts })
+        set(productDataState, savedProducts)
         set(selectedProductKeysState, prev => {
-          const newKeys = newProducts.map(p => p.key)
+          const newKeys = newProducts.map(p => p.id)
           return [...prev, ...newKeys]
         })
         message.success(`${newProducts.length}개의 상품이 등록 목록에 추가되었습니다.`)
@@ -280,23 +381,28 @@ export const useRegister = () => {
     [],
   )
 
-  // 상품 삭제
+  // 상품 삭제 → 서버에서 삭제
   const removeProducts = useRecoilCallback(
     ({ set }) =>
-      (keys: React.Key[]) => {
-        const keySet = new Set(keys)
-        set(productDataState, prev => prev.filter(p => !keySet.has(p.key)))
-        set(selectedProductKeysState, prev => prev.filter(k => !keySet.has(k)))
-        message.success(`${keys.length}개의 상품이 삭제되었습니다.`)
+      async (ids: string[]) => {
+        const updatedProducts = await ipcRenderer.invoke('delete-products', { ids })
+        set(productDataState, updatedProducts)
+        set(selectedProductKeysState, prev => prev.filter(k => !ids.includes(k)))
+        message.success(`${ids.length}개의 상품이 삭제되었습니다.`)
       },
     [],
   )
 
-  // 상품 수정
+  // 상품 수정 → 서버에 저장
   const updateProduct = useRecoilCallback(
     ({ set }) =>
-      (key: string, updatedData: Partial<ProductData>) => {
-        set(productDataState, prev => prev.map(p => (p.key === key ? { ...p, ...updatedData } : p)))
+      async (id: string, updatedData: Partial<Product>) => {
+        const currentProducts = await ipcRenderer.invoke('get-products')
+        const target = currentProducts.find((p: Product) => p.id === id)
+        if (!target) return
+        const updated = { ...target, ...updatedData }
+        const savedProducts = await ipcRenderer.invoke('update-product', { product: updated })
+        set(productDataState, savedProducts)
       },
     [],
   )
@@ -308,6 +414,7 @@ export const useRegister = () => {
     settings,
     permission,
     checkPermission,
+    loadProducts,
     uploadExcelData,
     clearProducts,
     openResultFolder,

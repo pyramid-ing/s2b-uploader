@@ -14,7 +14,7 @@ import {
 import type { ColumnsType } from 'antd/es/table'
 import { useLog } from '../hooks/useLog'
 import { useRegister } from '../hooks/useRegister'
-import { ProductData } from '../stores/registerStore'
+import { Product } from '../stores/registerStore'
 import EditProductModal from '../components/EditProductModal'
 
 const Register: React.FC = () => {
@@ -28,7 +28,7 @@ const Register: React.FC = () => {
     checkPermission,
     uploadExcelData,
     clearProducts,
-    openResultFolder,
+    loadProducts,
     registerProducts,
     cancelRegistration,
     updateSelectedAccountId,
@@ -43,17 +43,18 @@ const Register: React.FC = () => {
 
   // 수정 모달 상태
   const [isEditModalVisible, setIsEditModalVisible] = useState(false)
-  const [editingProduct, setEditingProduct] = useState<ProductData | null>(null)
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null)
 
   useEffect(() => {
     ;(async () => {
+      await loadProducts()
       const synced = await syncAccountPresets()
       const targetAccount = synced.accounts.find((account: any) => account.id === synced.selectedAccountId)
       await checkPermission(targetAccount?.loginId)
       const ipResult = await ipcRenderer.invoke('get-current-public-ip')
       setCurrentPublicIp(ipResult?.success ? ipResult.ip : '')
     })()
-  }, [checkPermission, syncAccountPresets])
+  }, [checkPermission, syncAccountPresets, loadProducts])
 
   // 로그 업데이트 시 스크롤을 맨 아래로 이동
   useEffect(() => {
@@ -62,13 +63,12 @@ const Register: React.FC = () => {
     }
   }, [logs])
 
-  const columns: ColumnsType<ProductData> = [
+  const columns: ColumnsType<Product> = [
     {
       title: '상품 정보',
       key: 'productInfo',
       render: (_, record) => {
-        const d = record.originalData || {}
-        const thumbnail = d.image1 || d.listThumbnail
+        const thumbnail = record.image1 || record.listThumbnail
         return (
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <div
@@ -112,9 +112,9 @@ const Register: React.FC = () => {
                   textOverflow: 'ellipsis',
                   whiteSpace: 'nowrap',
                 }}
-                title={record.goodsName}
+                title={record.name}
               >
-                {record.goodsName}
+                {record.name}
               </div>
               <div style={{ fontSize: 12, color: '#999', marginTop: 2 }}>
                 {record.modelName || '모델명 없음'} | {record.spec || '규격 없음'}
@@ -129,8 +129,7 @@ const Register: React.FC = () => {
       key: 'category',
       width: 200,
       render: (_, record) => {
-        const d = record.originalData || {}
-        const cats = [d.category1, d.category2, d.category3].filter(Boolean)
+        const cats = [record.category1, record.category2, record.category3].filter(Boolean)
         return (
           <div style={{ fontSize: 12, color: '#666' }}>
             {cats.length > 0 ? (
@@ -153,7 +152,7 @@ const Register: React.FC = () => {
       width: 120,
       align: 'right',
       render: (_, record) => {
-        const price = Number(record.originalData?.estimateAmt) || 0
+        const price = record.price || 0
         return <div style={{ fontWeight: 500, color: '#111' }}>{price.toLocaleString()}원</div>
       },
     },
@@ -212,7 +211,7 @@ const Register: React.FC = () => {
           <Popconfirm
             title="상품 삭제"
             description="이 상품을 목록에서 삭제하시겠습니까?"
-            onConfirm={() => removeProducts([record.key])}
+            onConfirm={() => removeProducts([record.id])}
             okText="삭제"
             cancelText="취소"
             okButtonProps={{ danger: true }}
@@ -411,10 +410,11 @@ const Register: React.FC = () => {
           <Table
             columns={columns}
             dataSource={products}
+            rowKey="id"
             rowSelection={{
               type: 'checkbox',
               selectedRowKeys: selectedKeys,
-              onChange: setSelectedKeys,
+              onChange: keys => setSelectedKeys(keys as string[]),
               getCheckboxProps: () => ({
                 disabled: permission.hasPermission === false || settings.loading,
               }),
@@ -436,7 +436,7 @@ const Register: React.FC = () => {
       <EditProductModal
         visible={isEditModalVisible}
         product={editingProduct}
-        onSave={updateProduct}
+        onSave={(id, updatedData) => updateProduct(id, updatedData)}
         onCancel={() => {
           setIsEditModalVisible(false)
           setEditingProduct(null)
