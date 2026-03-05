@@ -1,5 +1,20 @@
 import React, { useEffect, useState } from 'react'
-import { Modal, Form, Input, Divider, Tabs, Select, Radio, Row, Col, Button, Image, Card, Cascader } from 'antd'
+import {
+  Modal,
+  Form,
+  Input,
+  InputNumber,
+  Divider,
+  Tabs,
+  Select,
+  Radio,
+  Row,
+  Col,
+  Button,
+  Image,
+  Card,
+  Cascader,
+} from 'antd'
 import { FolderOpenOutlined, LinkOutlined } from '@ant-design/icons'
 import { ProductData } from '../stores/registerStore'
 import { buildCategoryTree, CATEGORY_STORAGE_KEY, DEFAULT_CATEGORY_EXCEL_PATH } from '../constants/categories'
@@ -520,12 +535,23 @@ const EditProductModal: React.FC<EditProductModalProps> = ({ visible, product, o
           <Row gutter={16}>
             <Col span={12}>
               <Form.Item name="estimateAmt" label="제시금액" rules={[{ required: true }]}>
-                <Input placeholder="제시 금액(원) 입력" />
+                <InputNumber
+                  style={{ width: '100%' }}
+                  placeholder="제시 금액 입력"
+                  addonAfter="원"
+                  formatter={value => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+                  parser={value => value!.replace(/\$\s?|(,*)/g, '')}
+                />
               </Form.Item>
             </Col>
             <Col span={6}>
               <Form.Item name="remainQnt" label="재고수량" rules={[{ required: true }]}>
-                <Input placeholder="재고 수량" />
+                <InputNumber
+                  style={{ width: '100%' }}
+                  placeholder="재고 수량"
+                  formatter={value => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+                  parser={value => value!.replace(/\$\s?|(,*)/g, '')}
+                />
               </Form.Item>
             </Col>
             <Col span={6}>
@@ -585,12 +611,24 @@ const EditProductModal: React.FC<EditProductModalProps> = ({ visible, product, o
             </Col>
             <Col span={8}>
               <Form.Item name="deliveryFee" label="배송비" rules={[{ required: true }]}>
-                <Input placeholder="금액 입력" />
+                <InputNumber
+                  style={{ width: '100%' }}
+                  placeholder="금액 입력"
+                  addonAfter="원"
+                  formatter={value => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+                  parser={value => value!.replace(/\$\s?|(,*)/g, '')}
+                />
               </Form.Item>
             </Col>
             <Col span={8}>
               <Form.Item name="returnFee" label="반품배송비" rules={[{ required: true }]}>
-                <Input placeholder="금액 입력" />
+                <InputNumber
+                  style={{ width: '100%' }}
+                  placeholder="금액 입력"
+                  addonAfter="원"
+                  formatter={value => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+                  parser={value => value!.replace(/\$\s?|(,*)/g, '')}
+                />
               </Form.Item>
             </Col>
           </Row>
@@ -607,7 +645,13 @@ const EditProductModal: React.FC<EditProductModalProps> = ({ visible, product, o
             </Col>
             <Col span={8}>
               <Form.Item name="jejuDeliveryFee" label="제주추가배송비" rules={[{ required: true }]}>
-                <Input placeholder="제주 추가 금액" />
+                <InputNumber
+                  style={{ width: '100%' }}
+                  placeholder="제주 추가 금액"
+                  addonAfter="원"
+                  formatter={value => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+                  parser={value => value!.replace(/\$\s?|(,*)/g, '')}
+                />
               </Form.Item>
             </Col>
           </Row>
@@ -858,7 +902,13 @@ const EditProductModal: React.FC<EditProductModalProps> = ({ visible, product, o
                   <Row gutter={16}>
                     <Col span={12}>
                       <Form.Item name="naraAmt" label="나라장터등록가격">
-                        <Input placeholder="등록가격" />
+                        <InputNumber
+                          style={{ width: '100%' }}
+                          placeholder="등록가격"
+                          addonAfter="원"
+                          formatter={value => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+                          parser={value => value!.replace(/\$\s?|(,*)/g, '')}
+                        />
                       </Form.Item>
                     </Col>
                   </Row>
@@ -877,7 +927,13 @@ const EditProductModal: React.FC<EditProductModalProps> = ({ visible, product, o
                     </Col>
                     <Col span={8}>
                       <Form.Item name="otherSiteAmt" label="타사이트등록가격">
-                        <Input placeholder="등록가격" />
+                        <InputNumber
+                          style={{ width: '100%' }}
+                          placeholder="등록가격"
+                          addonAfter="원"
+                          formatter={value => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+                          parser={value => value!.replace(/\$\s?|(,*)/g, '')}
+                        />
                       </Form.Item>
                     </Col>
                   </Row>
@@ -905,7 +961,7 @@ const EditProductModal: React.FC<EditProductModalProps> = ({ visible, product, o
       cancelText="취소"
       centered
     >
-      <Form form={form} layout="vertical" validateMessages={validateMessages}>
+      <Form form={form} layout="vertical" validateMessages={validateMessages} size="large">
         <Tabs activeKey={activeTab} onChange={setActiveTab} items={items} />
       </Form>
     </Modal>
