@@ -317,64 +317,6 @@ const isIgnorableError = (errorMessage: string): boolean => {
   return ignoredErrorPatterns.some(pattern => errorMessage.includes(pattern))
 }
 
-const saveExcelResult = async (allProducts: ExcelRegistrationData[]) => {
-  try {
-    const settings = store.get('settings')
-    const originalPath = settings.excelPath // 원본 엑셀 파일 경로
-    const logDir = path.join(settings.fileDir, 'log') // log 폴더 경로
-
-    // ✅ log 폴더 없으면 생성
-    if (!fsSync.existsSync(logDir)) {
-      fsSync.mkdirSync(logDir, { recursive: true })
-    }
-
-    const workbook = XLSX.readFile(originalPath)
-    const sheet = workbook.Sheets[workbook.SheetNames[0]]
-
-    // ✅ JSON으로 변환 (1행을 헤더로 사용)
-    const rows: any[] = XLSX.utils.sheet_to_json(sheet, { defval: '', raw: false })
-
-    if (rows.length === 0) {
-      console.error('엑셀 파일이 비어 있습니다.')
-      return
-    }
-
-    // ✅ "결과" 열이 없으면 추가
-    if (!rows[0].hasOwnProperty('결과')) {
-      rows.forEach(row => {
-        row['결과'] = '' // 새로운 열 추가
-      })
-    } else {
-      // ✅ 기존 결과 초기화
-      rows.forEach(row => {
-        row['결과'] = ''
-      })
-    }
-
-    // ✅ 선택된 상품만 결과 업데이트
-    allProducts.forEach((product, index) => {
-      if (product.selected) {
-        // ✅ 상품 데이터 정리 적용
-        const sanitizedProduct = sanitizeProductData(product)
-        rows[index]['결과'] = sanitizedProduct.result || '알 수 없음' // ✅ 선택된 상품만 결과 입력
-      }
-    })
-
-    // ✅ 결과 파일을 log 폴더에 저장
-    const timestamp = dayjs().format('YYYYMMDD_HHmmss')
-    const resultPath = path.join(logDir, `결과_${timestamp}.xlsx`)
-
-    // ✅ JSON 데이터를 다시 엑셀 형식으로 변환
-    const updatedSheet = XLSX.utils.json_to_sheet(rows)
-    workbook.Sheets[workbook.SheetNames[0]] = updatedSheet
-    XLSX.writeFile(workbook, resultPath)
-
-    return resultPath
-  } catch (error) {
-    console.error('엑셀 결과 저장 실패:', error)
-  }
-}
-
 interface StoreSchema {
   settings: {
     fileDir: string
@@ -879,14 +821,14 @@ function setupIpcHandlers() {
         }
       } catch (error) {
         sendLogToRenderer(`에러 발생: ${error.message}`, 'error')
+        console.error(error)
+
         return {
           success: false,
           error: error.message || 'Unknown error occurred.',
           productResults: allProducts.map(product => product.result || ''),
         }
       } finally {
-        const resultPath = await saveExcelResult(allProducts)
-        sendLogToRenderer(`결과 파일 저장 완료: ${resultPath}`, 'info')
         await registration?.close()
       }
     },
