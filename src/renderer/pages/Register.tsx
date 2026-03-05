@@ -1,9 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { Alert, Button, Card, Space, Table, Select, Tag } from 'antd'
+import { Alert, Button, Card, Space, Table, Select, Tag, Popconfirm } from 'antd'
 import {
   StopOutlined,
   UploadOutlined,
   EditOutlined,
+  DeleteOutlined,
   UserOutlined,
   GlobalOutlined,
   InfoCircleOutlined,
@@ -32,6 +33,7 @@ const Register: React.FC = () => {
     cancelRegistration,
     updateSelectedAccountId,
     syncAccountPresets,
+    removeProducts,
     updateProduct,
   } = useRegister()
 
@@ -193,19 +195,31 @@ const Register: React.FC = () => {
     {
       title: '관리',
       key: 'action',
-      width: 80,
+      width: 100,
       align: 'center',
       render: (_, record) => (
-        <Button
-          type="text"
-          shape="circle"
-          icon={<EditOutlined />}
-          onClick={() => {
-            setEditingProduct(record)
-            setIsEditModalVisible(true)
-          }}
-          title="수정"
-        />
+        <Space size={4}>
+          <Button
+            type="text"
+            shape="circle"
+            icon={<EditOutlined />}
+            onClick={() => {
+              setEditingProduct(record)
+              setIsEditModalVisible(true)
+            }}
+            title="수정"
+          />
+          <Popconfirm
+            title="상품 삭제"
+            description="이 상품을 목록에서 삭제하시겠습니까?"
+            onConfirm={() => removeProducts([record.key])}
+            okText="삭제"
+            cancelText="취소"
+            okButtonProps={{ danger: true }}
+          >
+            <Button type="text" shape="circle" icon={<DeleteOutlined />} danger title="삭제" />
+          </Popconfirm>
+        </Space>
       ),
     },
   ]
@@ -348,6 +362,25 @@ const Register: React.FC = () => {
               >
                 상품 엑셀 업로드
               </Button>
+              <Popconfirm
+                title="선택 상품 삭제"
+                description={`선택된 ${selectedCount}개의 상품을 목록에서 삭제하시겠습니까?`}
+                onConfirm={() => removeProducts(selectedKeys)}
+                okText="삭제"
+                cancelText="취소"
+                okButtonProps={{ danger: true }}
+                disabled={selectedCount === 0 || settings.loading}
+              >
+                <Button
+                  size="large"
+                  danger
+                  icon={<DeleteOutlined />}
+                  disabled={selectedCount === 0 || settings.loading}
+                  style={{ borderRadius: 10, fontWeight: 600 }}
+                >
+                  선택 삭제
+                </Button>
+              </Popconfirm>
               <Button
                 size="large"
                 type="primary"

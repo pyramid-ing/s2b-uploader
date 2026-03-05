@@ -280,6 +280,18 @@ export const useRegister = () => {
     [],
   )
 
+  // 상품 삭제
+  const removeProducts = useRecoilCallback(
+    ({ set }) =>
+      (keys: React.Key[]) => {
+        const keySet = new Set(keys)
+        set(productDataState, prev => prev.filter(p => !keySet.has(p.key)))
+        set(selectedProductKeysState, prev => prev.filter(k => !keySet.has(k)))
+        message.success(`${keys.length}개의 상품이 삭제되었습니다.`)
+      },
+    [],
+  )
+
   // 상품 수정
   const updateProduct = useRecoilCallback(
     ({ set }) =>
@@ -307,6 +319,7 @@ export const useRegister = () => {
     updateSelectedAccountId,
     syncAccountPresets,
     addProducts,
+    removeProducts,
     updateProduct,
   }
 }
