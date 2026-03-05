@@ -742,6 +742,33 @@ function setupIpcHandlers() {
     }
   })
 
+  ipcMain.handle('download-sample-excel', async () => {
+    try {
+      const { canceled, filePath } = await dialog.showSaveDialog(mainWindow!, {
+        title: '샘플 엑셀 다운로드',
+        defaultPath: 'S2B_상품등록_샘플.xlsx',
+        filters: [{ name: 'Excel Files', extensions: ['xlsx'] }],
+      })
+
+      if (canceled || !filePath) return { success: false, cancelled: true }
+
+      const samplePath = app.isPackaged
+        ? path.join(process.resourcesPath, 'files', 'sample_registration.xlsx')
+        : path.join(__dirname, '../../files', 'sample_registration.xlsx')
+
+      if (!fsSync.existsSync(samplePath)) {
+        throw new Error('샘플 파일을 찾을 수 없습니다.')
+      }
+
+      fsSync.copyFileSync(samplePath, filePath)
+
+      return { success: true, filePath }
+    } catch (error) {
+      console.error('Failed to download sample excel:', error)
+      return { success: false, error: (error as Error).message }
+    }
+  })
+
   ipcMain.handle('modify-excel-data', async (_, { excelPath }: { excelPath: string }) => {
     try {
       const workbook = XLSX.readFile(excelPath)

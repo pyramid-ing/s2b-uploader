@@ -132,6 +132,30 @@ export const useRegister = () => {
     [],
   )
 
+  const downloadSampleExcel = useRecoilCallback(
+    ({ set }) =>
+      async () => {
+        try {
+          set(registerSettingsState, prev => ({ ...prev, loading: true }))
+          const result = await ipcRenderer.invoke('download-sample-excel')
+          if (result?.cancelled) {
+            return
+          }
+          if (result?.success) {
+            message.success('샘플 엑셀 파일이 성공적으로 다운로드되었습니다.')
+          } else {
+            message.error(result?.error || '다운로드 중 오류가 발생했습니다.')
+          }
+        } catch (error) {
+          console.error('Failed to download sample excel:', error)
+          message.error('다운로드 중 오류가 발생했습니다.')
+        } finally {
+          set(registerSettingsState, prev => ({ ...prev, loading: false }))
+        }
+      },
+    [],
+  )
+
   const uploadExcelModifyData = useRecoilCallback(
     ({ set }) =>
       async (filePath: string) => {
@@ -376,5 +400,6 @@ export const useRegister = () => {
     updateProduct,
     downloadExcelData,
     uploadExcelModifyData,
+    downloadSampleExcel,
   }
 }

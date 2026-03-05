@@ -2,7 +2,6 @@ import React, { useEffect, useRef, useState } from 'react'
 import { Alert, Button, Card, Space, Table, Select, Tag, Popconfirm } from 'antd'
 import {
   StopOutlined,
-  UploadOutlined,
   EditOutlined,
   DeleteOutlined,
   UserOutlined,
@@ -11,6 +10,8 @@ import {
   CheckCircleOutlined,
   SyncOutlined,
   DownloadOutlined,
+  UploadOutlined,
+  FileExcelOutlined,
 } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import { useLog } from '../hooks/useLog'
@@ -38,6 +39,7 @@ const Register: React.FC = () => {
     updateProduct,
     downloadExcelData,
     uploadExcelModifyData,
+    downloadSampleExcel,
   } = useRegister()
 
   const { ipcRenderer } = (window as any).require('electron')
@@ -300,14 +302,16 @@ const Register: React.FC = () => {
             borderRadius: 16,
             marginBottom: 24,
             opacity: permission.hasPermission === false ? 0.6 : 1,
+            padding: '8px 16px',
           }}
         >
+          {/* 상단 액션 행: 계정 선택 및 최종 등록 버튼 */}
           <div
             style={{
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
-              marginBottom: 24,
+              marginBottom: 32,
               gap: 16,
               flexWrap: 'wrap',
             }}
@@ -355,83 +359,25 @@ const Register: React.FC = () => {
               </Tag>
             </Space>
 
-            <Space size={12}>
-              <Button
-                size="large"
-                icon={<UploadOutlined />}
-                onClick={async () => {
-                  const filePath = await ipcRenderer.invoke('select-excel')
-                  if (filePath) {
-                    await uploadExcelData(filePath)
-                  }
-                }}
-                loading={settings.loading}
-                disabled={permission.hasPermission === false}
-                style={{ borderRadius: 10, fontWeight: 600, height: 48, fontSize: 16 }}
-              >
-                신규 엑셀 업로드
-              </Button>
-              <Button
-                size="large"
-                icon={<UploadOutlined />}
-                onClick={async () => {
-                  const filePath = await ipcRenderer.invoke('select-excel')
-                  if (filePath) {
-                    await uploadExcelModifyData(filePath)
-                  }
-                }}
-                loading={settings.loading}
-                disabled={permission.hasPermission === false || totalCount === 0}
-                style={{ borderRadius: 10, fontWeight: 600, height: 48, fontSize: 16 }}
-              >
-                수정용 엑셀 업로드
-              </Button>
-              <Button
-                size="large"
-                icon={<DownloadOutlined />}
-                onClick={downloadExcelData}
-                loading={settings.loading}
-                disabled={totalCount === 0}
-                style={{ borderRadius: 10, fontWeight: 600, height: 48, fontSize: 16 }}
-              >
-                현재 리스트 다운로드
-              </Button>
-              <Popconfirm
-                title="선택 상품 삭제"
-                description={`선택된 ${selectedCount}개의 상품을 정말로 삭제하시겠습니까?`}
-                onConfirm={() => removeProducts(selectedKeys)}
-                okText="예, 삭제합니다"
-                cancelText="아니오"
-                okButtonProps={{ danger: true, size: 'large' }}
-                cancelButtonProps={{ size: 'large' }}
-                disabled={selectedCount === 0 || settings.loading}
-              >
-                <Button
-                  size="large"
-                  danger
-                  icon={<DeleteOutlined />}
-                  disabled={selectedCount === 0 || settings.loading}
-                  style={{ borderRadius: 10, fontWeight: 700, height: 48, fontSize: 16 }}
-                >
-                  선택 항목 삭제
-                </Button>
-              </Popconfirm>
+            <div style={{ display: 'flex', gap: 12 }}>
               <Button
                 size="large"
                 type="primary"
-                icon={<CheckCircleOutlined />}
+                icon={<CheckCircleOutlined style={{ fontSize: 24 }} />}
                 onClick={registerProducts}
                 loading={settings.loading}
                 disabled={
                   selectedKeys.length === 0 || permission.hasPermission === false || !settings.selectedAccountId
                 }
                 style={{
-                  borderRadius: 10,
-                  fontWeight: 700,
-                  paddingLeft: 32,
-                  paddingRight: 32,
-                  height: 48,
-                  fontSize: 16,
+                  borderRadius: 14,
+                  fontWeight: 900,
+                  padding: '0 48px',
+                  height: 64,
+                  fontSize: 22,
+                  background: '#52c41a',
+                  borderColor: '#52c41a',
+                  boxShadow: '0 6px 16px rgba(82, 196, 26, 0.35)',
                 }}
               >
                 학교장터에 등록 시작
@@ -443,11 +389,144 @@ const Register: React.FC = () => {
                 icon={<StopOutlined />}
                 onClick={cancelRegistration}
                 disabled={!settings.loading}
-                style={{ borderRadius: 10, fontWeight: 700, height: 48, fontSize: 16 }}
+                style={{ borderRadius: 14, fontWeight: 700, height: 64, fontSize: 18, minWidth: 120 }}
               >
-                작업 중단
+                중단
               </Button>
-            </Space>
+            </div>
+          </div>
+
+          {/* 중간 도구함: 엑셀 편의 도구 (선택 사항) */}
+          <div
+            style={{
+              background: '#f9fafb',
+              padding: '24px',
+              borderRadius: 20,
+              border: '1px solid #eee',
+              marginBottom: 32,
+            }}
+          >
+            <div
+              style={{
+                fontSize: 16,
+                color: '#555',
+                fontWeight: 700,
+                marginBottom: 16,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+              }}
+            >
+              <FileExcelOutlined style={{ color: '#1d6f42' }} /> 📊 대량 등록/수정용 엑셀 도구 (선택 사항)
+            </div>
+
+            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <Button
+                  size="large"
+                  icon={<UploadOutlined />}
+                  onClick={async () => {
+                    const filePath = await ipcRenderer.invoke('select-excel')
+                    if (filePath) {
+                      await uploadExcelData(filePath)
+                    }
+                  }}
+                  loading={settings.loading}
+                  style={{
+                    borderRadius: 12,
+                    fontWeight: 600,
+                    height: 52,
+                    fontSize: 16,
+                    minWidth: 200,
+                    backgroundColor: '#fff',
+                  }}
+                >
+                  작성한 엑셀 파일 올리기
+                </Button>
+                <span style={{ fontSize: 12, color: '#999', textAlign: 'center' }}>목록에 일괄 추가</span>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <Button
+                  size="large"
+                  icon={<EditOutlined />}
+                  onClick={async () => {
+                    const filePath = await ipcRenderer.invoke('select-excel')
+                    if (filePath) {
+                      await uploadExcelModifyData(filePath)
+                    }
+                  }}
+                  loading={settings.loading}
+                  style={{ borderRadius: 12, fontWeight: 600, height: 52, fontSize: 16, minWidth: 200 }}
+                >
+                  기존 상품 정보 수정하기
+                </Button>
+                <span style={{ fontSize: 12, color: '#999', textAlign: 'center' }}>엑셀로 내용 수정</span>
+              </div>
+
+              <div style={{ width: 1, height: 40, background: '#e5e7eb', margin: '0 8px', alignSelf: 'flex-start' }} />
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <Button
+                  size="large"
+                  icon={<DownloadOutlined />}
+                  onClick={downloadExcelData}
+                  loading={settings.loading}
+                  disabled={totalCount === 0}
+                  style={{
+                    borderRadius: 12,
+                    fontWeight: 700,
+                    height: 52,
+                    fontSize: 16,
+                    minWidth: 220,
+                    borderColor: selectedCount > 0 ? '#1890ff' : '#d9d9d9',
+                    color: selectedCount > 0 ? '#1890ff' : 'rgba(0, 0, 0, 0.88)',
+                  }}
+                >
+                  {selectedCount > 0 ? `선택한 ${selectedCount}개 다운로드` : '전체 리스트 다운로드'}
+                </Button>
+                <span style={{ fontSize: 12, color: '#999', textAlign: 'center' }}>엑셀 파일로 저장</span>
+              </div>
+            </div>
+          </div>
+
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'flex-end',
+              alignItems: 'center',
+              marginBottom: 12,
+              padding: '0 4px',
+            }}
+          >
+            <Popconfirm
+              title="선택 상품 삭제"
+              description={`선택된 ${selectedCount}개의 상품을 정말로 삭제하시겠습니까?`}
+              onConfirm={() => removeProducts(selectedKeys)}
+              okText="예, 삭제합니다"
+              cancelText="아니오"
+              okButtonProps={{ danger: true, size: 'large' }}
+              cancelButtonProps={{ size: 'large' }}
+              disabled={selectedCount === 0 || settings.loading}
+            >
+              <Button
+                size="large"
+                danger
+                type="primary"
+                ghost
+                icon={<DeleteOutlined />}
+                disabled={selectedCount === 0 || settings.loading}
+                style={{
+                  fontWeight: 700,
+                  fontSize: 16,
+                  height: 48,
+                  borderRadius: 10,
+                  padding: '0 24px',
+                }}
+              >
+                선택한 항목({selectedCount}) 삭제하기
+              </Button>
+            </Popconfirm>
           </div>
 
           <Table
