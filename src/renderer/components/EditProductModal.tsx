@@ -119,6 +119,37 @@ const KC_TYPE_OPTIONS = [
   { label: '없음', value: 'N' },
 ]
 
+const CONSUMPTION_PERIOD_OPTIONS = [
+  { label: '제품에 별도 표시', value: '제품에 별도 표시' },
+  { label: '제조일로부터 1년', value: '제조일로부터 1년' },
+  { label: '상세설명에 별도표시', value: '상세설명에 별도표시' },
+  { label: '제조일/가공일로부터 14일 이내 물품 발송', value: '제조일/가공일로부터 14일 이내 물품 발송' },
+  { label: '직접입력', value: '직접입력' },
+]
+
+const CERT_FIELDS = [
+  { name: 'womanCert', label: '여성기업' },
+  { name: 'disabledCompanyCert', label: '장애인기업' },
+  { name: 'foundationCert', label: '창업기업' },
+  { name: 'disabledCert', label: '장애인표준사업장' },
+  { name: 'severalCert', label: '중증장애인생산품' },
+  { name: 'societyCert', label: '사회적협동조합' },
+  { name: 'recycleCert', label: '우수재활용제품' },
+  { name: 'environmentCert', label: '환경표지' },
+  { name: 'lowCarbonCert', label: '저탄소제품' },
+  { name: 'swQualityCert', label: 'SW품질인증' },
+  { name: 'nepCert', label: '신제품인증(NEP)' },
+  { name: 'netCert', label: '신제품인증(NET)' },
+  { name: 'greenProductCert', label: '녹색기술인증제품' },
+  { name: 'epcCert', label: '성능인증제품(EPC)' },
+  { name: 'procureCert', label: '우수조달제품' },
+  { name: 'seoulTownCert', label: '마을기업' },
+  { name: 'seoulSelfCert', label: '자활기업' },
+  { name: 'cooperationCert', label: '협동조합' },
+  { name: 'seoulReserveCert', label: '예비사회적기업' },
+  { name: 'seoulCollaborationCert', label: '사회적협동조합(서울)' },
+]
+
 const EditProductModal: React.FC<EditProductModalProps> = ({ visible, product, onSave, onCancel }) => {
   const [form] = Form.useForm()
   const [activeTab, setActiveTab] = useState('1')
@@ -266,6 +297,7 @@ const EditProductModal: React.FC<EditProductModalProps> = ({ visible, product, o
         disabledCert: d.disabledCert || 'N',
         severalCert: d.severalCert || 'N',
         cooperationCert: d.cooperationCert || 'N',
+        societyCert: d.societyCert || 'N',
         recycleCert: d.recycleCert || 'N',
         environmentCert: d.environmentCert || 'N',
         lowCarbonCert: d.lowCarbonCert || 'N',
@@ -692,6 +724,28 @@ const EditProductModal: React.FC<EditProductModalProps> = ({ visible, product, o
               </Form.Item>
             </Col>
           </Row>
+          <Divider orientation="left">소비기한</Divider>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item name="validateRadio" label="소비기한선택">
+                <Select options={CONSUMPTION_PERIOD_OPTIONS} placeholder="소비기한 선택" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item
+                noStyle
+                shouldUpdate={(prev, cur) => prev.validateRadio !== cur.validateRadio}
+              >
+                {({ getFieldValue }) =>
+                  getFieldValue('validateRadio') === '직접입력' ? (
+                    <Form.Item name="fValidate" label="소비기한입력">
+                      <Input placeholder="직접 입력하세요 (예: 2024-12-31)" />
+                    </Form.Item>
+                  ) : null
+                }
+              </Form.Item>
+            </Col>
+          </Row>
         </div>
       ),
     },
@@ -734,26 +788,13 @@ const EditProductModal: React.FC<EditProductModalProps> = ({ visible, product, o
       children: (
         <div style={{ maxHeight: '60vh', overflowY: 'auto', paddingRight: 8 }}>
           <Row gutter={8}>
-            <Col span={6}>
-              <Form.Item name="womanCert" label="여성기업">
-                <Radio.Group options={YN_OPTIONS} optionType="button" buttonStyle="solid" size="small" />
-              </Form.Item>
-            </Col>
-            <Col span={6}>
-              <Form.Item name="disabledCompanyCert" label="장애인기업">
-                <Radio.Group options={YN_OPTIONS} optionType="button" buttonStyle="solid" size="small" />
-              </Form.Item>
-            </Col>
-            <Col span={6}>
-              <Form.Item name="foundationCert" label="창업기업">
-                <Radio.Group options={YN_OPTIONS} optionType="button" buttonStyle="solid" size="small" />
-              </Form.Item>
-            </Col>
-            <Col span={6}>
-              <Form.Item name="procureCert" label="우수조달">
-                <Radio.Group options={YN_OPTIONS} optionType="button" buttonStyle="solid" size="small" />
-              </Form.Item>
-            </Col>
+            {CERT_FIELDS.map(cert => (
+              <Col span={6} key={cert.name}>
+                <Form.Item name={cert.name} label={cert.label}>
+                  <Radio.Group options={YN_OPTIONS} optionType="button" buttonStyle="solid" size="small" />
+                </Form.Item>
+              </Col>
+            ))}
           </Row>
           <Row gutter={8}>
             <Col span={12}>
@@ -788,23 +829,53 @@ const EditProductModal: React.FC<EditProductModalProps> = ({ visible, product, o
               </Form.Item>
             </Col>
           </Row>
-          <Form.Item noStyle shouldUpdate={(prev, cur) => prev.otherSiteRegisterYn !== cur.otherSiteRegisterYn}>
-            {({ getFieldValue }) =>
-              getFieldValue('otherSiteRegisterYn') === 'Y' ? (
-                <Row gutter={16}>
-                  <Col span={12}>
-                    <Form.Item name="siteName" label="사이트명">
-                      <Input placeholder="타 서비스 사이트명" />
-                    </Form.Item>
-                  </Col>
-                  <Col span={12}>
-                    <Form.Item name="siteUrl" label="사이트주소">
-                      <Input placeholder="https://..." />
-                    </Form.Item>
-                  </Col>
-                </Row>
-              ) : null
-            }
+          <Form.Item noStyle shouldUpdate={(prev, cur) => prev.ppsContractYn !== cur.ppsContractYn || prev.naraRegisterYn !== cur.naraRegisterYn || prev.otherSiteRegisterYn !== cur.otherSiteRegisterYn}>
+            {({ getFieldValue }) => (
+              <>
+                {getFieldValue('ppsContractYn') === 'Y' && (
+                  <Row gutter={16}>
+                    <Col span={12}>
+                      <Form.Item name="ppsContractStartDate" label="계약시작일">
+                        <Input placeholder="YYYY-MM-DD" />
+                      </Form.Item>
+                    </Col>
+                    <Col span={12}>
+                      <Form.Item name="ppsContractEndDate" label="계약종료일">
+                        <Input placeholder="YYYY-MM-DD" />
+                      </Form.Item>
+                    </Col>
+                  </Row>
+                )}
+                {getFieldValue('naraRegisterYn') === 'Y' && (
+                  <Row gutter={16}>
+                    <Col span={12}>
+                      <Form.Item name="naraAmt" label="나라장터등록가격">
+                        <Input placeholder="등록가격" />
+                      </Form.Item>
+                    </Col>
+                  </Row>
+                )}
+                {getFieldValue('otherSiteRegisterYn') === 'Y' && (
+                  <Row gutter={16}>
+                    <Col span={8}>
+                      <Form.Item name="siteName" label="사이트명">
+                        <Input placeholder="타 서비스 사이트명" />
+                      </Form.Item>
+                    </Col>
+                    <Col span={8}>
+                      <Form.Item name="siteUrl" label="사이트주소">
+                        <Input placeholder="https://..." />
+                      </Form.Item>
+                    </Col>
+                    <Col span={8}>
+                      <Form.Item name="otherSiteAmt" label="타사이트등록가격">
+                        <Input placeholder="등록가격" />
+                      </Form.Item>
+                    </Col>
+                  </Row>
+                )}
+              </>
+            )}
           </Form.Item>
         </div>
       ),
