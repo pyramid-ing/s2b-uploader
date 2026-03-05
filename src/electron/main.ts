@@ -1567,6 +1567,25 @@ function setupIpcHandlers() {
     }
   })
 
+  // S2B 카테고리 엑셀 읽기 (기본 경로 고정)
+  ipcMain.handle('get-s2b-categories-raw', async () => {
+    try {
+      const finalPath = path.join(app.getAppPath(), 'files/s2b_categories.xlsx')
+
+      if (!fsSync.existsSync(finalPath)) {
+        console.error(`S2B Category file not found at: ${finalPath}`)
+        return []
+      }
+
+      const workbook = XLSX.readFile(finalPath)
+      const sheet = workbook.Sheets[workbook.SheetNames[0]]
+      return XLSX.utils.sheet_to_json(sheet, { defval: '' })
+    } catch (error) {
+      console.error('Error reading S2B categories raw:', error)
+      return []
+    }
+  })
+
   ipcMain.handle('extend-management-date', async (_, { startDate, endDate, registrationStatus, searchQuery }) => {
     try {
       const settings = store.get('settings')

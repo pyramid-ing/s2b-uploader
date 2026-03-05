@@ -1,9 +1,14 @@
 import React from 'react'
 import { useRecoilState, useRecoilCallback } from 'recoil'
 import { message, Modal } from 'antd'
-import { productDataState, selectedProductKeysState, registerSettingsState, Product } from '../stores/registerStore'
+import {
+  productDataState,
+  selectedProductKeysState,
+  registerSettingsState,
+  categoryTreeState,
+  Product,
+} from '../stores/registerStore'
 import { usePermission } from './usePermission'
-import { CATEGORY_STORAGE_KEY } from '../constants/categories'
 
 const { ipcRenderer } = window.require('electron')
 
@@ -226,8 +231,7 @@ export const useRegister = () => {
           }
 
           // G2B 품목번호 체크: 물품 등록 시 필수 (카테고리 설정 기반)
-          const storedCategories = localStorage.getItem(CATEGORY_STORAGE_KEY)
-          const categoryTree = storedCategories ? JSON.parse(storedCategories) : []
+          const categoryTree = await snapshot.getPromise(categoryTreeState)
 
           const selectedItems = currentProducts.filter(p => currentSelectedKeys.includes(p.id))
           const missingG2bItems = selectedItems.filter(p => {

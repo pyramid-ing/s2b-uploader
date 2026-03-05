@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react'
+import { useRecoilState } from 'recoil'
 import {
   Modal,
   Form,
@@ -19,8 +20,8 @@ import {
   message,
 } from 'antd'
 import { FolderOpenOutlined, LinkOutlined, InfoCircleOutlined, SearchOutlined } from '@ant-design/icons'
-import { Product } from '../stores/registerStore'
-import { buildCategoryTree, CATEGORY_STORAGE_KEY, DEFAULT_CATEGORY_EXCEL_PATH } from '../constants/categories'
+import { Product, categoryTreeState } from '../stores/registerStore'
+import { buildCategoryTree, CategoryOption } from '../constants/categories'
 
 const { ipcRenderer } = window.require('electron')
 
@@ -228,31 +229,19 @@ const CERT_FIELDS = [
 const EditProductModal: React.FC<EditProductModalProps> = ({ visible, product, onSave, onCancel }) => {
   const [form] = Form.useForm()
   const [activeTab, setActiveTab] = useState('1')
-  const [categories, setCategories] = useState<any[]>([])
+  const [categories, setCategories] = useRecoilState<CategoryOption[]>(categoryTreeState)
 
   useEffect(() => {
     const loadCategories = async () => {
-      try {
-        // 1. LocalStorage에서 먼저 확인
-        const stored = localStorage.getItem(CATEGORY_STORAGE_KEY)
-        if (stored) {
-          const parsed = JSON.parse(stored)
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            setCategories(parsed)
-            return
-          }
-        }
+      // 이미 메모리에 있으면 스킵 (원하는 경우 강제 갱신 로직 추가 가능)
+      if (categories.length > 0) return
 
-        // 2. LocalStorage에 없으면 기본 엑셀 경로에서 최초 로드 시도
-        if (DEFAULT_CATEGORY_EXCEL_PATH) {
-          const rawData = await ipcRenderer.invoke('read-excel-raw', DEFAULT_CATEGORY_EXCEL_PATH)
-          if (rawData && Array.isArray(rawData) && rawData.length > 0) {
-            const parsed = buildCategoryTree(rawData)
-            console.log(rawData)
-            setCategories(parsed)
-            // LocalStorage에 저장하여 DB처럼 활용
-            localStorage.setItem(CATEGORY_STORAGE_KEY, JSON.stringify(parsed))
-          }
+      try {
+        // 메인 프로세스에서 고정된 경로의 엑셀 데이터를 가져옴
+        const rawData = await ipcRenderer.invoke('get-s2b-categories-raw')
+        if (rawData && Array.isArray(rawData) && rawData.length > 0) {
+          const parsed = buildCategoryTree(rawData)
+          setCategories(parsed)
         }
       } catch (error) {
         console.error('Failed to load categories:', error)
@@ -261,7 +250,7 @@ const EditProductModal: React.FC<EditProductModalProps> = ({ visible, product, o
     if (visible) {
       loadCategories()
     }
-  }, [visible])
+  }, [visible, categories.length, setCategories])
 
   /**
    * product (Product 타입) 필드에서 직접 폼 초기화

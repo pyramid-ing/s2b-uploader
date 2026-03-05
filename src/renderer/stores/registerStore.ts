@@ -1,6 +1,7 @@
 import { atom } from 'recoil'
 import dayjs, { type Dayjs } from 'dayjs'
 import type { Product } from '../../electron/types/product'
+import type { CategoryOption } from '../constants/categories'
 
 // Re-export Product type for convenience
 export type { Product }
@@ -62,4 +63,10 @@ export const registerSettingsState = atom<RegisterSettings>({
     accounts: [],
     selectedAccountId: undefined,
   },
+})
+
+// 카테고리 트리 데이터를 저장하는 atom (메모리내 저장용)
+export const categoryTreeState = atom<CategoryOption[]>({
+  key: 'categoryTreeState',
+  default: [],
 })
