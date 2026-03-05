@@ -62,7 +62,7 @@
   },
   "scripts": {
     "postinstall": "electron-builder install-app-deps",
-    "lint": "eslint \"{src,test}/**/*.{ts,tsx}\" --fix",
+    "lint:fix": "eslint \"{src,test}/**/*.{ts,tsx}\" --fix",
     "start": "concurrently \"yarn start:renderer\" \"wait-on tcp:8080 && yarn start:main\"",
     "start:main": "tsc -p tsconfig.electron.json && electron .",
     "start:renderer": "cross-env NODE_ENV=development webpack serve --config webpack.config.js",
