@@ -35,6 +35,8 @@ import {
   InfoCircleOutlined,
   ArrowRightOutlined,
   PlusCircleOutlined,
+  FolderOpenOutlined,
+  CloudDownloadOutlined,
 } from '@ant-design/icons'
 import { useLog } from '../hooks/useLog'
 import { useSourcing } from '../hooks/useSourcing'
@@ -322,48 +324,127 @@ const Sourcing: React.FC = () => {
       {
         title: '관리',
         key: 'action',
-        width: 180,
+        width: 240,
         align: 'center',
         render: (_, record) => (
-          <Space size={8}>
-            <Button
-              size="large"
-              icon={<SyncOutlined />}
-              onClick={() => handleRequestRegister([record.key])}
-              title="다시 수집"
-            />
-            <Button
-              size="large"
-              icon={record.isCollected ? <CheckCircleOutlined style={{ color: '#52c41a' }} /> : <SearchOutlined />}
-              disabled={!record.isCollected}
-              onClick={() => {
-                try {
-                  if (!record.downloadDir) {
-                    message.warning('저장 폴더 정보가 없습니다.')
-                    return
+          <div style={{ display: 'flex', justifyContent: 'center', gap: 6 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+              <Button
+                size="middle"
+                onClick={() => handleRequestRegister([record.key])}
+                title="다시 수집"
+                style={{
+                  width: 48,
+                  height: 48,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  borderRadius: 10,
+                  border: '1px solid #1890ff',
+                  color: '#1890ff',
+                  padding: 0,
+                }}
+              >
+                <CloudDownloadOutlined style={{ fontSize: 24 }} />
+              </Button>
+              <span style={{ fontSize: 12, fontWeight: 700, color: '#1890ff', marginTop: 4 }}>재수집</span>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+              <Button
+                size="middle"
+                disabled={!record.isCollected}
+                onClick={() => {
+                  try {
+                    if (!record.downloadDir) {
+                      message.warning('저장 폴더 정보가 없습니다.')
+                      return
+                    }
+                    shell.openPath(record.downloadDir)
+                  } catch (e) {
+                    message.error('폴더를 열 수 없습니다.')
                   }
-                  shell.openPath(record.downloadDir)
-                } catch (e) {
-                  message.error('폴더를 열 수 없습니다.')
-                }
-              }}
-              title="데이터 확인"
-            />
-            <Button
-              size="large"
-              icon={<PlusCircleOutlined style={{ color: record.isCollected ? '#52c41a' : '#bfbfbf' }} />}
-              disabled={!record.isCollected}
-              onClick={() => handleMoveToRegister([record.key])}
-              title="등록 페이지로 추가"
-            />
-            <Button
-              size="large"
-              danger
-              icon={<DeleteOutlined />}
-              onClick={() => handleDelete(record.key)}
-              title="삭제"
-            />
-          </Space>
+                }}
+                title="데이터 확인 (폴더 열기)"
+                style={{
+                  width: 48,
+                  height: 48,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  borderRadius: 10,
+                  border: record.isCollected ? '1px solid #52c41a' : '1px solid #d9d9d9',
+                  color: record.isCollected ? '#52c41a' : '#bfbfbf',
+                  padding: 0,
+                }}
+              >
+                <FolderOpenOutlined style={{ fontSize: 24 }} />
+              </Button>
+              <span
+                style={{
+                  fontSize: 12,
+                  fontWeight: 700,
+                  color: record.isCollected ? '#52c41a' : '#bfbfbf',
+                  marginTop: 4,
+                }}
+              >
+                폴더열기
+              </span>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+              <Button
+                size="middle"
+                disabled={!record.isCollected}
+                onClick={() => handleMoveToRegister([record.key])}
+                title="등록 페이지로 추가"
+                style={{
+                  width: 48,
+                  height: 48,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  borderRadius: 10,
+                  border: record.isCollected ? '1px solid #52c41a' : '1px solid #d9d9d9',
+                  color: record.isCollected ? '#52c41a' : '#bfbfbf',
+                  padding: 0,
+                }}
+              >
+                <PlusCircleOutlined style={{ fontSize: 20 }} />
+              </Button>
+              <span
+                style={{
+                  fontSize: 12,
+                  fontWeight: 700,
+                  color: record.isCollected ? '#52c41a' : '#bfbfbf',
+                  marginTop: 4,
+                }}
+              >
+                상품등록
+              </span>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+              <Button
+                size="middle"
+                danger
+                onClick={() => handleDelete(record.key)}
+                title="삭제"
+                style={{
+                  width: 48,
+                  height: 48,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  borderRadius: 10,
+                  padding: 0,
+                }}
+              >
+                <DeleteOutlined style={{ fontSize: 20 }} />
+              </Button>
+              <span style={{ fontSize: 12, fontWeight: 700, color: '#ff4d4f', marginTop: 4 }}>삭제</span>
+            </div>
+          </div>
         ),
       },
     ],
