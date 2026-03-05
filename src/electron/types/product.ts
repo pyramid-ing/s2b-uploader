@@ -459,7 +459,7 @@ export function sourcingItemToProduct(item: SourcingItemPayload): Product {
     manufacturer: excel['제조사'] || info.brand || item.vendor || '상세설명참고',
     material: excel['소재/재질'] || info.material || '상세설명참고',
     salesUnit: excel['판매단위'] || info.salesUnit || '개',
-    stockQuantity: parseInt((excel['재고수량'] ?? info.stock ?? 9999).toString(), 10) || 9999,
+    stockQuantity: 9999,
     price: parseInt(estimateAmt.toString(), 10) || 0,
     taxType: excel['과세여부'] || info.taxType || '과세(세금계산서)',
     saleType: excel['등록구분'] || info.saleTypeText || '물품',

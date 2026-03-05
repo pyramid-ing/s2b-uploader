@@ -144,6 +144,27 @@ const CONSUMPTION_PERIOD_OPTIONS = [
   { label: '직접입력', value: '직접입력' },
 ]
 
+const SALES_UNIT_OPTIONS = [
+  { label: '개', value: '개' },
+  { label: '세트', value: '세트' },
+  { label: '박스', value: '박스' },
+  { label: '조', value: '조' },
+  { label: '권', value: '권' },
+  { label: '매', value: '매' },
+  { label: '롤', value: '롤' },
+  { label: '개입', value: '개입' },
+  { label: '통', value: '통' },
+  { label: '봉', value: '봉' },
+  { label: '팩', value: '팩' },
+  { label: '켤레', value: '켤레' },
+  { label: '벌', value: '벌' },
+  { label: '포', value: '포' },
+  { label: 'kg', value: 'kg' },
+  { label: 'g', value: 'g' },
+  { label: 'L', value: 'L' },
+  { label: 'ml', value: 'ml' },
+]
+
 const CERT_FIELDS = [
   { name: 'womanCert', label: '여성기업', tooltip: '여성기업확인서를 보유한 기업인 경우 "예"를 선택하세요.' },
   {
@@ -801,10 +822,19 @@ const EditProductModal: React.FC<EditProductModalProps> = ({ visible, product, o
             <Col span={6}>
               <Form.Item
                 name="salesUnit"
-                label={labelWithTooltip('판매단위', '제품의 판매 단위를 입력하세요.')}
+                label={labelWithTooltip('판매단위', '제품의 판매 단위를 선택하세요.')}
                 rules={[{ required: true }]}
               >
-                <Input placeholder="예: 개, 세트, 박스" maxLength={10} />
+                <Select
+                  options={SALES_UNIT_OPTIONS}
+                  placeholder="선택"
+                  showSearch
+                  onSearch={value => {
+                    // 검색 결과가 없을 때 사용자가 직접 입력한 값으로 설정하고 싶을 수 있으나
+                    // Ant Design Select는 기본적으로 검색 기능만 제공함.
+                    // s2b 특성상 규격화된 단위를 쓰는게 좋으므로 우선 Select로만 제한.
+                  }}
+                />
               </Form.Item>
             </Col>
           </Row>
