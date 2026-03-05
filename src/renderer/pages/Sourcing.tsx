@@ -17,39 +17,30 @@ import {
   Table,
   Typography,
   Spin,
-  Tag,
 } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import {
   DeleteOutlined,
   PlusOutlined,
   SendOutlined,
+  DownloadOutlined,
   CheckCircleOutlined,
   StopOutlined,
-  GlobalOutlined,
-  ShopOutlined,
-  SearchOutlined,
-  LoadingOutlined,
-  FileSearchOutlined,
-  SyncOutlined,
-  InfoCircleOutlined,
-  ArrowRightOutlined,
-  PlusCircleOutlined,
-  FolderOpenOutlined,
-  CloudDownloadOutlined,
 } from '@ant-design/icons'
 import { useLog } from '../hooks/useLog'
 import { useSourcing } from '../hooks/useSourcing'
 import { usePermission } from '../hooks/usePermission'
-import { useRegister } from '../hooks/useRegister'
-import { Product } from '../stores/registerStore'
-import { useNavigate } from 'react-router-dom'
-import type { SourcingItem, SourcingConfigSet } from '../stores/sourcingStore'
-import { videoCollapsedState, sourcingConfigSetsState, activeConfigSetIdState } from '../stores/sourcingStore'
+import {
+  SourcingItem,
+  videoCollapsedState,
+  sourcingConfigSetsState,
+  activeConfigSetIdState,
+  SourcingConfigSet,
+} from '../stores/sourcingStore'
 import { fetchCredits } from '../api/creditsApi'
 import ConfigSetManager from '../components/ConfigSetManager'
 
-const { shell, ipcRenderer } = window.require('electron')
+const { shell } = window.require('electron')
 
 const VENDORS = [
   { label: '도매꾹', value: 'domeggook' },
@@ -64,8 +55,6 @@ const S2B_DEFAULT_PAGE_DELAY_SEC = 1
 
 const Sourcing: React.FC = () => {
   const [form] = Form.useForm()
-  const navigate = useNavigate()
-  const { addProducts } = useRegister()
   const [vendor, setVendor] = useState<string>(VENDORS[0].value)
   const [urlInput, setUrlInput] = useState<string>('')
   const [s2bKeyword, setS2bKeyword] = useState<string>('')
@@ -103,6 +92,7 @@ const Sourcing: React.FC = () => {
     fetchOneByUrl,
     deleteItem,
     requestRegister,
+    downloadExcel,
     openVendorSite,
     cancelSourcing,
   } = useSourcing()
@@ -177,274 +167,138 @@ const Sourcing: React.FC = () => {
   const columns: ColumnsType<SourcingItem> = useMemo(
     () => [
       {
-        title: '상품 정보',
-        key: 'productInfo',
-        render: (_, record) => {
-          const info = record.additionalInfo || {}
-          const excel = (record as any).excelMapped?.[0] || {}
-          const thumbnail = excel['기본이미지1'] || info.images?.[0] || record.listThumbnail
-          return (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-              <div
-                style={{
-                  width: 64,
-                  height: 64,
-                  borderRadius: 8,
-                  overflow: 'hidden',
-                  border: '1px solid #e0e0e0',
-                  backgroundColor: '#f9f9f9',
-                  flexShrink: 0,
+        title: '구매처',
+        dataIndex: 'vendor',
+        key: 'vendor',
+        width: 100,
+        render: (vendor: string) => vendor || '-',
+      },
+      {
+        title: '썸네일',
+        dataIndex: 'listThumbnail',
+        key: 'listThumbnail',
+        width: 80,
+        render: (thumbnail: string) =>
+          thumbnail ? (
+            <img
+              src={thumbnail}
+              alt="상품 썸네일"
+              style={{
+                width: 60,
+                height: 60,
+                objectFit: 'cover',
+                borderRadius: 4,
+              }}
+            />
+          ) : (
+            <div
+              style={{
+                width: 60,
+                height: 60,
+                backgroundColor: '#f5f5f5',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderRadius: 4,
+                fontSize: 12,
+                color: '#999',
+              }}
+            >
+              이미지 없음
+            </div>
+          ),
+      },
+      {
+        title: '상품명',
+        dataIndex: 'name',
+        key: 'name',
+        render: (text: string, record: SourcingItem) => (
+          <Space>
+            {record.isCollected && <CheckCircleOutlined style={{ color: '#52c41a', fontSize: '16px' }} />}
+            {record.vendor === '학교장터' ? (
+              <Typography.Text type="secondary">{text}</Typography.Text>
+            ) : (
+              <Typography.Link
+                onClick={e => {
+                  e.preventDefault()
+                  if (!record.url) return
+                  try {
+                    shell.openExternal(record.url)
+                  } catch (err) {
+                    message.error('링크를 열 수 없습니다.')
+                  }
                 }}
               >
-                {thumbnail ? (
-                  <img
-                    src={thumbnail.startsWith('http') ? thumbnail : `local-resource://${thumbnail}`}
-                    alt=""
-                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                  />
-                ) : (
-                  <div
-                    style={{
-                      width: '100%',
-                      height: '100%',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      color: '#999',
-                      fontSize: 12,
-                      fontWeight: 500,
-                    }}
-                  >
-                    No Img
-                  </div>
-                )}
-              </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                  <Tag color="default" style={{ margin: 0, fontSize: 12, borderRadius: 4, padding: '2px 8px' }}>
-                    {record.vendor || '알수없음'}
-                  </Tag>
-                  {record.isCollected && <CheckCircleOutlined style={{ color: '#52c41a', fontSize: 16 }} />}
-                </div>
-                {record.vendor === '학교장터' ? (
-                  <div
-                    style={{
-                      fontWeight: 700,
-                      fontSize: 16,
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                      color: '#111',
-                    }}
-                    title={record.name}
-                  >
-                    {record.name}
-                  </div>
-                ) : (
-                  <Typography.Link
-                    style={{
-                      fontWeight: 700,
-                      fontSize: 16,
-                      display: 'block',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                    }}
-                    onClick={e => {
-                      e.preventDefault()
-                      if (!record.url) return
-                      try {
-                        shell.openExternal(record.url)
-                      } catch (err) {
-                        message.error('링크를 열 수 없습니다.')
-                      }
-                    }}
-                    title={record.name}
-                  >
-                    {record.name}
-                  </Typography.Link>
-                )}
-              </div>
-            </div>
-          )
-        },
+                {text}
+              </Typography.Link>
+            )}
+          </Space>
+        ),
       },
       {
         title: '금액',
         dataIndex: 'price',
         key: 'price',
-        width: 140,
+        width: 120,
         align: 'right',
         render: (value: number) => {
           const n = Number(value)
           if (!Number.isFinite(n) || n <= 0) return '-'
-          return <div style={{ fontWeight: 700, color: '#111', fontSize: 16 }}>{currency(n)}원</div>
+          return `${currency(n)}원`
         },
       },
       {
         title: '상태',
         key: 'status',
-        width: 160,
-        align: 'center',
+        width: 120,
         render: (_, record) => {
           if (record.loading) {
             return (
-              <Tag
-                icon={<LoadingOutlined />}
-                color="processing"
-                style={{ borderRadius: 16, padding: '4px 12px', border: 'none', fontSize: 14 }}
-              >
-                수집 중...
-              </Tag>
+              <Space>
+                <Spin size="small" />
+                <span style={{ color: '#1890ff' }}>수집 중...</span>
+              </Space>
             )
           }
           if (record.result) {
-            const isSuccess = record.result === '성공'
-            return (
-              <Tag
-                color={isSuccess ? 'success' : 'error'}
-                icon={isSuccess ? <CheckCircleOutlined /> : <InfoCircleOutlined />}
-                style={{ borderRadius: 16, padding: '4px 12px', border: 'none', fontSize: 14, fontWeight: 600 }}
-                title={record.result}
-              >
-                {record.result}
-              </Tag>
-            )
+            return <span style={{ color: record.result === '성공' ? '#52c41a' : '#ff4d4f' }}>{record.result}</span>
           }
           if (record.isCollected) {
-            return (
-              <Tag color="success" style={{ borderRadius: 16, padding: '4px 12px', fontSize: 14, fontWeight: 600 }}>
-                수집완료
-              </Tag>
-            )
+            return <span style={{ color: '#52c41a' }}>수집완료</span>
           }
-          return <Tag style={{ borderRadius: 16, padding: '4px 12px', fontSize: 14 }}>대기</Tag>
+          return <span style={{ color: '#8c8c8c' }}>대기</span>
         },
       },
       {
-        title: '관리',
+        title: '액션',
         key: 'action',
-        width: 240,
-        align: 'center',
         render: (_, record) => (
-          <div style={{ display: 'flex', justifyContent: 'center', gap: 6 }}>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-              <Button
-                size="middle"
-                onClick={() => handleRequestRegister([record.key])}
-                title="다시 수집"
-                style={{
-                  width: 48,
-                  height: 48,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  borderRadius: 10,
-                  border: '1px solid #1890ff',
-                  color: '#1890ff',
-                  padding: 0,
-                }}
-              >
-                <CloudDownloadOutlined style={{ fontSize: 24 }} />
-              </Button>
-              <span style={{ fontSize: 12, fontWeight: 700, color: '#1890ff', marginTop: 4 }}>재수집</span>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-              <Button
-                size="middle"
-                disabled={!record.isCollected}
-                onClick={() => {
-                  try {
-                    if (!record.downloadDir) {
-                      message.warning('저장 폴더 정보가 없습니다.')
-                      return
-                    }
-                    shell.openPath(record.downloadDir)
-                  } catch (e) {
-                    message.error('폴더를 열 수 없습니다.')
+          <Space>
+            <Button type="link" icon={<SendOutlined />} onClick={() => handleRequestRegister([record.key])}>
+              수집하기
+            </Button>
+            <Button
+              type="link"
+              icon={<DownloadOutlined />}
+              disabled={!record.isCollected}
+              onClick={() => {
+                try {
+                  if (!record.downloadDir) {
+                    message.warning('저장 폴더 정보가 없습니다. 먼저 수집을 실행하세요.')
+                    return
                   }
-                }}
-                title="데이터 확인 (폴더 열기)"
-                style={{
-                  width: 48,
-                  height: 48,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  borderRadius: 10,
-                  border: record.isCollected ? '1px solid #52c41a' : '1px solid #d9d9d9',
-                  color: record.isCollected ? '#52c41a' : '#bfbfbf',
-                  padding: 0,
-                }}
-              >
-                <FolderOpenOutlined style={{ fontSize: 24 }} />
-              </Button>
-              <span
-                style={{
-                  fontSize: 12,
-                  fontWeight: 700,
-                  color: record.isCollected ? '#52c41a' : '#bfbfbf',
-                  marginTop: 4,
-                }}
-              >
-                폴더열기
-              </span>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-              <Button
-                size="middle"
-                disabled={!record.isCollected}
-                onClick={() => handleMoveToRegister([record.key])}
-                title="등록 페이지로 추가"
-                style={{
-                  width: 48,
-                  height: 48,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  borderRadius: 10,
-                  border: record.isCollected ? '1px solid #52c41a' : '1px solid #d9d9d9',
-                  color: record.isCollected ? '#52c41a' : '#bfbfbf',
-                  padding: 0,
-                }}
-              >
-                <PlusCircleOutlined style={{ fontSize: 20 }} />
-              </Button>
-              <span
-                style={{
-                  fontSize: 12,
-                  fontWeight: 700,
-                  color: record.isCollected ? '#52c41a' : '#bfbfbf',
-                  marginTop: 4,
-                }}
-              >
-                상품등록
-              </span>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-              <Button
-                size="middle"
-                danger
-                onClick={() => handleDelete(record.key)}
-                title="삭제"
-                style={{
-                  width: 48,
-                  height: 48,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  borderRadius: 10,
-                  padding: 0,
-                }}
-              >
-                <DeleteOutlined style={{ fontSize: 20 }} />
-              </Button>
-              <span style={{ fontSize: 12, fontWeight: 700, color: '#ff4d4f', marginTop: 4 }}>삭제</span>
-            </div>
-          </div>
+                  shell.openPath(record.downloadDir)
+                } catch (e) {
+                  message.error('폴더를 열 수 없습니다.')
+                }
+              }}
+            >
+              폴더 열기
+            </Button>
+            <Button type="link" danger icon={<DeleteOutlined />} onClick={() => handleDelete(record.key)}>
+              삭제
+            </Button>
+          </Space>
         ),
       },
     ],
@@ -677,51 +531,12 @@ const Sourcing: React.FC = () => {
     })
   }
 
-  const handleMoveToRegister = async (keys: React.Key[]) => {
-    const collectedItems = items.filter(item => keys.includes(item.key) && item.isCollected)
-    if (collectedItems.length === 0) {
-      if (keys.length === 1) {
-        message.warning('수집 완료된 상품만 등록 페이지로 보낼 수 있습니다.')
-      } else {
-        message.warning('수집 완료된 상품이 없습니다.')
-      }
-      return
-    }
-
-    try {
-      // 서버에서 sourcing → product 변환
-      const products: Product[] = await ipcRenderer.invoke('convert-sourcing-to-products', {
-        items: collectedItems.map(item => ({
-          key: item.key,
-          name: item.name,
-          url: item.url,
-          vendor: item.vendor,
-          price: item.price,
-          productCode: item.productCode,
-          g2bItemNo: item.g2bItemNo,
-          listThumbnail: item.listThumbnail,
-          downloadDir: item.downloadDir,
-          additionalInfo: item.additionalInfo,
-          isCollected: item.isCollected,
-          origin: item.origin,
-          excelMapped: item.excelMapped,
-        })),
-      })
-
-      await addProducts(products)
-      navigate('/register')
-    } catch (error) {
-      console.error('Failed to convert sourcing to products:', error)
-      message.error('상품 변환 중 오류가 발생했습니다.')
-    }
+  const handleDownloadExcel = async () => {
+    await downloadExcel()
   }
 
   return (
-    <Space
-      direction="vertical"
-      size="large"
-      style={{ width: '100%', maxWidth: 1400, margin: '0 auto', padding: '32px 0' }}
-    >
+    <Space direction="vertical" size="large" style={{ width: '100%' }}>
       {permission.hasPermission === false && (
         <Alert
           message="계정 인증 실패"
@@ -737,38 +552,37 @@ const Sourcing: React.FC = () => {
           }
           type="warning"
           showIcon
-          style={{ borderRadius: 12 }}
+          style={{ marginBottom: '20px' }}
         />
       )}
 
       <Collapse
         activeKey={videoCollapsed ? [] : ['video']}
-        ghost
         onChange={keys => setVideoCollapsed(!keys.includes('video'))}
         items={[
           {
             key: 'video',
-            label: (
-              <Space>
-                <InfoCircleOutlined style={{ color: '#1890ff' }} />
-                <span style={{ fontWeight: 600 }}>초보자 가이드: 소싱 방법 알아보기</span>
-              </Space>
-            ),
+            label: '사용 방법',
             children: (
               <div
                 style={{
                   position: 'relative',
-                  paddingBottom: '56.25%',
+                  paddingBottom: '56.25%', // 16:9 비율
                   height: 0,
                   overflow: 'hidden',
-                  maxWidth: 900,
-                  margin: '0 auto',
-                  borderRadius: '12px',
-                  boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
+                  maxWidth: '100%',
+                  borderRadius: '8px',
                 }}
               >
                 <iframe
-                  style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 0 }}
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    height: '100%',
+                    border: 0,
+                  }}
                   src="https://www.youtube.com/embed/vJAv-a1xxEs?si=N3ctiCzTS57Qaluy"
                   title="소싱 페이지 사용 방법"
                   allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
@@ -782,480 +596,253 @@ const Sourcing: React.FC = () => {
       />
 
       <Card
-        bordered={false}
-        style={{ borderRadius: 16, boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}
-        title={
+        title="검색"
+        extra={
           <Space>
-            <SearchOutlined style={{ color: '#1890ff', fontSize: 24 }} />
-            <span style={{ fontSize: 22, fontWeight: 700 }}>상품 소싱 검색</span>
+            <Typography.Text>
+              사용권:{' '}
+              {creditsLoading ? '조회 중…' : credits === null ? '알 수 없음' : `${credits.toLocaleString('ko-KR')}회`}
+            </Typography.Text>
+            <Button size="small" onClick={handleFetchCredits} loading={creditsLoading}>
+              새로고침
+            </Button>
           </Space>
         }
-        extra={
-          <div
-            style={{
-              background: '#f5f5f5',
-              padding: '6px 16px',
-              borderRadius: 20,
-              fontSize: 15,
-              color: '#666',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-            }}
-          >
-            <GlobalOutlined /> 사용권:{' '}
-            <span style={{ color: '#111', fontWeight: 700 }}>
-              {creditsLoading ? <LoadingOutlined /> : credits === null ? '알 수 없음' : `${credits.toLocaleString()}회`}
-            </span>
-            <Button
-              type="text"
-              size="middle"
-              shape="circle"
-              icon={<SyncOutlined spin={creditsLoading} />}
-              onClick={handleFetchCredits}
-              style={{ fontSize: 16 }}
-            />
-          </div>
-        }
       >
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                background: '#fafafa',
-                padding: '8px 16px',
-                borderRadius: 10,
-                border: '1px solid #eee',
-              }}
-            >
-              <ShopOutlined style={{ color: '#888', fontSize: 18 }} />
-              <Select
-                variant="borderless"
-                style={{ width: 160, fontWeight: 600, fontSize: 16 }}
-                options={VENDORS}
-                value={vendor}
-                onChange={setVendor}
-              />
-            </div>
-            <Button
-              size="large"
-              type="primary"
-              icon={<GlobalOutlined />}
-              onClick={handleOpenVendorSite}
-              loading={loading}
-              style={{ borderRadius: 10, fontWeight: 700, background: '#1890ff', height: 48, fontSize: 16 }}
-            >
-              해당 사이트 열기
-            </Button>
-            <Button
-              size="large"
-              icon={<SyncOutlined />}
-              onClick={handleFetchCurrentPage}
-              loading={listLoading}
-              style={{ borderRadius: 10, fontWeight: 700, height: 48, fontSize: 16 }}
-            >
-              현재 페이지 자동 수집
-            </Button>
-          </div>
-
-          {vendor === 's2b' ? (
-            <div
-              style={{
-                padding: '24px',
-                background: '#f9fcff',
-                borderRadius: 14,
-                border: '1px solid #e6f7ff',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20 }}>
-                <FileSearchOutlined style={{ color: '#1890ff', fontSize: 18 }} />
-                <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#003a8c' }}>학교장터 정밀 필터 검색</h3>
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-                <div style={{ gridColumn: 'span 2' }}>
-                  <div style={{ fontSize: 13, color: '#666', marginBottom: 6, fontWeight: 500 }}>검색 키워드</div>
-                  <Input
-                    size="large"
-                    placeholder="검색할 상품명을 입력하세요 (예: 노트북, 사무용 의자)"
-                    value={s2bKeyword}
-                    onChange={e => {
-                      const v = e.target.value
-                      setS2bKeyword(v)
-                      if (s2bKeywordInvalid && v.trim().length > 0) setS2bKeywordInvalid(false)
-                    }}
-                    onPressEnter={handleS2BFilterSearch}
-                    prefix={<SearchOutlined style={{ color: '#bfbfbf' }} />}
-                    status={s2bKeywordInvalid && (s2bKeyword || '').trim().length === 0 ? 'error' : undefined}
-                    style={{ borderRadius: 10 }}
-                  />
-                </div>
-
-                <div>
-                  <div style={{ fontSize: 13, color: '#666', marginBottom: 6, fontWeight: 500 }}>금액 범위 (원)</div>
-                  <Space.Compact style={{ width: '100%' }}>
-                    <InputNumber
-                      size="large"
-                      style={{ width: '50%', borderRadius: '10px 0 0 10px' }}
-                      min={0}
-                      max={S2B_DEFAULT_MAX_PRICE}
-                      value={s2bMinPrice}
-                      onChange={v => setS2bMinPrice(typeof v === 'number' ? v : null)}
-                      placeholder="최소"
-                      formatter={value => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-                    />
-                    <InputNumber
-                      size="large"
-                      style={{ width: '50%', borderRadius: '0 10px 10px 0' }}
-                      min={0}
-                      max={S2B_DEFAULT_MAX_PRICE}
-                      value={s2bMaxPrice}
-                      onChange={v => setS2bMaxPrice(typeof v === 'number' ? v : S2B_DEFAULT_MAX_PRICE)}
-                      placeholder="최대"
-                      formatter={value => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-                    />
-                  </Space.Compact>
-                </div>
-
-                <div>
-                  <div style={{ fontSize: 13, color: '#666', marginBottom: 6, fontWeight: 500 }}>정렬 기준</div>
-                  <Select
-                    size="large"
-                    style={{ width: '100%', borderRadius: 10 }}
-                    value={s2bSortCode}
-                    onChange={v => setS2bSortCode(v)}
-                    options={[
-                      { label: '낮은 금액순', value: 'PCAC' },
-                      { label: '정확도순', value: 'RANK' },
-                      { label: '인증 많은순', value: 'CERT' },
-                      { label: '계약이행신뢰도순', value: 'TRUST' },
-                      { label: '등록순', value: 'DATE' },
-                      { label: '높은 금액순', value: 'PCDC' },
-                      { label: '후기 많은순', value: 'REVIEW_COUNT' },
-                    ]}
-                  />
-                </div>
-
-                <div style={{ display: 'flex', gap: 12 }}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 13, color: '#666', marginBottom: 6, fontWeight: 500 }}>
-                      페이지 지연 (초)
-                    </div>
-                    <InputNumber
-                      size="large"
-                      style={{ width: '100%', borderRadius: 10 }}
-                      min={0}
-                      max={60}
-                      value={s2bPageDelaySec}
-                      onChange={v => setS2bPageDelaySec(typeof v === 'number' ? v : S2B_DEFAULT_PAGE_DELAY_SEC)}
-                    />
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 13, color: '#666', marginBottom: 6, fontWeight: 500 }}>수집 개수</div>
-                    <InputNumber
-                      size="large"
-                      style={{ width: '100%', borderRadius: 10 }}
-                      min={1}
-                      max={5000}
-                      value={s2bMaxCount}
-                      onChange={v => setS2bMaxCount(typeof v === 'number' ? v : 50)}
-                    />
-                  </div>
-                </div>
-
-                <div style={{ display: 'flex', alignItems: 'flex-end' }}>
-                  <Button
-                    size="large"
-                    type="primary"
-                    onClick={handleS2BFilterSearch}
-                    loading={listLoading}
-                    disabled={(s2bKeyword || '').trim().length === 0}
-                    style={{ width: '100%', borderRadius: 10, fontWeight: 700, height: 40 }}
-                  >
-                    필터 기반 수집 시작
-                  </Button>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div
-              style={{
-                padding: '24px',
-                background: '#f8f8f8',
-                borderRadius: 14,
-                border: '1px solid #eee',
-              }}
-            >
-              <div style={{ fontSize: 13, color: '#666', marginBottom: 6, fontWeight: 500 }}>상세 페이지 URL</div>
-              <div style={{ display: 'flex', gap: 12 }}>
-                <Input
-                  size="large"
-                  placeholder="수집할 상품의 상세 URL을 입력하세요 (예: https://domeggook.com/...)"
-                  value={urlInput}
-                  onChange={e => setUrlInput(e.target.value)}
-                  onPressEnter={handleFetchOneByUrl}
-                  style={{ borderRadius: 10, flex: 1 }}
-                />
-                <Button
-                  size="large"
-                  type="primary"
-                  icon={<PlusOutlined />}
-                  onClick={handleFetchOneByUrl}
-                  style={{ borderRadius: 10, fontWeight: 600, paddingLeft: 24, paddingRight: 24 }}
+        <Space wrap>
+          <Form form={form} layout="inline">
+            <Form.Item label="업체">
+              <Select style={{ width: 160 }} options={VENDORS} value={vendor} onChange={setVendor} />
+            </Form.Item>
+            <Form.Item>
+              <Button type="primary" onClick={handleOpenVendorSite} loading={loading}>
+                사이트 열기
+              </Button>
+            </Form.Item>
+            <Form.Item>
+              <Button onClick={handleFetchCurrentPage} loading={listLoading}>
+                현재페이지 제품 가져오기 (자동)
+              </Button>
+            </Form.Item>
+            {vendor === 's2b' && (
+              <>
+                <Divider style={{ margin: '16px 0' }} />
+                <div
+                  style={{
+                    width: '100%',
+                    padding: '16px',
+                    backgroundColor: '#fafafa',
+                    borderRadius: '8px',
+                    border: '1px solid #e8e8e8',
+                  }}
                 >
-                  수동 추가
-                </Button>
-              </div>
-            </div>
-          )}
-        </div>
+                  <Typography.Title level={5} style={{ marginTop: 0, marginBottom: 16 }}>
+                    학교장터 필터 검색
+                  </Typography.Title>
+
+                  {/* 그룹 1: 키워드 */}
+                  <Form.Item label="키워드" style={{ marginBottom: 16 }}>
+                    <Input
+                      placeholder="예: 노트북"
+                      value={s2bKeyword}
+                      onChange={e => {
+                        const v = e.target.value
+                        setS2bKeyword(v)
+                        if (s2bKeywordInvalid && v.trim().length > 0) setS2bKeywordInvalid(false)
+                      }}
+                      onPressEnter={handleS2BFilterSearch}
+                      status={s2bKeywordInvalid && (s2bKeyword || '').trim().length === 0 ? 'error' : undefined}
+                    />
+                  </Form.Item>
+
+                  {/* 그룹 2: 금액 최소/최대 */}
+                  <Space.Compact style={{ width: '100%', marginBottom: 16 }}>
+                    <Form.Item label="금액(최소)" style={{ flex: 1, marginRight: 8, marginBottom: 0 }}>
+                      <InputNumber
+                        style={{ width: '100%' }}
+                        min={0}
+                        max={S2B_DEFAULT_MAX_PRICE}
+                        value={s2bMinPrice}
+                        onChange={v => setS2bMinPrice(typeof v === 'number' ? v : null)}
+                        placeholder="0"
+                      />
+                    </Form.Item>
+                    <Form.Item label="금액(최대)" style={{ flex: 1, marginBottom: 0 }}>
+                      <InputNumber
+                        style={{ width: '100%' }}
+                        min={0}
+                        max={S2B_DEFAULT_MAX_PRICE}
+                        value={s2bMaxPrice}
+                        onChange={v => setS2bMaxPrice(typeof v === 'number' ? v : S2B_DEFAULT_MAX_PRICE)}
+                      />
+                    </Form.Item>
+                  </Space.Compact>
+
+                  {/* 그룹 3: 페이지딜레이, 정렬, 최대갯수 */}
+                  <Space.Compact style={{ width: '100%', marginBottom: 16 }}>
+                    <Form.Item label="페이지 딜레이(초)" style={{ flex: 1, marginRight: 8, marginBottom: 0 }}>
+                      <InputNumber
+                        style={{ width: '100%' }}
+                        min={0}
+                        max={60}
+                        step={1}
+                        precision={0}
+                        value={s2bPageDelaySec}
+                        onChange={v => setS2bPageDelaySec(typeof v === 'number' ? v : S2B_DEFAULT_PAGE_DELAY_SEC)}
+                      />
+                    </Form.Item>
+                    <Form.Item label="정렬" style={{ flex: 1, marginRight: 8, marginBottom: 0 }}>
+                      <Select
+                        style={{ width: '100%' }}
+                        value={s2bSortCode}
+                        onChange={v => setS2bSortCode(v)}
+                        options={[
+                          { label: '낮은 금액순', value: 'PCAC' },
+                          { label: '정확도순', value: 'RANK' },
+                          { label: '인증 많은순', value: 'CERT' },
+                          { label: '계약이행신뢰도순', value: 'TRUST' },
+                          { label: '등록순', value: 'DATE' },
+                          { label: '높은 금액순', value: 'PCDC' },
+                          { label: '후기 많은순', value: 'REVIEW_COUNT' },
+                        ]}
+                      />
+                    </Form.Item>
+                    <Form.Item label="최대갯수" style={{ flex: 1, marginBottom: 0 }}>
+                      <InputNumber
+                        style={{ width: '100%' }}
+                        min={1}
+                        max={5000}
+                        value={s2bMaxCount}
+                        onChange={v => setS2bMaxCount(typeof v === 'number' ? v : 50)}
+                      />
+                    </Form.Item>
+                  </Space.Compact>
+
+                  {/* 검색 버튼 */}
+                  <Form.Item style={{ marginBottom: 0 }}>
+                    <Button
+                      type="primary"
+                      onClick={handleS2BFilterSearch}
+                      loading={listLoading}
+                      disabled={(s2bKeyword || '').trim().length === 0}
+                      block
+                    >
+                      필터 검색 (자동)
+                    </Button>
+                  </Form.Item>
+                </div>
+              </>
+            )}
+            {vendor !== 's2b' && (
+              <>
+                <Divider style={{ margin: '16px 0' }} />
+                <Form.Item label="URL">
+                  <Input
+                    placeholder="https://"
+                    style={{ width: 360 }}
+                    value={urlInput}
+                    onChange={e => setUrlInput(e.target.value)}
+                    onPressEnter={handleFetchOneByUrl}
+                  />
+                </Form.Item>
+                <Form.Item>
+                  <Button type="primary" icon={<PlusOutlined />} onClick={handleFetchOneByUrl}>
+                    1개 가져오기 (수동)
+                  </Button>
+                </Form.Item>
+              </>
+            )}
+          </Form>
+        </Space>
       </Card>
 
       <ConfigSetManager />
 
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          padding: '20px 32px',
-          background: '#fff',
-          borderRadius: 16,
-          boxShadow: '0 4px 12px rgba(0,0,0,0.05)',
-          border: '1px solid #f0f0f0',
-          position: 'sticky',
-          top: 0,
-          zIndex: 100,
-        }}
-      >
-        <Space size={16}>
-          <div
-            style={{
-              padding: '8px 16px',
-              background: '#e6f4ff',
-              borderRadius: 20,
-              color: '#0958d9',
-              fontWeight: 700,
-              fontSize: 15,
-            }}
-          >
-            선택된 품목: {selectedRowKeys.length}개
-          </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div>
           {hasSelection && (
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                background: '#f5f5f5',
-                padding: '6px 14px',
-                borderRadius: 10,
-              }}
-            >
-              <span style={{ fontSize: 15, color: '#666', fontWeight: 600 }}>옵션 처리 방식:</span>
+            <Space>
               <Select
-                variant="borderless"
-                style={{ width: 260, fontWeight: 600, fontSize: 15 }}
+                size="small"
+                style={{ width: 260 }}
                 value={optionHandling}
                 onChange={value => setOptionHandling(value)}
               >
-                <Select.Option value="split">옵션별로 개별 품목 생성 (권장)</Select.Option>
-                <Select.Option value="single">하나의 품목으로 통합 생성</Select.Option>
+                <Select.Option value="split">옵션별로 풀어서 여러 개 상품 생성</Select.Option>
+                <Select.Option value="single">옵션을 묶어서 1개 상품 생성</Select.Option>
               </Select>
-            </div>
-          )}
-        </Space>
-
-        <Space size={16}>
-          {hasSelection && (
-            <>
               <Button
-                size="large"
                 type="primary"
                 icon={<SendOutlined />}
                 onClick={() => handleRequestRegister()}
                 disabled={settings.detailHtmlTemplate.length < 10}
                 loading={loading}
-                style={{
-                  borderRadius: 10,
-                  fontWeight: 700,
-                  paddingLeft: 24,
-                  paddingRight: 24,
-                  height: 48,
-                  fontSize: 16,
-                }}
               >
-                상세 정보 수집 시작
+                수집하기({selectedRowKeys.length}개)
               </Button>
-              <Button
-                size="large"
-                type="primary"
-                icon={<ArrowRightOutlined />}
-                onClick={() => handleMoveToRegister(selectedRowKeys)}
-                style={{
-                  background: '#52c41a',
-                  color: '#fff',
-                  borderRadius: 10,
-                  fontWeight: 700,
-                  height: 48,
-                  fontSize: 16,
-                }}
-              >
-                등록 페이지로 이동
+              <Button danger icon={<DeleteOutlined />} onClick={handleBulkDelete}>
+                선택 삭제({selectedRowKeys.length}개)
               </Button>
-              <Button
-                size="large"
-                danger
-                icon={<DeleteOutlined />}
-                onClick={handleBulkDelete}
-                style={{ borderRadius: 10, fontWeight: 700, height: 48, fontSize: 16 }}
-              >
-                선택 삭제
+              <Button type="primary" danger icon={<StopOutlined />} onClick={cancelSourcing} disabled={!loading}>
+                중단
               </Button>
-            </>
+            </Space>
           )}
-
-          <Button
-            size="large"
-            type="primary"
-            danger
-            icon={<StopOutlined />}
-            onClick={cancelSourcing}
-            disabled={!loading}
-            style={{ borderRadius: 10, fontWeight: 700, height: 48, fontSize: 16 }}
-          >
-            작업 중단
-          </Button>
-        </Space>
+        </div>
+        <div>
+          <Space>
+            <Button
+              type="default"
+              icon={<DownloadOutlined />}
+              onClick={handleDownloadExcel}
+              disabled={selectedRowKeys.length === 0}
+            >
+              엑셀 다운로드 ({selectedRowKeys.length}개)
+            </Button>
+          </Space>
+        </div>
       </div>
 
-      <Spin
-        spinning={listLoading}
-        tip="목록을 수집 중입니다..."
-        indicator={<LoadingOutlined style={{ fontSize: 24 }} spin />}
-      >
-        <div
-          style={{ background: '#fff', borderRadius: 16, overflow: 'hidden', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}
-        >
+      <Spin spinning={listLoading} tip="목록을 수집 중입니다...">
+        <Card>
           <Table<SourcingItem>
             rowKey="key"
             columns={columns}
             dataSource={items}
             rowSelection={{ selectedRowKeys, onChange: setSelectedRowKeys }}
-            pagination={{
-              defaultPageSize: 50,
-              showSizeChanger: true,
-              pageSizeOptions: [10, 20, 50, 100, 200, 500],
-              position: ['bottomCenter'],
-              style: { padding: '16px 0' },
-            }}
-            className="premium-table"
+            pagination={{ defaultPageSize: 50, showSizeChanger: true, pageSizeOptions: [10, 20, 50, 100, 200, 500] }}
           />
-        </div>
+        </Card>
       </Spin>
 
       <Card
-        bordered={false}
-        title={
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div
-              style={{
-                width: 14,
-                height: 14,
-                borderRadius: '50%',
-                backgroundColor: loading || listLoading ? '#52c41a' : '#bfbfbf',
-                animation: loading || listLoading ? 'pulse 2s infinite' : 'none',
-              }}
-            />
-            <span style={{ fontSize: 20, fontWeight: 700 }}>실시간 수집 작업 현황 (로그)</span>
-          </div>
-        }
+        title="진행 정보"
         extra={
-          <Button onClick={clearLogs} size="small" type="link">
+          <Button onClick={clearLogs} size="small">
             로그 초기화
           </Button>
         }
-        style={{
-          boxShadow: '0 4px 12px rgba(0,0,0,0.05)',
-          borderRadius: 16,
-          marginTop: 24,
-          marginBottom: 48,
-        }}
+        style={{ marginTop: '20px' }}
       >
         <div
           ref={terminalRef}
           style={{
-            backgroundColor: '#1e1e1e',
-            color: '#d4d4d4',
-            height: '280px',
+            backgroundColor: '#000',
+            color: '#fff',
+            height: '300px',
             overflowY: 'auto',
-            padding: '20px',
-            fontFamily: 'Menlo, Monaco, Consolas, "Courier New", monospace',
-            borderRadius: '12px',
-            fontSize: 15,
-            lineHeight: 1.8,
-            boxShadow: 'inset 0 2px 8px rgba(0,0,0,0.2)',
+            padding: '10px',
+            fontFamily: 'monospace',
+            borderRadius: '5px',
           }}
         >
-          {logs.length === 0 ? (
-            <div style={{ color: '#888', fontStyle: 'italic' }}>
-              수집을 시작하면 실시간 작업 내역이 이 곳에 표시됩니다.
+          {logs.map((log, index) => (
+            <div key={index} style={{ color: getLogColor(log.level) }}>
+              {log.log}
             </div>
-          ) : (
-            logs.map((log, index) => (
-              <div
-                key={index}
-                style={{
-                  padding: '2px 0',
-                  borderBottom: '1px solid rgba(255,255,255,0.05)',
-                  display: 'flex',
-                  gap: 8,
-                }}
-              >
-                <span style={{ color: '#569cd6', flexShrink: 0 }}>[{new Date().toLocaleTimeString()}]</span>
-                <span style={{ color: getLogColor(log.level), wordBreak: 'break-all' }}>{log.log}</span>
-              </div>
-            ))
-          )}
+          ))}
         </div>
       </Card>
-
-      <style>{`
-        @keyframes pulse {
-          0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(82, 196, 26, 0.7); }
-          70% { transform: scale(1); box-shadow: 0 0 0 8px rgba(82, 196, 26, 0); }
-          100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(82, 196, 26, 0); }
-        }
-        .premium-table .ant-table { background: transparent; }
-        .premium-table .ant-table-thead > tr > th {
-          background: #f0f2f5;
-          font-weight: 700;
-          font-size: 16px;
-          color: #333;
-          border-bottom: 2px solid #ddd;
-          padding: 16px;
-        }
-        .premium-table .ant-table-tbody > tr > td {
-          font-size: 15px;
-          padding: 16px;
-        }
-        .premium-table .ant-table-tbody > tr:hover > td { background: #f0f7ff !important; }
-        .premium-table .ant-table-row-selected > td { background: #e6f4ff !important; }
-        .ant-table-selection-column {
-          width: 60px;
-        }
-        .ant-checkbox-inner {
-          width: 20px;
-          height: 20px;
-        }
-        .ant-checkbox-checked .ant-checkbox-inner::after {
-          width: 6.5px;
-          height: 11px;
-        }
-      `}</style>
     </Space>
   )
 }

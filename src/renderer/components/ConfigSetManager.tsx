@@ -26,8 +26,7 @@ import {
 } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import { useRecoilState, useRecoilCallback } from 'recoil'
-import { sourcingConfigSetsState, activeConfigSetIdState } from '../stores/sourcingStore'
-import type { SourcingConfigSet } from '../stores/sourcingStore'
+import { sourcingConfigSetsState, activeConfigSetIdState, SourcingConfigSet } from '../stores/sourcingStore'
 
 const { TextArea } = Input
 const { Option } = Select
@@ -68,10 +67,14 @@ const ConfigSetManager: React.FC = () => {
           if (result.configSets && result.configSets.length > 0) {
             set(sourcingConfigSetsState, result.configSets)
             set(activeConfigSetIdState, result.activeConfigSetId)
+          } else {
+            // 저장된 설정값 세트가 없으면 기본 설정값 세트 생성
+            await initializeDefaultConfigSet()
           }
         } catch (error) {
           console.error('설정값 세트 불러오기 실패:', error)
-          message.error('설정값 단위를 불러오지 못했습니다.')
+          // 오류 발생 시 기본 설정값 세트 생성
+          await initializeDefaultConfigSet()
         }
       },
     [],
@@ -90,6 +93,49 @@ const ConfigSetManager: React.FC = () => {
         } catch (error) {
           console.error('설정값 세트 저장 실패:', error)
           message.error('설정값 세트 저장에 실패했습니다.')
+        }
+      },
+    [],
+  )
+
+  // 기본 설정값 세트 초기화
+  const initializeDefaultConfigSet = useRecoilCallback(
+    ({ set }) =>
+      async () => {
+        const defaultConfigSet: SourcingConfigSet = {
+          id: 'default',
+          name: '기본 설정',
+          isDefault: true,
+          isActive: true,
+          config: {
+            deliveryPeriod: 'ZD000001', // 납품가능기간 3일
+            quoteValidityPeriod: 'ZD000001', // 견적서 유효기간 7일
+            shippingFeeType: 'fixed', // 고정배송비
+            shippingFee: 3000, // 배송비 3000원
+            returnShippingFee: 3000, // 반품배송비 3000원
+            bundleShipping: true, // 묶음배송여부 true
+            jejuShipping: true, // 제주배송여부 true
+            jejuAdditionalFee: 5000, // 제주추가배송비 5000원
+            detailHtmlTemplate: '<p>상세설명을 입력하세요.</p>',
+            marginRate: 20, // 마진율 20%
+            optionHandling: 'split', // 기본값: 옵션별 개별 상품
+          },
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        }
+
+        set(sourcingConfigSetsState, [defaultConfigSet])
+        set(activeConfigSetIdState, 'default')
+
+        // 기본 설정값 세트를 영구 저장
+        try {
+          const { ipcRenderer } = window.require('electron')
+          await ipcRenderer.invoke('save-config-sets', {
+            configSets: [defaultConfigSet],
+            activeConfigSetId: 'default',
+          })
+        } catch (error) {
+          console.error('기본 설정값 세트 저장 실패:', error)
         }
       },
     [],

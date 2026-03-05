@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, shell, protocol } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
 import * as path from 'path'
 import Store from 'electron-store'
 import { S2BSourcing } from './s2b-sourcing'
@@ -11,9 +11,6 @@ import * as XLSX from 'xlsx'
 import dayjs from 'dayjs'
 import { autoUpdater } from 'electron-updater'
 import { ExcelRegistrationData, ConfigSet } from './types/excel'
-import { productToExcelData, sourcingItemToProduct } from './types/product'
-import { productToMappedExcelRow, parseExcelRowToProduct } from './utils/excelMapper'
-import type { Product, SourcingItemPayload } from './types/product'
 import { envConfig, supabase } from './envConfig'
 import axios from 'axios'
 
@@ -279,14 +276,12 @@ async function getCreditsBalanceByS2bId(s2bId: string): Promise<number | null> {
  * @param value - 정리할 값
  * @returns 정리된 문자열 또는 원래 값
  */
-function sanitizeString(value: any): string {
-  if (value === null || value === undefined) {
-    return ''
+function sanitizeString(value: any): any {
+  if (typeof value === 'string') {
+    // \u00A0 -> 띄어쓰기에서 이상한 문자섞이는 경우 있음
+    return value.replace(/\u00A0/g, ' ').trim()
   }
-  return String(value)
-    .replace(/[\x00-\x1F\x7F-\x9F]/g, '') // 제어 문자 제거 (\b 등)
-    .replace(/\u00A0/g, ' ')
-    .trim()
+  return value
 }
 
 /**
@@ -322,6 +317,64 @@ const isIgnorableError = (errorMessage: string): boolean => {
   return ignoredErrorPatterns.some(pattern => errorMessage.includes(pattern))
 }
 
+const saveExcelResult = async (allProducts: ExcelRegistrationData[]) => {
+  try {
+    const settings = store.get('settings')
+    const originalPath = settings.excelPath // 원본 엑셀 파일 경로
+    const logDir = path.join(settings.fileDir, 'log') // log 폴더 경로
+
+    // ✅ log 폴더 없으면 생성
+    if (!fsSync.existsSync(logDir)) {
+      fsSync.mkdirSync(logDir, { recursive: true })
+    }
+
+    const workbook = XLSX.readFile(originalPath)
+    const sheet = workbook.Sheets[workbook.SheetNames[0]]
+
+    // ✅ JSON으로 변환 (1행을 헤더로 사용)
+    const rows: any[] = XLSX.utils.sheet_to_json(sheet, { defval: '', raw: false })
+
+    if (rows.length === 0) {
+      console.error('엑셀 파일이 비어 있습니다.')
+      return
+    }
+
+    // ✅ "결과" 열이 없으면 추가
+    if (!rows[0].hasOwnProperty('결과')) {
+      rows.forEach(row => {
+        row['결과'] = '' // 새로운 열 추가
+      })
+    } else {
+      // ✅ 기존 결과 초기화
+      rows.forEach(row => {
+        row['결과'] = ''
+      })
+    }
+
+    // ✅ 선택된 상품만 결과 업데이트
+    allProducts.forEach((product, index) => {
+      if (product.selected) {
+        // ✅ 상품 데이터 정리 적용
+        const sanitizedProduct = sanitizeProductData(product)
+        rows[index]['결과'] = sanitizedProduct.result || '알 수 없음' // ✅ 선택된 상품만 결과 입력
+      }
+    })
+
+    // ✅ 결과 파일을 log 폴더에 저장
+    const timestamp = dayjs().format('YYYYMMDD_HHmmss')
+    const resultPath = path.join(logDir, `결과_${timestamp}.xlsx`)
+
+    // ✅ JSON 데이터를 다시 엑셀 형식으로 변환
+    const updatedSheet = XLSX.utils.json_to_sheet(rows)
+    workbook.Sheets[workbook.SheetNames[0]] = updatedSheet
+    XLSX.writeFile(workbook, resultPath)
+
+    return resultPath
+  } catch (error) {
+    console.error('엑셀 결과 저장 실패:', error)
+  }
+}
+
 interface StoreSchema {
   settings: {
     fileDir: string
@@ -338,11 +391,9 @@ interface StoreSchema {
     marginRate: number
     detailHtmlTemplate: string
     useAIForSourcing?: boolean
-    categoryExcelPath?: string
   }
   configSets: any[]
   activeConfigSetId: string | null
-  products: Product[]
 }
 
 type DeliveryAreaPresetMode = 'nationwide' | 'custom'
@@ -456,7 +507,6 @@ function normalizeSettings(settings: Partial<StoreSchema['settings']> | undefine
     detailHtmlTemplate:
       typeof merged.detailHtmlTemplate === 'string' ? merged.detailHtmlTemplate : '<p>상세설명을 입력하세요.</p>',
     useAIForSourcing: Boolean(merged.useAIForSourcing),
-    categoryExcelPath: typeof merged.categoryExcelPath === 'string' ? merged.categoryExcelPath : '',
   }
 }
 
@@ -522,11 +572,9 @@ const store = new Store<StoreSchema>({
       marginRate: 20,
       detailHtmlTemplate: '<p>상세설명을 입력하세요.</p>',
       useAIForSourcing: false,
-      categoryExcelPath: '',
     },
     configSets: [],
     activeConfigSetId: null,
-    products: [],
   },
   // 중요한 데이터는 암호화
   encryptionKey: 's2b-uploader-secret-key',
@@ -667,11 +715,8 @@ function setupIpcHandlers() {
       sendLogToRenderer(`엑셀 데이터 로드 시작: ${resolvedExcelPath}`, 'info')
       const settings = store.get('settings')
       const registration = new S2BRegistration(resolvedFileDir, sendLogToRenderer, settings.headless)
-      const rawData = await registration.readExcelFile(resolvedExcelPath)
-
-      const products: Product[] = rawData.map(row => parseExcelRowToProduct(row))
-
-      return products
+      const data = await registration.readExcelFile(resolvedExcelPath)
+      return data
     } catch (error) {
       console.error('Error loading Excel data:', error)
       sendLogToRenderer(`엑셀 로드 실패: ${error.message || '알 수 없는 오류'}`, 'error')
@@ -679,146 +724,9 @@ function setupIpcHandlers() {
     }
   })
 
-  // ---- Product CRUD IPC handlers (서버에서 데이터 관리) ----
-
-  ipcMain.handle('get-products', () => {
-    return store.get('products') || []
-  })
-
-  ipcMain.handle('save-products', async (_, { products: newProducts }: { products: Product[] }) => {
-    const existing = (store.get('products') || []) as Product[]
-    const existingIds = new Set(existing.map(p => p.id))
-    const toAdd = newProducts.filter(p => !existingIds.has(p.id))
-    const updated = [...existing, ...toAdd]
-    store.set('products', updated)
-    return updated
-  })
-
-  ipcMain.handle('update-product', async (_, { product }: { product: Product }) => {
-    const existing = (store.get('products') || []) as Product[]
-    const updated = existing.map(p => (p.id === product.id ? product : p))
-    store.set('products', updated)
-    return updated
-  })
-
-  ipcMain.handle('delete-products', async (_, { ids }: { ids: string[] }) => {
-    const existing = (store.get('products') || []) as Product[]
-    const idSet = new Set(ids)
-    const updated = existing.filter(p => !idSet.has(p.id))
-    store.set('products', updated)
-    return updated
-  })
-
-  ipcMain.handle('clear-products', async () => {
-    store.set('products', [])
-    return []
-  })
-
-  // ---- Excel Bulk Operations (Download & Modify) ----
-  ipcMain.handle('download-register-excel', async () => {
-    try {
-      const { canceled, filePath } = await dialog.showSaveDialog(mainWindow!, {
-        title: '상품 목록 엑셀 다운로드',
-        defaultPath: '등록상품목록.xlsx',
-        filters: [{ name: 'Excel Files', extensions: ['xlsx', 'xls'] }],
-      })
-
-      if (canceled || !filePath) return { success: false, cancelled: true }
-
-      const allStoredProducts = (store.get('products') || []) as Product[]
-      const excelData = allStoredProducts.map(p => {
-        return productToMappedExcelRow(p)
-      })
-
-      const worksheet = XLSX.utils.json_to_sheet(excelData)
-      const workbook = XLSX.utils.book_new()
-      XLSX.utils.book_append_sheet(workbook, worksheet, '상품목록')
-      XLSX.writeFile(workbook, filePath)
-
-      return { success: true, filePath }
-    } catch (error) {
-      console.error('Failed to download excel:', error)
-      return { success: false, error: (error as Error).message }
-    }
-  })
-
-  ipcMain.handle('download-sample-excel', async () => {
-    try {
-      const { canceled, filePath } = await dialog.showSaveDialog(mainWindow!, {
-        title: '샘플 엑셀 다운로드',
-        defaultPath: 'S2B_상품등록_샘플.xlsx',
-        filters: [{ name: 'Excel Files', extensions: ['xlsx'] }],
-      })
-
-      if (canceled || !filePath) return { success: false, cancelled: true }
-
-      const samplePath = app.isPackaged
-        ? path.join(process.resourcesPath, 'files', 'sample_registration.xlsx')
-        : path.join(__dirname, '../../files', 'sample_registration.xlsx')
-
-      if (!fsSync.existsSync(samplePath)) {
-        throw new Error('샘플 파일을 찾을 수 없습니다.')
-      }
-
-      fsSync.copyFileSync(samplePath, filePath)
-
-      return { success: true, filePath }
-    } catch (error) {
-      console.error('Failed to download sample excel:', error)
-      return { success: false, error: (error as Error).message }
-    }
-  })
-
-  ipcMain.handle('modify-excel-data', async (_, { excelPath }: { excelPath: string }) => {
-    try {
-      const workbook = XLSX.readFile(excelPath)
-      const sheetName = workbook.SheetNames[0]
-      if (!sheetName) throw new Error('시트를 찾을 수 없습니다')
-      const worksheet = workbook.Sheets[sheetName]
-      const jsonData = XLSX.utils.sheet_to_json(worksheet, { defval: '', blankrows: false }) as any[]
-
-      const existingProducts = (store.get('products') || []) as Product[]
-
-      let modifyCount = 0
-
-      const updatedProducts = existingProducts.map(p => {
-        const row = jsonData.find(r => (r.productId || r.id || r.상품ID) === p.id)
-        if (!row) return p
-
-        modifyCount++
-
-        return parseExcelRowToProduct(row, p)
-      })
-
-      store.set('products', updatedProducts)
-
-      return { success: true, count: modifyCount, products: updatedProducts }
-    } catch (error) {
-      console.error('Error modifying excel:', error)
-      throw error
-    }
-  })
-
-  // ---- Sourcing → Product Conversion (서버에서 변환) ----
-
-  ipcMain.handle('convert-sourcing-to-products', async (_, { items }: { items: SourcingItemPayload[] }) => {
-    const products = items.filter(item => item.isCollected).map(item => sourcingItemToProduct(item))
-    return products
-  })
-
-  // ---- Product Registration (기존 핸들러 수정) ----
-
   ipcMain.handle(
     'start-and-register-products',
-    async (_, { productIds, accountId }: { productIds: string[]; accountId?: string }) => {
-      const allStoredProducts = (store.get('products') || []) as Product[]
-      const idSet = new Set(productIds)
-      const allProducts: ExcelRegistrationData[] = allStoredProducts.map(p => {
-        const excelData = productToExcelData(p)
-        excelData.selected = idSet.has(p.id)
-        return excelData
-      })
-      const selectedProducts = allProducts.filter(p => p.selected)
+    async (_, { allProducts, accountId }: { allProducts: ExcelRegistrationData[]; accountId?: string }) => {
       isCancelled = false // ✅ 시작 시 중단 상태 초기화
 
       try {
@@ -900,9 +808,7 @@ function setupIpcHandlers() {
         const maxDelay = Number.isFinite(maxDelayRaw) ? maxDelayRaw : fallbackDelay
         const lowerDelay = Math.max(0, Math.min(minDelay, maxDelay))
         const upperDelay = Math.max(0, Math.max(minDelay, maxDelay))
-        // selectedProducts는 이미 위에서 필터링됨
-        let successCount = 0
-        let failCount = 0
+        const selectedProducts = allProducts.filter(p => p.selected) // ✅ 선택된 상품만 필터링
 
         for (let i = 0; i < selectedProducts.length; i++) {
           if (isCancelled) {
@@ -912,148 +818,23 @@ function setupIpcHandlers() {
 
           const product = selectedProducts[i]
 
+          if (!product.selected) continue // ✅ 선택되지 않은 상품은 무시
+
           try {
             // ✅ 상품 등록 전 데이터 정리
             const sanitizedProduct = sanitizeProductData(product)
             const productWithPreset = applyAccountDeliveryPreset(sanitizedProduct, selectedAccount)
 
-            // estimateAmt(제시금액): 0이거나 없으면 기본값 보정
-            if (!productWithPreset.estimateAmt || productWithPreset.estimateAmt === '0') {
-              productWithPreset.estimateAmt = '0'
-            }
-
-            // remainQnt(재고수량): 없으면 기본값 보정
-            if (!productWithPreset.remainQnt || productWithPreset.remainQnt === '0') {
-              productWithPreset.remainQnt = '9999'
-            }
-
-            // 필수 필드 기본값 보정 (데이터가 ExcelRegistrationData 형태로 이미 제공됨)
-            if (!productWithPreset.kidsKcType) productWithPreset.kidsKcType = 'N'
-            if (!productWithPreset.elecKcType) productWithPreset.elecKcType = 'N'
-            if (!productWithPreset.dailyKcType) productWithPreset.dailyKcType = 'N'
-            if (!productWithPreset.broadcastingKcType) productWithPreset.broadcastingKcType = 'N'
-            if (!productWithPreset.childExitCheckerKcType) productWithPreset.childExitCheckerKcType = 'N'
-            if (!productWithPreset.safetyCheckKcType) productWithPreset.safetyCheckKcType = 'N'
-            if (!productWithPreset.deliveryGroupYn) productWithPreset.deliveryGroupYn = 'Y'
-            if (!productWithPreset.jejuDeliveryYn) productWithPreset.jejuDeliveryYn = 'N'
-            if (!productWithPreset.deliveryFeeKindText) productWithPreset.deliveryFeeKindText = '무료'
-            if (!productWithPreset.deliveryFee) productWithPreset.deliveryFee = '0'
-            if (!productWithPreset.salesUnit) productWithPreset.salesUnit = '개'
-            if (!productWithPreset.taxType) productWithPreset.taxType = '과세(세금계산서)'
-            if (!productWithPreset.saleTypeText) productWithPreset.saleTypeText = '물품'
-            if (!productWithPreset.assure) productWithPreset.assure = '1년'
-            if (!productWithPreset.estimateValidity) productWithPreset.estimateValidity = '7일'
-            if (!productWithPreset.originType) productWithPreset.originType = '국내'
-            if (!productWithPreset.originLocal) productWithPreset.originLocal = ''
-            if (!productWithPreset.originForeign) productWithPreset.originForeign = ''
-
-            // readExcelFile과 동일한 검증 및 코드 변환
-            const SALE_TYPE_CODE: Record<string, string> = { 물품: '1', 용역: '3' }
-            const DELIVERY_FEE_CODE: Record<string, string> = { 무료: '1', 유료: '2', 조건부무료: '3' }
-            const DELIVERY_LIMIT_CODE: Record<string, string> = {
-              '3일': 'ZD000001',
-              '5일': 'ZD000002',
-              '7일': 'ZD000003',
-              '15일': 'ZD000004',
-              '30일': 'ZD000005',
-              '45일': 'ZD000006',
-            }
-            const DELIVERY_METHOD_CODE: Record<string, string> = { 택배: '1', 직배송: '2', '우편 또는 등기': '3' }
-            const VALID_DELIVERY_LIMITS = ['3일', '5일', '7일', '15일', '30일', '45일']
-            const VALID_SALE_TYPES = ['물품', '용역']
-            const VALID_DELIVERY_FEE_TYPES = ['무료', '유료', '조건부무료']
-
-            // saleTypeText 검증 → saleType 코드 변환
-            if (!VALID_SALE_TYPES.includes(productWithPreset.saleTypeText)) {
-              productWithPreset.saleTypeText = '물품'
-            }
-            productWithPreset.saleType = SALE_TYPE_CODE[productWithPreset.saleTypeText] || '1'
-
-            // deliveryFeeKindText 검증 → deliveryFeeKind 코드 변환
-            if (!VALID_DELIVERY_FEE_TYPES.includes(productWithPreset.deliveryFeeKindText)) {
-              productWithPreset.deliveryFeeKindText = '무료'
-            }
-            productWithPreset.deliveryFeeKind = DELIVERY_FEE_CODE[productWithPreset.deliveryFeeKindText] || '1'
-
-            // deliveryLimitText 검증 → deliveryLimit 코드 변환
-            if (!VALID_DELIVERY_LIMITS.includes(productWithPreset.deliveryLimitText || '')) {
-              productWithPreset.deliveryLimitText = '7일'
-            }
-            productWithPreset.deliveryLimit = DELIVERY_LIMIT_CODE[productWithPreset.deliveryLimitText] || 'ZD000003'
-
-            // deliveryMethod 코드 변환 (텍스트로 들어온 경우)
-            if (productWithPreset.deliveryMethod && DELIVERY_METHOD_CODE[productWithPreset.deliveryMethod]) {
-              productWithPreset.deliveryMethod = DELIVERY_METHOD_CODE[productWithPreset.deliveryMethod]
-            } else if (!productWithPreset.deliveryMethod) {
-              productWithPreset.deliveryMethod = '1'
-            }
-
-            // 필수 필드 검증
-            const missingFields: string[] = []
-            if (!productWithPreset.category1) missingFields.push('카테고리1')
-            if (!productWithPreset.category2) missingFields.push('카테고리2')
-            if (!productWithPreset.category3) missingFields.push('카테고리3')
-            if (!productWithPreset.goodsName) missingFields.push('물품명')
-            if (!productWithPreset.spec) missingFields.push('규격')
-            if (!productWithPreset.modelName) missingFields.push('모델명')
-            if (!productWithPreset.estimateAmt) missingFields.push('제시금액')
-            if (!productWithPreset.material) missingFields.push('소재/재질')
-            if (!productWithPreset.factory) missingFields.push('제조사')
-            if (!productWithPreset.remainQnt) missingFields.push('재고수량')
-            if (!productWithPreset.salesUnit) missingFields.push('판매단위')
-            if (!productWithPreset.assure) missingFields.push('보증기간')
-            if (!productWithPreset.deliveryLimitText) missingFields.push('납품가능기간')
-            if (!productWithPreset.deliveryFeeKindText) missingFields.push('배송비종류')
-            if (
-              productWithPreset.deliveryFee === undefined ||
-              productWithPreset.deliveryFee === null ||
-              productWithPreset.deliveryFee === ''
-            )
-              missingFields.push('배송비')
-            if (
-              productWithPreset.returnFee === undefined ||
-              productWithPreset.returnFee === null ||
-              productWithPreset.returnFee === ''
-            )
-              missingFields.push('반품배송비')
-            if (!productWithPreset.deliveryGroupYn) missingFields.push('묶음배송여부')
-            if (!productWithPreset.jejuDeliveryYn) missingFields.push('제주배송여부')
-            if (
-              productWithPreset.jejuDeliveryFee === undefined ||
-              productWithPreset.jejuDeliveryFee === null ||
-              productWithPreset.jejuDeliveryFee === ''
-            )
-              missingFields.push('제주추가배송비')
-            if (!productWithPreset.detailHtml) missingFields.push('상세설명HTML')
-            if (!productWithPreset.image1) missingFields.push('기본이미지1')
-            if (!productWithPreset.detailImage) missingFields.push('상세이미지')
-            if (!productWithPreset.originType) missingFields.push('원산지구분')
-            if (productWithPreset.originType === '국내' && !productWithPreset.originLocal)
-              missingFields.push('국내원산지')
-            if (productWithPreset.originType === '국외' && !productWithPreset.originForeign)
-              missingFields.push('해외원산지')
-            if (!productWithPreset.deliveryMethod) missingFields.push('배송방법')
-            if (!productWithPreset.deliveryAreas || productWithPreset.deliveryAreas.length === 0)
-              missingFields.push('배송지역')
-
-            if (missingFields.length > 0) {
-              throw new Error(`상품등록전 필수 필드를 입력해야합니다: ${missingFields.join(', ')}`)
-            }
-
             await registration.registerProduct(productWithPreset)
             product.result = '성공' // ✅ 성공한 경우 결과 업데이트
-            successCount += 1
           } catch (error) {
             if (error.message && isIgnorableError(error.message)) {
               // ✅ 무시할 에러
               console.warn(`무시된 에러: ${error.message}`)
-              product.result = '성공'
-              successCount += 1
             } else {
               // ✅ 사용자에게 보여줘야 하는 에러만 처리
               sendLogToRenderer(`상품 등록 실패: ${product.goodsName} - ${error.message}`, 'error')
               product.result = error.message || '알 수 없는 에러' // ✅ 실패한 경우 결과 업데이트
-              failCount += 1
             }
           }
 
@@ -1078,39 +859,13 @@ function setupIpcHandlers() {
           'info',
         )
 
-        // 등록 결과를 Product 저장소에 반영
-        const storedProducts = (store.get('products') || []) as Product[]
-        const productResultMap = new Map<string, string>()
-        const selectedStoredProducts = allStoredProducts.filter(sp => idSet.has(sp.id))
-        selectedProducts.forEach((p, idx) => {
-          if (idx < selectedStoredProducts.length) {
-            productResultMap.set(selectedStoredProducts[idx].id, p.result || '')
-          }
-        })
-        const updatedProducts = storedProducts.map(p =>
-          productResultMap.has(p.id) ? { ...p, result: productResultMap.get(p.id) || '' } : p,
-        )
-        store.set('products', updatedProducts)
-
-        return {
-          success: failCount === 0 && !isCancelled,
-          cancelled: isCancelled,
-          successCount,
-          failCount,
-          totalCount: selectedProducts.length,
-          productResults: allProducts.map(product => product.result || ''),
-          error: failCount > 0 ? `${failCount}개 상품 등록 실패` : undefined,
-        }
+        return { success: true }
       } catch (error) {
         sendLogToRenderer(`에러 발생: ${error.message}`, 'error')
-        console.error(error)
-
-        return {
-          success: false,
-          error: error.message || 'Unknown error occurred.',
-          productResults: allProducts.map(product => product.result || ''),
-        }
+        return { success: false, error: error.message || 'Unknown error occurred.' }
       } finally {
+        const resultPath = await saveExcelResult(allProducts)
+        sendLogToRenderer(`결과 파일 저장 완료: ${resultPath}`, 'info')
         await registration?.close()
       }
     },
@@ -1526,64 +1281,6 @@ function setupIpcHandlers() {
     })
 
     return result.canceled ? null : result.filePaths[0]
-  })
-
-  // 일반 파일 선택 다이얼로그 (이미지 등)
-  ipcMain.handle('select-file', async () => {
-    if (!mainWindow) return null
-
-    const result = await dialog.showOpenDialog(mainWindow, {
-      properties: ['openFile'],
-      filters: [
-        { name: 'Images', extensions: ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'] },
-        { name: 'All Files', extensions: ['*'] },
-      ],
-      title: '파일 선택',
-    })
-
-    return result.canceled ? null : result.filePaths[0]
-  })
-
-  // 엑셀 파일 읽기 (범용)
-  ipcMain.handle('read-excel-raw', async (_, filePath: string) => {
-    try {
-      let finalPath = filePath
-      if (filePath && !path.isAbsolute(filePath)) {
-        // 상대 경로일 경우 앱 실행 경로 기준으로 변환
-        finalPath = path.join(app.getAppPath(), filePath)
-      }
-
-      if (!fsSync.existsSync(finalPath)) {
-        console.error(`Excel file not found at: ${finalPath}`)
-        return []
-      }
-
-      const workbook = XLSX.readFile(finalPath)
-      const sheet = workbook.Sheets[workbook.SheetNames[0]]
-      return XLSX.utils.sheet_to_json(sheet, { defval: '' })
-    } catch (error) {
-      console.error('Error reading excel raw:', error)
-      return []
-    }
-  })
-
-  // S2B 카테고리 엑셀 읽기 (기본 경로 고정)
-  ipcMain.handle('get-s2b-categories-raw', async () => {
-    try {
-      const finalPath = path.join(app.getAppPath(), 'files/s2b_categories.xlsx')
-
-      if (!fsSync.existsSync(finalPath)) {
-        console.error(`S2B Category file not found at: ${finalPath}`)
-        return []
-      }
-
-      const workbook = XLSX.readFile(finalPath)
-      const sheet = workbook.Sheets[workbook.SheetNames[0]]
-      return XLSX.utils.sheet_to_json(sheet, { defval: '' })
-    } catch (error) {
-      console.error('Error reading S2B categories raw:', error)
-      return []
-    }
   })
 
   ipcMain.handle('extend-management-date', async (_, { startDate, endDate, registrationStatus, searchQuery }) => {
@@ -2069,17 +1766,6 @@ async function clearTempFiles(): Promise<void> {
 }
 
 app.whenReady().then(() => {
-  // 로컬 파일 경로를 renderer에서 로드하기 위한 프로토콜 등록
-  protocol.registerFileProtocol('local-resource', (request, callback) => {
-    const url = request.url.replace(/^local-resource:\/\//, '')
-    try {
-      return callback(decodeURIComponent(url))
-    } catch (error) {
-      console.error('Failed to register protocol:', error)
-      return callback('')
-    }
-  })
-
   // temp 디렉토리 정리
   clearTempFiles().catch(error => console.error(error))
 

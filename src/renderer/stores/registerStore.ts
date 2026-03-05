@@ -1,10 +1,13 @@
 import { atom } from 'recoil'
 import dayjs, { type Dayjs } from 'dayjs'
-import type { Product } from '../../electron/types/product'
-import type { CategoryOption } from '../constants/categories'
 
-// Re-export Product type for convenience
-export type { Product }
+export interface ProductData {
+  key: string
+  goodsName: string
+  spec: string
+  modelName: string
+  originalData?: any
+}
 
 export interface RegisterSettings {
   dateRange: [Dayjs, Dayjs]
@@ -40,14 +43,14 @@ export const REGISTRATION_STATUS_LABELS = {
   [REGISTRATION_STATUS.STOPPED]: '등록중지',
 } as const
 
-// 상품 데이터를 저장하는 atom (서버에서 가져온 캐시)
-export const productDataState = atom<Product[]>({
+// 상품 데이터를 저장하는 atom
+export const productDataState = atom<ProductData[]>({
   key: 'productDataState',
   default: [],
 })
 
 // 선택된 상품 키들을 저장하는 atom
-export const selectedProductKeysState = atom<string[]>({
+export const selectedProductKeysState = atom<React.Key[]>({
   key: 'selectedProductKeysState',
   default: [],
 })
@@ -63,10 +66,4 @@ export const registerSettingsState = atom<RegisterSettings>({
     accounts: [],
     selectedAccountId: undefined,
   },
-})
-
-// 카테고리 트리 데이터를 저장하는 atom (메모리내 저장용)
-export const categoryTreeState = atom<CategoryOption[]>({
-  key: 'categoryTreeState',
-  default: [],
 })

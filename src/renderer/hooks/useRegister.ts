@@ -1,13 +1,6 @@
-import React from 'react'
 import { useRecoilState, useRecoilCallback } from 'recoil'
-import { message, Modal } from 'antd'
-import {
-  productDataState,
-  selectedProductKeysState,
-  registerSettingsState,
-  categoryTreeState,
-  Product,
-} from '../stores/registerStore'
+import { message } from 'antd'
+import { productDataState, selectedProductKeysState, registerSettingsState } from '../stores/registerStore'
 import { usePermission } from './usePermission'
 
 const { ipcRenderer } = window.require('electron')
@@ -17,22 +10,6 @@ export const useRegister = () => {
   const [selectedKeys, setSelectedKeys] = useRecoilState(selectedProductKeysState)
   const [settings, setSettings] = useRecoilState(registerSettingsState)
   const { permission, checkPermission } = usePermission()
-
-  // 서버에서 상품 목록 불러오기
-  const loadProducts = useRecoilCallback(
-    ({ set }) =>
-      async () => {
-        try {
-          const serverProducts = await ipcRenderer.invoke('get-products')
-          set(productDataState, serverProducts || [])
-          return serverProducts || []
-        } catch (error) {
-          console.error('Failed to load products from server:', error)
-          return []
-        }
-      },
-    [],
-  )
 
   const syncAccountPresets = useRecoilCallback(
     ({ set, snapshot }) =>
@@ -73,127 +50,53 @@ export const useRegister = () => {
     [],
   )
 
-  // Excel 데이터 업로드 → 서버에 저장
-  const uploadExcelData = useRecoilCallback(
+  // Excel 데이터 로드
+  const loadExcelData = useRecoilCallback(
     ({ set }) =>
-      async (filePath: string) => {
+      async () => {
         try {
           const settingsData = await ipcRenderer.invoke('get-settings')
+          await syncAccountPresets(settingsData)
+          if (!settingsData?.excelPath) {
+            message.warning('Excel 파일 경로가 설정되지 않았습니다.')
+            return
+          }
           if (!settingsData?.fileDir) {
-            message.warning('파일 폴더가 설정되지 않았습니다. 설정에서 먼저 지정해주세요.')
+            message.warning('파일 폴더가 설정되지 않았습니다.')
             return
           }
 
           set(registerSettingsState, prev => ({ ...prev, loading: true }))
 
-          // 서버에서 엑셀 로드 → Product[] 반환 (이미 매핑됨)
-          const products: Product[] = await ipcRenderer.invoke('load-excel-data', {
-            excelPath: filePath,
+          const productsData = await ipcRenderer.invoke('load-excel-data', {
+            excelPath: settingsData.excelPath,
             fileDir: settingsData.fileDir,
           })
 
-          if (!products || products.length === 0) {
-            message.warning('불러올 수 있는 상품 데이터가 없습니다.')
-            return
-          }
+          const loadedData = productsData.map((p: any, index: number) => ({
+            key: index.toString(),
+            goodsName: p.goodsName,
+            spec: p.spec,
+            modelName: p.modelName,
+            result: p.result || '',
+            originalData: p,
+          }))
 
-          const savedProducts = await ipcRenderer.invoke('save-products', { products })
-          set(productDataState, savedProducts)
+          set(productDataState, loadedData)
           set(
             selectedProductKeysState,
-            products.map((item: Product) => item.id),
+            loadedData.map(item => item.key),
           )
 
-          message.success(`${products.length}개의 상품 정보를 저장했습니다.`)
+          message.success('Excel 데이터를 성공적으로 불러왔습니다.')
+          // 현재 선택된 엑셀 경로를 상태에 보관 (UI 표시용)
+          set(registerSettingsState, prev => ({ ...prev, excelPath: settingsData.excelPath }))
         } catch (error) {
-          console.error('Failed to upload Excel data:', error)
-          message.error('데이터 업로드에 실패했습니다.')
+          console.error('Failed to load Excel data:', error)
+          message.error('데이터 로드에 실패했습니다.')
         } finally {
           set(registerSettingsState, prev => ({ ...prev, loading: false }))
         }
-      },
-    [],
-  )
-
-  const downloadExcelData = useRecoilCallback(
-    ({ set }) =>
-      async () => {
-        try {
-          set(registerSettingsState, prev => ({ ...prev, loading: true }))
-          const result = await ipcRenderer.invoke('download-register-excel')
-          if (result?.cancelled) {
-            return
-          }
-          if (result?.success) {
-            message.success('엑셀 파일이 성공적으로 다운로드되었습니다.')
-          } else {
-            message.error(result?.error || '다운로드 중 오류가 발생했습니다.')
-          }
-        } catch (error) {
-          console.error('Failed to download Excel:', error)
-          message.error('다운로드 중 오류가 발생했습니다.')
-        } finally {
-          set(registerSettingsState, prev => ({ ...prev, loading: false }))
-        }
-      },
-    [],
-  )
-
-  const downloadSampleExcel = useRecoilCallback(
-    ({ set }) =>
-      async () => {
-        try {
-          set(registerSettingsState, prev => ({ ...prev, loading: true }))
-          const result = await ipcRenderer.invoke('download-sample-excel')
-          if (result?.cancelled) {
-            return
-          }
-          if (result?.success) {
-            message.success('샘플 엑셀 파일이 성공적으로 다운로드되었습니다.')
-          } else {
-            message.error(result?.error || '다운로드 중 오류가 발생했습니다.')
-          }
-        } catch (error) {
-          console.error('Failed to download sample excel:', error)
-          message.error('다운로드 중 오류가 발생했습니다.')
-        } finally {
-          set(registerSettingsState, prev => ({ ...prev, loading: false }))
-        }
-      },
-    [],
-  )
-
-  const uploadExcelModifyData = useRecoilCallback(
-    ({ set }) =>
-      async (filePath: string) => {
-        try {
-          set(registerSettingsState, prev => ({ ...prev, loading: true }))
-          const result = await ipcRenderer.invoke('modify-excel-data', { excelPath: filePath })
-
-          if (result?.success) {
-            set(productDataState, result.products)
-            message.success(`${result.count}개의 상품이 수정되었습니다.`)
-          } else {
-            message.error('데이터 수정에 실패했습니다.')
-          }
-        } catch (error) {
-          console.error('Failed to modify Excel data:', error)
-          message.error('데이터 수정에 실패했습니다.')
-        } finally {
-          set(registerSettingsState, prev => ({ ...prev, loading: false }))
-        }
-      },
-    [],
-  )
-
-  // 모든 상품 삭제
-  const clearProducts = useRecoilCallback(
-    ({ set }) =>
-      async () => {
-        await ipcRenderer.invoke('clear-products')
-        set(productDataState, [])
-        set(selectedProductKeysState, [])
-        message.success('등록 목록이 초기화되었습니다.')
       },
     [],
   )
@@ -230,46 +133,6 @@ export const useRegister = () => {
             return
           }
 
-          // G2B 품목번호 체크: 물품 등록 시 필수 (카테고리 설정 기반)
-          const categoryTree = await snapshot.getPromise(categoryTreeState)
-
-          const selectedItems = currentProducts.filter(p => currentSelectedKeys.includes(p.id))
-          const missingG2bItems = selectedItems.filter(p => {
-            const isGoods = p.saleType === '물품' || !p.saleType
-            if (!isGoods) return false
-
-            // 카테고리 트리에서 g2bRequired 여부 확인
-            const c1 = categoryTree.find((c: any) => c.value === p.category1)
-            const c2 = c1?.children?.find((c: any) => c.value === p.category2)
-            const c3 = c2?.children?.find((c: any) => c.value === p.category3)
-            const isRequired = !!c3?.g2bRequired
-
-            return isRequired && !p.g2bNumber
-          })
-
-          if (missingG2bItems.length > 0) {
-            Modal.error({
-              title: 'G2B 품목번호 누락',
-              content: React.createElement(
-                'div',
-                null,
-                React.createElement('p', null, '선택하신 카테고리 중 G2B 품목번호(8자리)가 필수인 상품이 있습니다.'),
-                React.createElement(
-                  'p',
-                  null,
-                  `다음 ${missingG2bItems.length}개 상품의 정보를 수정한 후 다시 시도해주세요:`,
-                ),
-                React.createElement(
-                  'ul',
-                  { style: { maxHeight: '200px', overflowY: 'auto', paddingLeft: '20px' } },
-                  missingG2bItems.map(item => React.createElement('li', { key: item.id }, item.name)),
-                ),
-              ),
-              okText: '확인',
-            })
-            return
-          }
-
           const settingsData = await ipcRenderer.invoke('get-settings')
           const { accounts, selectedAccountId } = await syncAccountPresets(settingsData)
           const selectedAccount = accounts.find((account: any) => account.id === selectedAccountId)
@@ -281,15 +144,25 @@ export const useRegister = () => {
 
           set(registerSettingsState, prev => ({ ...prev, loading: true }))
 
-          // 서버에 productIds를 전달 (Product → ExcelRegistrationData 변환은 서버에서)
+          // 전체 데이터 유지, 선택 여부 포함
+          const allProducts = currentProducts.map(item => ({
+            ...item.originalData,
+            selected: currentSelectedKeys.includes(item.key),
+          }))
+
           const result = await ipcRenderer.invoke('start-and-register-products', {
-            productIds: currentSelectedKeys,
+            allProducts,
             accountId: selectedAccount.id,
           })
 
-          // 서버에서 업데이트된 상품 목록 다시 불러오기
-          const updatedProducts = await ipcRenderer.invoke('get-products')
-          set(productDataState, updatedProducts)
+          if (Array.isArray(result?.productResults)) {
+            set(productDataState, prev =>
+              prev.map((item, index) => ({
+                ...item,
+                result: result.productResults[index] || '',
+              })),
+            )
+          }
 
           await syncAccountPresets()
 
@@ -300,9 +173,7 @@ export const useRegister = () => {
           } else if (result?.failCount > 0) {
             message.warning(`일부 상품 등록 실패 (성공 ${result.successCount || 0} / 실패 ${result.failCount})`)
           } else if (result?.success) {
-            message.success(
-              `모든 상품이 성공적으로 처리되었습니다. (${result.successCount || currentSelectedKeys.length}개)`,
-            )
+            message.success(`모든 상품이 성공적으로 처리되었습니다. (${result.successCount || currentSelectedKeys.length}개)`)
           } else {
             message.error(result?.error || '상품 등록 과정에서 오류가 발생했습니다.')
           }
@@ -384,57 +255,14 @@ export const useRegister = () => {
     [checkPermission],
   )
 
-  // 상품 추가 (소싱 페이지 등에서 호출) → 서버에 저장
-  const addProducts = useRecoilCallback(
-    ({ set }) =>
-      async (newProducts: Product[]) => {
-        const savedProducts = await ipcRenderer.invoke('save-products', { products: newProducts })
-        set(productDataState, savedProducts)
-        set(selectedProductKeysState, prev => {
-          const newKeys = newProducts.map(p => p.id)
-          return [...prev, ...newKeys]
-        })
-        message.success(`${newProducts.length}개의 상품이 등록 목록에 추가되었습니다.`)
-      },
-    [],
-  )
-
-  // 상품 삭제 → 서버에서 삭제
-  const removeProducts = useRecoilCallback(
-    ({ set }) =>
-      async (ids: string[]) => {
-        const updatedProducts = await ipcRenderer.invoke('delete-products', { ids })
-        set(productDataState, updatedProducts)
-        set(selectedProductKeysState, prev => prev.filter(k => !ids.includes(k)))
-        message.success(`${ids.length}개의 상품이 삭제되었습니다.`)
-      },
-    [],
-  )
-
-  // 상품 수정 → 서버에 저장
-  const updateProduct = useRecoilCallback(
-    ({ set }) =>
-      async (id: string, updatedData: Partial<Product>) => {
-        const currentProducts = await ipcRenderer.invoke('get-products')
-        const target = currentProducts.find((p: Product) => p.id === id)
-        if (!target) return
-        const updated = { ...target, ...updatedData }
-        const savedProducts = await ipcRenderer.invoke('update-product', { product: updated })
-        set(productDataState, savedProducts)
-      },
-    [],
-  )
-
   return {
     products,
     selectedKeys,
-    setSelectedKeys,
     settings,
     permission,
+    setSelectedKeys,
     checkPermission,
-    loadProducts,
-    uploadExcelData,
-    clearProducts,
+    loadExcelData,
     openResultFolder,
     registerProducts,
     extendManagementDate,
@@ -443,11 +271,5 @@ export const useRegister = () => {
     updateRegistrationStatus,
     updateSelectedAccountId,
     syncAccountPresets,
-    addProducts,
-    removeProducts,
-    updateProduct,
-    downloadExcelData,
-    uploadExcelModifyData,
-    downloadSampleExcel,
   }
 }

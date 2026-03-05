@@ -1198,7 +1198,7 @@ export class S2BSourcing extends S2BBase {
               물품명: baseProduct.물품명,
               규격: specText,
               제시금액: Math.ceil(((originalPrice + (option.price || 0)) * (1 + marginRate / 100)) / 100) * 100,
-              재고수량: 9999,
+              재고수량: Math.min(option.qty || 9999, 9999),
             } as ExcelRegistrationData
           })
         }

@@ -83,6 +83,9 @@ export class S2BRegistration extends S2BBase {
         throw new Error(this.dialogErrorMessage)
       }
       this._log(`✅ 상품 등록 성공: ${data.goodsName}`, 'info')
+    } catch (error: any) {
+      this._log(`상품 등록 실패: ${error.message}`, 'error')
+      throw error
     } finally {
       this.page.off('dialog', this._handleRegistrationDialog)
     }
@@ -717,37 +720,28 @@ export class S2BRegistration extends S2BBase {
     const isChecked = await this.page!.isChecked('#uprightContract')
     if (!isChecked) await this.page!.check('#uprightContract')
 
-    // 등록 버튼 클릭 후 성공 페이지로의 이동을 일정 시간 대기한다.
+    // 등록 버튼 클릭 후 5초 대기 후 결과 URL 확인
     await this.page!.click('a[href="javascript:register(\'1\');"]')
-    const timeoutMs = 15000
-    const pollMs = 500
-    const startedAt = Date.now()
-    let currentUrl = this.page!.url()
-    let isSuccess = false
+    await new Promise(resolve => setTimeout(resolve, 5000))
 
-    const checkSuccessByUrl = (urlText: string): boolean => {
-      try {
-        const parsed = new URL(urlText)
-        const base = `${parsed.origin}${parsed.pathname}`
-        const forwardName = parsed.searchParams.get('forwardName')
-        // 등록 성공 시: rema100.do 로 이동하되, 최초 등록화면인 forwardName=goRegistView 가 아닌 경우
-        return base === SUCCESS_BASE_URL && forwardName !== 'goRegistView'
-      } catch {
-        return false
-      }
+    if (this.dialogErrorMessage) {
+      // 다이얼로그에서 이미 에러 메시지를 받은 경우 즉시 실패 처리
+      throw new Error(this.dialogErrorMessage)
     }
 
-    while (Date.now() - startedAt < timeoutMs) {
-      if (this.dialogErrorMessage) {
-        // 다이얼로그에서 이미 에러 메시지를 받은 경우 즉시 실패 처리
-        throw new Error(this.dialogErrorMessage)
-      }
+    const currentUrl = this.page!.url()
+    let isSuccess = false
 
-      currentUrl = this.page!.url()
-      isSuccess = checkSuccessByUrl(currentUrl)
-      if (isSuccess) break
+    try {
+      const url = new URL(currentUrl)
+      const base = `${url.origin}${url.pathname}`
+      const forwardName = url.searchParams.get('forwardName')
 
-      await new Promise(resolve => setTimeout(resolve, pollMs))
+      // 등록 성공 시: rema100.do 로 이동하되, 최초 등록화면인 forwardName=goRegistView 가 아닌 경우
+      isSuccess = base === SUCCESS_BASE_URL && forwardName !== 'goRegistView'
+    } catch {
+      // URL 파싱 실패 시에도 확실한 성공 신호가 아니므로 실패로 간주
+      isSuccess = false
     }
 
     if (!isSuccess) {
