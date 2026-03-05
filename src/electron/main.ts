@@ -12,6 +12,7 @@ import dayjs from 'dayjs'
 import { autoUpdater } from 'electron-updater'
 import { ExcelRegistrationData, ConfigSet } from './types/excel'
 import { productToExcelData, sourcingItemToProduct } from './types/product'
+import { productToMappedExcelRow, parseExcelRowToProduct } from './utils/excelMapper'
 import type { Product, SourcingItemPayload } from './types/product'
 import { envConfig, supabase } from './envConfig'
 import axios from 'axios'
@@ -666,8 +667,11 @@ function setupIpcHandlers() {
       sendLogToRenderer(`엑셀 데이터 로드 시작: ${resolvedExcelPath}`, 'info')
       const settings = store.get('settings')
       const registration = new S2BRegistration(resolvedFileDir, sendLogToRenderer, settings.headless)
-      const data = await registration.readExcelFile(resolvedExcelPath)
-      return data
+      const rawData = await registration.readExcelFile(resolvedExcelPath)
+
+      const products: Product[] = rawData.map(row => parseExcelRowToProduct(row))
+
+      return products
     } catch (error) {
       console.error('Error loading Excel data:', error)
       sendLogToRenderer(`엑셀 로드 실패: ${error.message || '알 수 없는 오류'}`, 'error')
@@ -708,6 +712,64 @@ function setupIpcHandlers() {
   ipcMain.handle('clear-products', async () => {
     store.set('products', [])
     return []
+  })
+
+  // ---- Excel Bulk Operations (Download & Modify) ----
+  ipcMain.handle('download-register-excel', async () => {
+    try {
+      const { canceled, filePath } = await dialog.showSaveDialog(mainWindow!, {
+        title: '상품 목록 엑셀 다운로드',
+        defaultPath: '등록상품목록.xlsx',
+        filters: [{ name: 'Excel Files', extensions: ['xlsx', 'xls'] }],
+      })
+
+      if (canceled || !filePath) return { success: false, cancelled: true }
+
+      const allStoredProducts = (store.get('products') || []) as Product[]
+      const excelData = allStoredProducts.map(p => {
+        return productToMappedExcelRow(p)
+      })
+
+      const worksheet = XLSX.utils.json_to_sheet(excelData)
+      const workbook = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(workbook, worksheet, '상품목록')
+      XLSX.writeFile(workbook, filePath)
+
+      return { success: true, filePath }
+    } catch (error) {
+      console.error('Failed to download excel:', error)
+      return { success: false, error: (error as Error).message }
+    }
+  })
+
+  ipcMain.handle('modify-excel-data', async (_, { excelPath }: { excelPath: string }) => {
+    try {
+      const workbook = XLSX.readFile(excelPath)
+      const sheetName = workbook.SheetNames[0]
+      if (!sheetName) throw new Error('시트를 찾을 수 없습니다')
+      const worksheet = workbook.Sheets[sheetName]
+      const jsonData = XLSX.utils.sheet_to_json(worksheet, { defval: '', blankrows: false }) as any[]
+
+      const existingProducts = (store.get('products') || []) as Product[]
+
+      let modifyCount = 0
+
+      const updatedProducts = existingProducts.map(p => {
+        const row = jsonData.find(r => (r.productId || r.id || r.상품ID) === p.id)
+        if (!row) return p
+
+        modifyCount++
+
+        return parseExcelRowToProduct(row, p)
+      })
+
+      store.set('products', updatedProducts)
+
+      return { success: true, count: modifyCount, products: updatedProducts }
+    } catch (error) {
+      console.error('Error modifying excel:', error)
+      throw error
+    }
   })
 
   // ---- Sourcing → Product Conversion (서버에서 변환) ----

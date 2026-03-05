@@ -182,14 +182,14 @@ const Sourcing: React.FC = () => {
           const excel = (record as any).excelMapped?.[0] || {}
           const thumbnail = excel['기본이미지1'] || info.images?.[0] || record.listThumbnail
           return (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
               <div
                 style={{
-                  width: 54,
-                  height: 54,
+                  width: 64,
+                  height: 64,
                   borderRadius: 8,
                   overflow: 'hidden',
-                  border: '1px solid #f0f0f0',
+                  border: '1px solid #e0e0e0',
                   backgroundColor: '#f9f9f9',
                   flexShrink: 0,
                 }}
@@ -208,8 +208,9 @@ const Sourcing: React.FC = () => {
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      color: '#ccc',
-                      fontSize: 10,
+                      color: '#999',
+                      fontSize: 12,
+                      fontWeight: 500,
                     }}
                   >
                     No Img
@@ -217,21 +218,21 @@ const Sourcing: React.FC = () => {
                 )}
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-                  <Tag color="default" style={{ margin: 0, fontSize: 10, borderRadius: 4 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                  <Tag color="default" style={{ margin: 0, fontSize: 12, borderRadius: 4, padding: '2px 8px' }}>
                     {record.vendor || '알수없음'}
                   </Tag>
-                  {record.isCollected && <CheckCircleOutlined style={{ color: '#52c41a', fontSize: 14 }} />}
+                  {record.isCollected && <CheckCircleOutlined style={{ color: '#52c41a', fontSize: 16 }} />}
                 </div>
                 {record.vendor === '학교장터' ? (
                   <div
                     style={{
-                      fontWeight: 600,
-                      fontSize: 14,
+                      fontWeight: 700,
+                      fontSize: 16,
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
                       whiteSpace: 'nowrap',
-                      color: '#444',
+                      color: '#111',
                     }}
                     title={record.name}
                   >
@@ -240,8 +241,8 @@ const Sourcing: React.FC = () => {
                 ) : (
                   <Typography.Link
                     style={{
-                      fontWeight: 600,
-                      fontSize: 14,
+                      fontWeight: 700,
+                      fontSize: 16,
                       display: 'block',
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
@@ -270,18 +271,18 @@ const Sourcing: React.FC = () => {
         title: '금액',
         dataIndex: 'price',
         key: 'price',
-        width: 120,
+        width: 140,
         align: 'right',
         render: (value: number) => {
           const n = Number(value)
           if (!Number.isFinite(n) || n <= 0) return '-'
-          return `${currency(n)}원`
+          return <div style={{ fontWeight: 700, color: '#111', fontSize: 16 }}>{currency(n)}원</div>
         },
       },
       {
         title: '상태',
         key: 'status',
-        width: 140,
+        width: 160,
         align: 'center',
         render: (_, record) => {
           if (record.loading) {
@@ -289,7 +290,7 @@ const Sourcing: React.FC = () => {
               <Tag
                 icon={<LoadingOutlined />}
                 color="processing"
-                style={{ borderRadius: 12, padding: '2px 10px', border: 'none' }}
+                style={{ borderRadius: 16, padding: '4px 12px', border: 'none', fontSize: 14 }}
               >
                 수집 중...
               </Tag>
@@ -301,7 +302,7 @@ const Sourcing: React.FC = () => {
               <Tag
                 color={isSuccess ? 'success' : 'error'}
                 icon={isSuccess ? <CheckCircleOutlined /> : <InfoCircleOutlined />}
-                style={{ borderRadius: 12, padding: '2px 10px', border: 'none' }}
+                style={{ borderRadius: 16, padding: '4px 12px', border: 'none', fontSize: 14, fontWeight: 600 }}
                 title={record.result}
               >
                 {record.result}
@@ -310,31 +311,29 @@ const Sourcing: React.FC = () => {
           }
           if (record.isCollected) {
             return (
-              <Tag color="success" style={{ borderRadius: 12, padding: '2px 10px' }}>
+              <Tag color="success" style={{ borderRadius: 16, padding: '4px 12px', fontSize: 14, fontWeight: 600 }}>
                 수집완료
               </Tag>
             )
           }
-          return <Tag style={{ borderRadius: 12, padding: '2px 10px' }}>대기</Tag>
+          return <Tag style={{ borderRadius: 16, padding: '4px 12px', fontSize: 14 }}>대기</Tag>
         },
       },
       {
         title: '관리',
         key: 'action',
-        width: 120,
+        width: 180,
         align: 'center',
         render: (_, record) => (
-          <Space size={0}>
+          <Space size={8}>
             <Button
-              type="text"
-              shape="circle"
+              size="large"
               icon={<SyncOutlined />}
               onClick={() => handleRequestRegister([record.key])}
               title="다시 수집"
             />
             <Button
-              type="text"
-              shape="circle"
+              size="large"
               icon={record.isCollected ? <CheckCircleOutlined style={{ color: '#52c41a' }} /> : <SearchOutlined />}
               disabled={!record.isCollected}
               onClick={() => {
@@ -351,16 +350,14 @@ const Sourcing: React.FC = () => {
               title="데이터 확인"
             />
             <Button
-              type="text"
-              shape="circle"
+              size="large"
               icon={<PlusCircleOutlined style={{ color: record.isCollected ? '#52c41a' : '#bfbfbf' }} />}
               disabled={!record.isCollected}
               onClick={() => handleMoveToRegister([record.key])}
               title="등록 페이지로 추가"
             />
             <Button
-              type="text"
-              shape="circle"
+              size="large"
               danger
               icon={<DeleteOutlined />}
               onClick={() => handleDelete(record.key)}
@@ -642,7 +639,7 @@ const Sourcing: React.FC = () => {
     <Space
       direction="vertical"
       size="large"
-      style={{ width: '100%', maxWidth: 1200, margin: '0 auto', padding: '24px 0' }}
+      style={{ width: '100%', maxWidth: 1400, margin: '0 auto', padding: '32px 0' }}
     >
       {permission.hasPermission === false && (
         <Alert
@@ -708,17 +705,17 @@ const Sourcing: React.FC = () => {
         style={{ borderRadius: 16, boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}
         title={
           <Space>
-            <SearchOutlined style={{ color: '#1890ff' }} />
-            <span style={{ fontSize: 18, fontWeight: 700 }}>상품 소싱 검색</span>
+            <SearchOutlined style={{ color: '#1890ff', fontSize: 24 }} />
+            <span style={{ fontSize: 22, fontWeight: 700 }}>상품 소싱 검색</span>
           </Space>
         }
         extra={
           <div
             style={{
               background: '#f5f5f5',
-              padding: '4px 12px',
+              padding: '6px 16px',
               borderRadius: 20,
-              fontSize: 13,
+              fontSize: 15,
               color: '#666',
               display: 'flex',
               alignItems: 'center',
@@ -731,11 +728,11 @@ const Sourcing: React.FC = () => {
             </span>
             <Button
               type="text"
-              size="small"
+              size="middle"
               shape="circle"
               icon={<SyncOutlined spin={creditsLoading} />}
               onClick={handleFetchCredits}
-              style={{ fontSize: 12 }}
+              style={{ fontSize: 16 }}
             />
           </div>
         }
@@ -748,15 +745,15 @@ const Sourcing: React.FC = () => {
                 alignItems: 'center',
                 gap: 8,
                 background: '#fafafa',
-                padding: '4px 12px',
+                padding: '8px 16px',
                 borderRadius: 10,
                 border: '1px solid #eee',
               }}
             >
-              <ShopOutlined style={{ color: '#888' }} />
+              <ShopOutlined style={{ color: '#888', fontSize: 18 }} />
               <Select
                 variant="borderless"
-                style={{ width: 140, fontWeight: 600 }}
+                style={{ width: 160, fontWeight: 600, fontSize: 16 }}
                 options={VENDORS}
                 value={vendor}
                 onChange={setVendor}
@@ -768,7 +765,7 @@ const Sourcing: React.FC = () => {
               icon={<GlobalOutlined />}
               onClick={handleOpenVendorSite}
               loading={loading}
-              style={{ borderRadius: 10, fontWeight: 600, background: '#1890ff' }}
+              style={{ borderRadius: 10, fontWeight: 700, background: '#1890ff', height: 48, fontSize: 16 }}
             >
               해당 사이트 열기
             </Button>
@@ -777,7 +774,7 @@ const Sourcing: React.FC = () => {
               icon={<SyncOutlined />}
               onClick={handleFetchCurrentPage}
               loading={listLoading}
-              style={{ borderRadius: 10, fontWeight: 600 }}
+              style={{ borderRadius: 10, fontWeight: 700, height: 48, fontSize: 16 }}
             >
               현재 페이지 자동 수집
             </Button>
@@ -943,7 +940,7 @@ const Sourcing: React.FC = () => {
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          padding: '16px 24px',
+          padding: '20px 32px',
           background: '#fff',
           borderRadius: 16,
           boxShadow: '0 4px 12px rgba(0,0,0,0.05)',
@@ -956,15 +953,15 @@ const Sourcing: React.FC = () => {
         <Space size={16}>
           <div
             style={{
-              padding: '6px 14px',
+              padding: '8px 16px',
               background: '#e6f4ff',
               borderRadius: 20,
               color: '#0958d9',
               fontWeight: 700,
-              fontSize: 13,
+              fontSize: 15,
             }}
           >
-            {selectedRowKeys.length}개 선택됨
+            선택된 품목: {selectedRowKeys.length}개
           </div>
           {hasSelection && (
             <div
@@ -973,25 +970,25 @@ const Sourcing: React.FC = () => {
                 alignItems: 'center',
                 gap: 8,
                 background: '#f5f5f5',
-                padding: '4px 12px',
+                padding: '6px 14px',
                 borderRadius: 10,
               }}
             >
-              <span style={{ fontSize: 13, color: '#666', fontWeight: 500 }}>옵션 처리:</span>
+              <span style={{ fontSize: 15, color: '#666', fontWeight: 600 }}>옵션 처리 방식:</span>
               <Select
                 variant="borderless"
-                style={{ width: 230, fontWeight: 600 }}
+                style={{ width: 260, fontWeight: 600, fontSize: 15 }}
                 value={optionHandling}
                 onChange={value => setOptionHandling(value)}
               >
-                <Select.Option value="split">옵션별 개별 품목 생성 (추천)</Select.Option>
-                <Select.Option value="single">옵션 통합 1개 품목 생성</Select.Option>
+                <Select.Option value="split">옵션별로 개별 품목 생성 (권장)</Select.Option>
+                <Select.Option value="single">하나의 품목으로 통합 생성</Select.Option>
               </Select>
             </div>
           )}
         </Space>
 
-        <Space size={12}>
+        <Space size={16}>
           {hasSelection && (
             <>
               <Button
@@ -1001,7 +998,14 @@ const Sourcing: React.FC = () => {
                 onClick={() => handleRequestRegister()}
                 disabled={settings.detailHtmlTemplate.length < 10}
                 loading={loading}
-                style={{ borderRadius: 10, fontWeight: 700, paddingLeft: 20, paddingRight: 20 }}
+                style={{
+                  borderRadius: 10,
+                  fontWeight: 700,
+                  paddingLeft: 24,
+                  paddingRight: 24,
+                  height: 48,
+                  fontSize: 16,
+                }}
               >
                 상세 정보 수집 시작
               </Button>
@@ -1010,7 +1014,14 @@ const Sourcing: React.FC = () => {
                 type="primary"
                 icon={<ArrowRightOutlined />}
                 onClick={() => handleMoveToRegister(selectedRowKeys)}
-                style={{ background: '#52c41a', color: '#fff', borderRadius: 10, fontWeight: 700 }}
+                style={{
+                  background: '#52c41a',
+                  color: '#fff',
+                  borderRadius: 10,
+                  fontWeight: 700,
+                  height: 48,
+                  fontSize: 16,
+                }}
               >
                 등록 페이지로 이동
               </Button>
@@ -1019,8 +1030,10 @@ const Sourcing: React.FC = () => {
                 danger
                 icon={<DeleteOutlined />}
                 onClick={handleBulkDelete}
-                style={{ borderRadius: 10, fontWeight: 600 }}
-              />
+                style={{ borderRadius: 10, fontWeight: 700, height: 48, fontSize: 16 }}
+              >
+                선택 삭제
+              </Button>
             </>
           )}
 
@@ -1031,9 +1044,9 @@ const Sourcing: React.FC = () => {
             icon={<StopOutlined />}
             onClick={cancelSourcing}
             disabled={!loading}
-            style={{ borderRadius: 10, fontWeight: 600 }}
+            style={{ borderRadius: 10, fontWeight: 700, height: 48, fontSize: 16 }}
           >
-            중단
+            작업 중단
           </Button>
         </Space>
       </div>
@@ -1066,17 +1079,17 @@ const Sourcing: React.FC = () => {
       <Card
         bordered={false}
         title={
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <div
               style={{
-                width: 10,
-                height: 10,
+                width: 14,
+                height: 14,
                 borderRadius: '50%',
                 backgroundColor: loading || listLoading ? '#52c41a' : '#bfbfbf',
                 animation: loading || listLoading ? 'pulse 2s infinite' : 'none',
               }}
             />
-            <span style={{ fontWeight: 600 }}>실시간 수집 로그</span>
+            <span style={{ fontSize: 20, fontWeight: 700 }}>실시간 수집 작업 현황 (로그)</span>
           </div>
         }
         extra={
@@ -1096,19 +1109,19 @@ const Sourcing: React.FC = () => {
           style={{
             backgroundColor: '#1e1e1e',
             color: '#d4d4d4',
-            height: '240px',
+            height: '280px',
             overflowY: 'auto',
-            padding: '16px',
+            padding: '20px',
             fontFamily: 'Menlo, Monaco, Consolas, "Courier New", monospace',
             borderRadius: '12px',
-            fontSize: 13,
-            lineHeight: 1.6,
+            fontSize: 15,
+            lineHeight: 1.8,
             boxShadow: 'inset 0 2px 8px rgba(0,0,0,0.2)',
           }}
         >
           {logs.length === 0 ? (
-            <div style={{ color: '#666', fontStyle: 'italic' }}>
-              수집을 시작하면 실시간 작업 내역이 여기에 표시됩니다.
+            <div style={{ color: '#888', fontStyle: 'italic' }}>
+              수집을 시작하면 실시간 작업 내역이 이 곳에 표시됩니다.
             </div>
           ) : (
             logs.map((log, index) => (
@@ -1132,18 +1145,35 @@ const Sourcing: React.FC = () => {
       <style>{`
         @keyframes pulse {
           0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(82, 196, 26, 0.7); }
-          70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(82, 196, 26, 0); }
+          70% { transform: scale(1); box-shadow: 0 0 0 8px rgba(82, 196, 26, 0); }
           100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(82, 196, 26, 0); }
         }
         .premium-table .ant-table { background: transparent; }
         .premium-table .ant-table-thead > tr > th {
-          background: #f8f9fa;
+          background: #f0f2f5;
           font-weight: 700;
-          color: #444;
-          border-bottom: 2px solid #eee;
+          font-size: 16px;
+          color: #333;
+          border-bottom: 2px solid #ddd;
+          padding: 16px;
+        }
+        .premium-table .ant-table-tbody > tr > td {
+          font-size: 15px;
+          padding: 16px;
         }
         .premium-table .ant-table-tbody > tr:hover > td { background: #f0f7ff !important; }
         .premium-table .ant-table-row-selected > td { background: #e6f4ff !important; }
+        .ant-table-selection-column {
+          width: 60px;
+        }
+        .ant-checkbox-inner {
+          width: 20px;
+          height: 20px;
+        }
+        .ant-checkbox-checked .ant-checkbox-inner::after {
+          width: 6.5px;
+          height: 11px;
+        }
       `}</style>
     </Space>
   )

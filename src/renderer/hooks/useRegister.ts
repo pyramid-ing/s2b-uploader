@@ -79,117 +79,16 @@ export const useRegister = () => {
 
           set(registerSettingsState, prev => ({ ...prev, loading: true }))
 
-          // 서버에서 엑셀 로드 → ExcelRegistrationData[] 반환
-          const productsData = await ipcRenderer.invoke('load-excel-data', {
+          // 서버에서 엑셀 로드 → Product[] 반환 (이미 매핑됨)
+          const products: Product[] = await ipcRenderer.invoke('load-excel-data', {
             excelPath: filePath,
             fileDir: settingsData.fileDir,
           })
 
-          // ExcelRegistrationData를 Product로 변환하여 서버에 저장
-          // 서버 측에서 convert 후 save
-          const products: Product[] = productsData.map((p: any, index: number) => ({
-            id: `excel-${Date.now()}-${index}`,
-            name: p.goodsName || p['물품명'] || '',
-            spec: p.spec || p['규격'] || '',
-            modelName: p.modelName || p['모델명'] || '',
-            manufacturer: p.factory || p['제조사'] || '',
-            material: p.material || p['소재/재질'] || '',
-            salesUnit: p.salesUnit || p['판매단위'] || '개',
-            stockQuantity: parseInt(p.remainQnt || '9999', 10) || 9999,
-            price: parseInt(p.estimateAmt || '0', 10) || 0,
-            taxType: p.taxType || '과세(세금계산서)',
-            saleType: p.saleTypeText || '물품',
-            warranty: p.assure || '1년',
-            category1: p.category1 || '',
-            category2: p.category2 || '',
-            category3: p.category3 || '',
-            g2bNumber: p.g2bNumber || '',
-            deliveryPeriod: p.deliveryLimitText || '7일',
-            quoteValidity: p.estimateValidity || '30일',
-            deliveryFeeType: p.deliveryFeeKindText || '무료',
-            deliveryFee: parseFloat(p.deliveryFee || '0') || 0,
-            returnFee: parseFloat(p.returnFee || '3500') || 3500,
-            bundleShipping: (p.deliveryGroupYn || 'Y') === 'Y',
-            jejuShipping: (p.jejuDeliveryYn || 'N') === 'Y',
-            jejuAdditionalFee: parseFloat(p.jejuDeliveryFee || '0') || 0,
-            deliveryMethod: p.deliveryMethod || '택배',
-            deliveryAreas: p.deliveryAreas || [],
-            image1: p.image1 || '',
-            image2: p.image2 || '',
-            addImage1: p.addImage1 || '',
-            addImage2: p.addImage2 || '',
-            detailImage: p.detailImage || '',
-            detailHtml: p.detailHtml || '',
-            originType: p.originType || '국내',
-            originLocal: p.originLocal || '',
-            originForeign: p.originForeign || '',
-            kidsKcType: p.kidsKcType || 'N',
-            kidsKcCertId: p.kidsKcCertId || '',
-            kidsKcFile: p.kidsKcFile || '',
-            elecKcType: p.elecKcType || 'N',
-            elecKcCertId: p.elecKcCertId || '',
-            elecKcFile: p.elecKcFile || '',
-            dailyKcType: p.dailyKcType || 'N',
-            dailyKcCertId: p.dailyKcCertId || '',
-            dailyKcFile: p.dailyKcFile || '',
-            broadcastingKcType: p.broadcastingKcType || 'N',
-            broadcastingKcCertId: p.broadcastingKcCertId || '',
-            broadcastingKcFile: p.broadcastingKcFile || '',
-            childExitCheckerKcType: p.childExitCheckerKcType || 'N',
-            childExitCheckerKcCertId: '',
-            childExitCheckerKcFile: '',
-            safetyCheckKcType: p.safetyCheckKcType || 'N',
-            safetyCheckKcCertId: '',
-            safetyCheckKcFile: '',
-            consumptionPeriodType: '',
-            consumptionPeriodValue: '',
-            ratedPower: '',
-            sizeAndWeight: '',
-            sameModelDate: '',
-            coolingHeatingArea: '',
-            productComposition: '',
-            safetyMark: '',
-            capacity: '',
-            mainSpec: '',
-            certWoman: false,
-            certDisabledCompany: false,
-            certFoundation: false,
-            certDisabled: false,
-            certSevereDisabled: false,
-            certCooperation: false,
-            certSociety: false,
-            certRecycle: false,
-            certEnvironment: false,
-            certLowCarbon: false,
-            certSwQuality: false,
-            certNep: false,
-            certNet: false,
-            certGreenProduct: false,
-            certEpc: false,
-            certProcure: false,
-            certTown: false,
-            certSelf: false,
-            certCollaboration: false,
-            certReserve: false,
-            ppsContractYn: false,
-            ppsContractStartDate: '',
-            ppsContractEndDate: '',
-            phone: p.asTelephone1 || '',
-            asPhone: p.asTelephone2 || '',
-            naraRegistered: false,
-            naraPrice: '',
-            otherSiteName: '',
-            otherSiteUrl: '',
-            otherSiteRegistered: false,
-            otherSitePrice: '',
-            addressCode: '',
-            address: '',
-            addressDetail: '',
-            approvalRequest: '',
-            sourceUrl: '',
-            listThumbnail: '',
-            result: '',
-          }))
+          if (!products || products.length === 0) {
+            message.warning('불러올 수 있는 상품 데이터가 없습니다.')
+            return
+          }
 
           const savedProducts = await ipcRenderer.invoke('save-products', { products })
           set(productDataState, savedProducts)
@@ -202,6 +101,53 @@ export const useRegister = () => {
         } catch (error) {
           console.error('Failed to upload Excel data:', error)
           message.error('데이터 업로드에 실패했습니다.')
+        } finally {
+          set(registerSettingsState, prev => ({ ...prev, loading: false }))
+        }
+      },
+    [],
+  )
+
+  const downloadExcelData = useRecoilCallback(
+    ({ set }) =>
+      async () => {
+        try {
+          set(registerSettingsState, prev => ({ ...prev, loading: true }))
+          const result = await ipcRenderer.invoke('download-register-excel')
+          if (result?.cancelled) {
+            return
+          }
+          if (result?.success) {
+            message.success('엑셀 파일이 성공적으로 다운로드되었습니다.')
+          } else {
+            message.error(result?.error || '다운로드 중 오류가 발생했습니다.')
+          }
+        } catch (error) {
+          console.error('Failed to download Excel:', error)
+          message.error('다운로드 중 오류가 발생했습니다.')
+        } finally {
+          set(registerSettingsState, prev => ({ ...prev, loading: false }))
+        }
+      },
+    [],
+  )
+
+  const uploadExcelModifyData = useRecoilCallback(
+    ({ set }) =>
+      async (filePath: string) => {
+        try {
+          set(registerSettingsState, prev => ({ ...prev, loading: true }))
+          const result = await ipcRenderer.invoke('modify-excel-data', { excelPath: filePath })
+
+          if (result?.success) {
+            set(productDataState, result.products)
+            message.success(`${result.count}개의 상품이 수정되었습니다.`)
+          } else {
+            message.error('데이터 수정에 실패했습니다.')
+          }
+        } catch (error) {
+          console.error('Failed to modify Excel data:', error)
+          message.error('데이터 수정에 실패했습니다.')
         } finally {
           set(registerSettingsState, prev => ({ ...prev, loading: false }))
         }
@@ -428,5 +374,7 @@ export const useRegister = () => {
     addProducts,
     removeProducts,
     updateProduct,
+    downloadExcelData,
+    uploadExcelModifyData,
   }
 }
