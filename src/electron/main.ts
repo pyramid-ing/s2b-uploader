@@ -901,6 +901,7 @@ function setupIpcHandlers() {
         domeosin: 'https://www.domesin.com/',
         coupang: 'https://www.coupang.com/',
         s2b: 'https://www.s2b.kr/S2BNCustomer/S2B/scrweb/remu/rema/searchengine/s2bCustomerSearch.jsp',
+        ownerclan: 'https://www.ownerclan.com/',
       }
 
       const baseUrl = baseUrlMap[vendor]

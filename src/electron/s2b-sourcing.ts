@@ -10,6 +10,7 @@ import DomeggookScraper from './scrapers/DomeggookScraper'
 import DomesinScraper from './scrapers/DomesinScraper'
 import CoupangScraper from './scrapers/CoupangScraper'
 import S2BSchoolScraper from './scrapers/S2BSchoolScraper'
+import OwnerClanScraper from './scrapers/OwnerClanScraper'
 import type { Scraper } from './scrapers/BaseScraper'
 import { S2BBase } from './s2b-base'
 import { validateKcByCertNum, KcValidationError } from './kc-validator'
@@ -287,6 +288,7 @@ export class S2BSourcing extends S2BBase {
       if (host.includes('domesin')) return VendorKey.도매의신
       if (host.includes('coupang')) return VendorKey.쿠팡
       if (host.includes('s2b.kr')) return VendorKey.학교장터
+      if (host.includes('ownerclan')) return VendorKey.오너클랜
       return null
     } catch {
       return null
@@ -310,6 +312,8 @@ export class S2BSourcing extends S2BBase {
         return new CoupangScraper()
       case VendorKey.학교장터:
         return new S2BSchoolScraper()
+      case VendorKey.오너클랜:
+        return new OwnerClanScraper()
       default:
         return null
     }

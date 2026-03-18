@@ -3,6 +3,7 @@ export enum VendorKey {
   도매의신 = '도매의신',
   쿠팡 = '쿠팡',
   학교장터 = '학교장터',
+  오너클랜 = '오너클랜',
 }
 
 export interface VendorConfig {
@@ -208,6 +209,29 @@ export const VENDOR_CONFIG: Record<VendorKey, VendorConfig> = {
     custom_url_prefix: 'https://www.s2b.kr',
     prefix: 'S2B_',
   } as VendorConfig,
+  [VendorKey.오너클랜]: {
+    login_url: 'https://www.ownerclan.com/V2/member/loginform.php',
+    product_list_xpath: '//ul[@id="productList-content"]/li',
+    product_name_list_xpath: './/p[contains(@class, "new_title02")]/a',
+    product_price_list_xpath: './/p[@class="price2"]//span[@class="won_color1"]',
+    product_thumbnail_list_xpath: './/div[@class="new_img"]//img',
+    product_name_xpath: '//p[@class="product_information_right_title_text"]',
+    product_code_xpath: '//div[@class="product_information_header"]',
+    price_xpath: '//div[contains(@class, "m-price")]//span[contains(@style, "color: #D60020")]',
+    shipping_fee_xpath: '//input[@name="deli_price"]',
+    category_1_xpath: '(//div[@id="sub_path"]/span[@class="linkStyle"])[1]',
+    category_2_xpath: '(//div[@id="sub_path"]/span[@class="linkStyle"])[2]',
+    category_3_xpath: '(//div[@id="sub_path"]/span[@class="linkStyle"])[3]',
+    category_4_xpath: '(//div[@id="sub_path"]/span[@class="linkStyle"])[4]',
+    option1_box_xpath: '//div[@id="option1_wrapper"]',
+    option2_box_xpath: '//div[@id="option2_wrapper"]',
+    option_xpath: ['//ul[@id="customOptionList"]/li', '//ul[@id="customOptionList2"]/li'],
+    main_image_xpath: '//img[@id="showImage"]',
+    detail_image_xpath: '//div[contains(@class, "detail-content")]',
+    url_mode: 'relative',
+    custom_url_prefix: 'https://www.ownerclan.com',
+    prefix: 'ONC_',
+  },
 }
 
 export function normalizeUrl(url: string, vendor: VendorConfig): string {
