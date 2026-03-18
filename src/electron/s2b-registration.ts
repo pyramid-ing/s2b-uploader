@@ -8,6 +8,7 @@ import FileType from 'file-type'
 import sharp from 'sharp'
 import { S2BBase } from './s2b-base'
 import { ExcelRegistrationData, ExcelRawData } from './types/excel'
+import { GeminiClient } from './lib/gemini-client'
 
 type SaleType = '물품' | '용역'
 
@@ -20,6 +21,7 @@ export class S2BRegistration extends S2BBase {
   private dialogErrorMessage: string | null = null
   private imageOptimize: boolean = false
   private popupHandlersSetup: boolean = false
+  private geminiApiKey: string = ''
 
   constructor(
     baseImagePath: string,
@@ -32,6 +34,10 @@ export class S2BRegistration extends S2BBase {
 
   public setImageOptimize(optimize: boolean): void {
     this.imageOptimize = optimize
+  }
+
+  public setGeminiApiKey(apiKey: string): void {
+    this.geminiApiKey = apiKey
   }
 
   public async launch(): Promise<void> {
@@ -714,11 +720,67 @@ export class S2BRegistration extends S2BBase {
     if (data.otherSiteAmt) await this.page!.fill('input[name="f_site_amt"]', data.otherSiteAmt)
   }
 
+  private async _handleCaptcha(): Promise<void> {
+    if (!this.page) return
+
+    try {
+      // 캡차 영역 존재 여부 확인 (id="capchaDiv")
+      const captchaDiv = await this.page.$('#capchaDiv')
+      if (!captchaDiv) return
+
+      // 실제 화면에 표시되고 있는지 확인 (style="display: none" 등 체크)
+      const isVisible = await this.page.evaluate(() => {
+        const el = document.getElementById('capchaDiv')
+        if (!el) return false
+        const style = window.getComputedStyle(el)
+        return style.display !== 'none' && style.visibility !== 'hidden' && el.offsetHeight > 0
+      })
+
+      if (!isVisible) return
+
+      this._log('⚠️ 보안 인증(CAPTCHA)이 감지되었습니다. 자동 풀이를 시작합니다.', 'warning')
+
+      if (!this.geminiApiKey) {
+        throw new Error('Gemini API Key가 설정되지 않았습니다. 설정에서 API Key를 입력해주세요.')
+      }
+
+      // 캡차 이미지 추출 (id="field_xtnqu0t4n4" 안의 img)
+      const base64Image = await this.page.evaluate(() => {
+        const img = document.querySelector('#field_xtnqu0t4n4 img') as HTMLImageElement
+        return img?.src || null
+      })
+
+      if (!base64Image) {
+        throw new Error('보안 인증 이미지를 찾을 수 없습니다.')
+      }
+
+      // Gemini AI를 통해 캡차 풀기
+      this._log('Gemini AI에게 캡차 풀이 요청 중...', 'info')
+      const result = await GeminiClient.solveCaptcha(base64Image, this.geminiApiKey)
+      this._log(`보안 인증 번호 인식 성공: ${result}`, 'info')
+
+      // 입력창에 번호 입력 (id="field_3eeov45g2c8")
+      const inputSelector = '#field_3eeov45g2c8'
+      await this.page.fill(inputSelector, result)
+
+      // 입력 후 잠시 대기
+      await new Promise(resolve => setTimeout(resolve, 500))
+
+      this._log('✅ 보안 인증 번호가 입력되었습니다.', 'info')
+    } catch (error: any) {
+      this._log(`보안 인증 처리 중 에러 발생: ${error.message}`, 'error')
+      throw error
+    }
+  }
+
   private async _submitRegistration(): Promise<void> {
     const SUCCESS_BASE_URL = 'https://www.s2b.kr/S2BNVendor/rema100.do'
 
     const isChecked = await this.page!.isChecked('#uprightContract')
     if (!isChecked) await this.page!.check('#uprightContract')
+
+    // 캡차 처리 (있을 경우에만 동작)
+    await this._handleCaptcha()
 
     // 등록 버튼 클릭 후 5초 대기 후 결과 URL 확인
     await this.page!.click('a[href="javascript:register(\'1\');"]')

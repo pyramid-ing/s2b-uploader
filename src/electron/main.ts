@@ -391,6 +391,7 @@ interface StoreSchema {
     marginRate: number
     detailHtmlTemplate: string
     useAIForSourcing?: boolean
+    geminiApiKey?: string
   }
   configSets: any[]
   activeConfigSetId: string | null
@@ -507,6 +508,7 @@ function normalizeSettings(settings: Partial<StoreSchema['settings']> | undefine
     detailHtmlTemplate:
       typeof merged.detailHtmlTemplate === 'string' ? merged.detailHtmlTemplate : '<p>상세설명을 입력하세요.</p>',
     useAIForSourcing: Boolean(merged.useAIForSourcing),
+    geminiApiKey: typeof merged.geminiApiKey === 'string' ? merged.geminiApiKey : '',
   }
 }
 
@@ -572,6 +574,7 @@ const store = new Store<StoreSchema>({
       marginRate: 20,
       detailHtmlTemplate: '<p>상세설명을 입력하세요.</p>',
       useAIForSourcing: false,
+      geminiApiKey: '',
     },
     configSets: [],
     activeConfigSetId: null,
@@ -698,6 +701,15 @@ function setupIpcHandlers() {
     }
   })
 
+  ipcMain.handle('open-url', async (_, url: string) => {
+    try {
+      await shell.openExternal(url)
+    } catch (error) {
+      console.error('URL 열기 실패:', error)
+      throw error
+    }
+  })
+
   // Excel 데이터 로드 및 registration 초기화
   ipcMain.handle('load-excel-data', async (_, { excelPath, fileDir }) => {
     try {
@@ -787,6 +799,11 @@ function setupIpcHandlers() {
 
         registration.setImageOptimize(settings.imageOptimize)
         sendLogToRenderer(`이미지 최적화 설정: ${settings.imageOptimize}`, 'info')
+
+        if (settings.geminiApiKey) {
+          registration.setGeminiApiKey(settings.geminiApiKey)
+          sendLogToRenderer('Gemini AI 캡차 풀이 활성화됨', 'info')
+        }
 
         const deliveryPresetLabel =
           selectedAccount.deliveryAreaPresetMode === 'custom' && selectedAccount.deliveryAreas?.length

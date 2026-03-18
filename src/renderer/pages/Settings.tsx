@@ -511,6 +511,30 @@ const Settings: React.FC = () => {
           <Switch />
         </Form.Item>
 
+        <Divider type="horizontal" />
+
+        <Form.Item
+          label="Gemini API Key"
+          name="geminiApiKey"
+          tooltip={
+            <span>
+              구글AI(Gemini) API Key입니다.{' '}
+              <a
+                onClick={e => {
+                  e.preventDefault()
+                  ipcRenderer.invoke('open-url', 'https://aistudio.google.com/app/apikey')
+                }}
+                style={{ color: '#1890ff', cursor: 'pointer' }}
+              >
+                여기
+              </a>
+              에서 발급받을 수 있습니다.
+            </span>
+          }
+        >
+          <Input.Password placeholder="Gemini API Key를 입력하세요" />
+        </Form.Item>
+
         <Form.Item>
           <Button type="primary" htmlType="submit" loading={loading}>
             저장
