@@ -246,7 +246,7 @@ export class S2BSourcing extends S2BBase {
           targetCategory3: basicInfo.categories?.[2] || '',
         }
       } else {
-        categoryMapped = 
+        categoryMapped =
           basicInfo.categories && basicInfo.categories.length > 0
             ? await this._mapCategories(vendorKey || '', basicInfo.categories)
             : {}
