@@ -239,22 +239,17 @@ export class S2BSourcing extends S2BBase {
             : await this._determineKcFromAI(aiRefined)
 
       let categoryMapped: any = {}
-      switch (vendorKey) {
-        case VendorKey.학교장터: {
-          categoryMapped = {
-            targetCategory1: basicInfo.categories?.[0] || '',
-            targetCategory2: basicInfo.categories?.[1] || '',
-            targetCategory3: basicInfo.categories?.[2] || '',
-          }
-          break
+      if (vendorKey === VendorKey.학교장터) {
+        categoryMapped = {
+          targetCategory1: basicInfo.categories?.[0] || '',
+          targetCategory2: basicInfo.categories?.[1] || '',
+          targetCategory3: basicInfo.categories?.[2] || '',
         }
-        default: {
-          categoryMapped =
-            basicInfo.categories && basicInfo.categories.length >= 3
-              ? await this._mapCategories(vendorKey || '', basicInfo.categories)
-              : {}
-          break
-        }
+      } else {
+        categoryMapped = 
+          basicInfo.categories && basicInfo.categories.length > 0
+            ? await this._mapCategories(vendorKey || '', basicInfo.categories)
+            : {}
       }
       const excelMapped = this._mapToExcelFormat(
         crawlData,
@@ -915,10 +910,11 @@ export class S2BSourcing extends S2BBase {
         const row = data[i] as any[]
         if (!row || row.length === 0) continue
 
-        const match1 = crawling1Index >= 0 ? row[crawling1Index] === categories[0] : true
-        const match2 = crawling2Index >= 0 ? row[crawling2Index] === categories[1] : true
-        const match3 = crawling3Index >= 0 ? row[crawling3Index] === categories[2] : true
-        const match4 = crawling4Index >= 0 ? categories.length < 4 || row[crawling4Index] === categories[3] : true
+        const normalize = (v: any) => (v === undefined || v === null ? '' : String(v).trim())
+        const match1 = crawling1Index >= 0 ? normalize(row[crawling1Index]) === normalize(categories[0]) : true
+        const match2 = crawling2Index >= 0 ? normalize(row[crawling2Index]) === normalize(categories[1]) : true
+        const match3 = crawling3Index >= 0 ? normalize(row[crawling3Index]) === normalize(categories[2]) : true
+        const match4 = crawling4Index >= 0 ? normalize(row[crawling4Index]) === normalize(categories[3]) : true
 
         if (match1 && match2 && match3 && match4) {
           return {
