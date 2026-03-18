@@ -173,7 +173,9 @@ export const useRegister = () => {
           } else if (result?.failCount > 0) {
             message.warning(`일부 상품 등록 실패 (성공 ${result.successCount || 0} / 실패 ${result.failCount})`)
           } else if (result?.success) {
-            message.success(`모든 상품이 성공적으로 처리되었습니다. (${result.successCount || currentSelectedKeys.length}개)`)
+            message.success(
+              `모든 상품이 성공적으로 처리되었습니다. (${result.successCount || currentSelectedKeys.length}개)`,
+            )
           } else {
             message.error(result?.error || '상품 등록 과정에서 오류가 발생했습니다.')
           }
