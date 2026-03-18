@@ -866,43 +866,66 @@ export class S2BSourcing extends S2BBase {
       }
       const XLSX = await import('xlsx')
       const workbook = XLSX.readFile(excelPath)
-      const sheetName = vendor
+
+      // 오너클랜은 ONC 시트를 사용한다.
+      let sheetName = vendor
+      if (vendor === '오너클랜') {
+        sheetName = 'ONC'
+      }
+
       if (!workbook.Sheets[sheetName]) {
-        this._log(`${vendor} 시트를 찾을 수 없습니다.`, 'warning')
+        this._log(`${sheetName} 시트를 찾을 수 없습니다.`, 'warning')
         return {}
       }
       const worksheet = workbook.Sheets[sheetName]
       const data = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[]
+
+      // ONC 시트(E,F,G,H)와 일반 시트(크롤링_1차...) 헤더 대응
       const headerRow = data.find(
-        (row: any[]) => row.includes('크롤링_1차') && row.includes('크롤링_2차') && row.includes('크롤링_3차'),
+        (row: any[]) =>
+          (row.includes('크롤링_1차') && row.includes('1차카테고리')) ||
+          (row.includes('E') && row.includes('F') && row.includes('G') && row.includes('H')),
       )
+
       if (!headerRow) {
         this._log('카테고리 매핑 헤더를 찾을 수 없습니다.', 'warning')
         return {}
       }
       const headerIndex = data.indexOf(headerRow)
-      const crawling1Index = (headerRow as any[]).indexOf('크롤링_1차')
-      const crawling2Index = (headerRow as any[]).indexOf('크롤링_2차')
-      const crawling3Index = (headerRow as any[]).indexOf('크롤링_3차')
-      const crawling4Index = (headerRow as any[]).indexOf('크롤링_4차')
-      const category1Index = (headerRow as any[]).indexOf('1차카테고리')
-      const category2Index = (headerRow as any[]).indexOf('2차카테고리')
-      const category3Index = (headerRow as any[]).indexOf('3차카테고리')
-      const g2bIndex = (headerRow as any[]).indexOf('G2B')
+
+      // 인덱스 찾기 함수 (E/F/G/H 도 지원)
+      const findIdx = (names: string[]) => {
+        for (const name of names) {
+          const idx = (headerRow as any[]).indexOf(name)
+          if (idx >= 0) return idx
+        }
+        return -1
+      }
+
+      const crawling1Index = findIdx(['크롤링_1차', 'E'])
+      const crawling2Index = findIdx(['크롤링_2차', 'F'])
+      const crawling3Index = findIdx(['크롤링_3차', 'G'])
+      const crawling4Index = findIdx(['크롤링_4차', 'H'])
+      const category1Index = findIdx(['1차카테고리'])
+      const category2Index = findIdx(['2차카테고리'])
+      const category3Index = findIdx(['3차카테고리'])
+      const g2bIndex = findIdx(['G2B', 'G2B 물품목록번호'])
 
       for (let i = headerIndex + 1; i < data.length; i++) {
         const row = data[i] as any[]
-        if (
-          row[crawling1Index] === categories[0] &&
-          row[crawling2Index] === categories[1] &&
-          row[crawling3Index] === categories[2] &&
-          (categories.length < 4 || row[crawling4Index] === categories[3])
-        ) {
+        if (!row || row.length === 0) continue
+
+        const match1 = crawling1Index >= 0 ? row[crawling1Index] === categories[0] : true
+        const match2 = crawling2Index >= 0 ? row[crawling2Index] === categories[1] : true
+        const match3 = crawling3Index >= 0 ? row[crawling3Index] === categories[2] : true
+        const match4 = crawling4Index >= 0 ? categories.length < 4 || row[crawling4Index] === categories[3] : true
+
+        if (match1 && match2 && match3 && match4) {
           return {
-            targetCategory1: row[category1Index],
-            targetCategory2: row[category2Index],
-            targetCategory3: row[category3Index],
-            g2bCode: row[g2bIndex],
+            targetCategory1: category1Index >= 0 ? row[category1Index] : undefined,
+            targetCategory2: category2Index >= 0 ? row[category2Index] : undefined,
+            targetCategory3: category3Index >= 0 ? row[category3Index] : undefined,
+            g2bCode: g2bIndex >= 0 ? row[g2bIndex] : undefined,
           }
         }
       }
