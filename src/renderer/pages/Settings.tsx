@@ -53,6 +53,8 @@ interface SettingsForm {
   registrationDelayMax: number
   imageOptimize: boolean
   headless: boolean
+  thumbnailSize: number
+  detailImageWidth: number
 }
 
 type ValidityStatus = 'unknown' | 'checking' | 'valid' | 'invalid'
@@ -161,6 +163,8 @@ const Settings: React.FC = () => {
             undefined,
           registrationDelayMin,
           registrationDelayMax,
+          thumbnailSize: typeof settings.thumbnailSize === 'number' ? settings.thumbnailSize : 240,
+          detailImageWidth: typeof settings.detailImageWidth === 'number' ? settings.detailImageWidth : 680,
         })
         await checkAllAccountValidity(normalizedAccounts)
         console.log('Settings loaded successfully:', settings)
@@ -500,6 +504,21 @@ const Settings: React.FC = () => {
         >
           <Switch />
         </Form.Item>
+
+        <Divider type="horizontal" />
+
+        <Form.Item label="이미지 크기 설정" tooltip="썸네일 크기와 상세페이지 최대 가로폭을 설정합니다.">
+          <Space align="start">
+            <Form.Item name="thumbnailSize" initialValue={240} noStyle>
+              <Input type="number" min={100} addonBefore="썸네일" addonAfter="px" placeholder="예: 240" />
+            </Form.Item>
+            <Form.Item name="detailImageWidth" initialValue={680} noStyle>
+              <Input type="number" min={300} addonBefore="상세페이지 폭" addonAfter="px" placeholder="예: 680" />
+            </Form.Item>
+          </Space>
+        </Form.Item>
+
+        <Divider type="horizontal" />
 
         <Form.Item
           label="브라우저 숨김"

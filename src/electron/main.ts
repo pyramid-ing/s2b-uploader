@@ -392,6 +392,8 @@ interface StoreSchema {
     detailHtmlTemplate: string
     useAIForSourcing?: boolean
     geminiApiKey?: string
+    thumbnailSize?: number
+    detailImageWidth?: number
   }
   configSets: any[]
   activeConfigSetId: string | null
@@ -509,6 +511,12 @@ function normalizeSettings(settings: Partial<StoreSchema['settings']> | undefine
       typeof merged.detailHtmlTemplate === 'string' ? merged.detailHtmlTemplate : '<p>상세설명을 입력하세요.</p>',
     useAIForSourcing: Boolean(merged.useAIForSourcing),
     geminiApiKey: typeof merged.geminiApiKey === 'string' ? merged.geminiApiKey : '',
+    thumbnailSize:
+      merged.thumbnailSize !== undefined && (merged.thumbnailSize as any) !== '' ? Number(merged.thumbnailSize) : 240,
+    detailImageWidth:
+      merged.detailImageWidth !== undefined && (merged.detailImageWidth as any) !== ''
+        ? Number(merged.detailImageWidth)
+        : 680,
   }
 }
 

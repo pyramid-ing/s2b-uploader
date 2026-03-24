@@ -30,6 +30,7 @@ export interface ImageCollectResult {
 
 export interface Scraper {
   vendorKey: VendorKey
+  setSettings?: (settings: any) => void
 
   collectList(
     page: Page,
@@ -81,6 +82,11 @@ export interface Scraper {
 
 export abstract class BaseScraper implements Scraper {
   abstract vendorKey: VendorKey
+  protected settings?: any
+
+  public setSettings(settings: any): void {
+    this.settings = settings
+  }
 
   abstract collectList(
     page: Page,
@@ -117,7 +123,11 @@ export abstract class BaseScraper implements Scraper {
   }
 
   protected async saveJpg(buffer: Buffer, outPath: string, quality: number = 90): Promise<string> {
-    await sharp(buffer).jpeg({ quality }).toFile(outPath)
+    const size = typeof this.settings?.thumbnailSize === 'number' ? this.settings.thumbnailSize : 240
+    await sharp(buffer)
+      .resize({ width: size, height: size, fit: 'inside', withoutEnlargement: true })
+      .jpeg({ quality })
+      .toFile(outPath)
     return outPath
   }
 
@@ -238,7 +248,7 @@ export abstract class BaseScraper implements Scraper {
     const mergedHeight = info.height
     const channels = info.channels
 
-    // 2차: 실제 최종 캔버스 크기(info 기반)를 사용해 JPEG 한계 초과 시 리사이즈
+    // 2차: 실제 최종 캔버스 크기(info 기반)를 사용해 최대 폭 제한 및 JPEG 한계 초과 시 리사이즈
     let pipeline = sharp(mergedBuffer, {
       raw: {
         width: mergedWidth,
@@ -247,14 +257,26 @@ export abstract class BaseScraper implements Scraper {
       },
     })
 
-    if (mergedWidth > MAX_JPEG_DIMENSION || mergedHeight > MAX_JPEG_DIMENSION) {
-      const widthScale = MAX_JPEG_DIMENSION / mergedWidth
-      const heightScale = MAX_JPEG_DIMENSION / mergedHeight
-      const scale = Math.min(widthScale, heightScale, 1)
+    let targetWidth = mergedWidth
+    let targetHeight = mergedHeight
 
-      const targetWidth = Math.max(1, Math.floor(mergedWidth * scale))
-      const targetHeight = Math.max(1, Math.floor(mergedHeight * scale))
+    const maxDetailWidth = typeof this.settings?.detailImageWidth === 'number' ? this.settings.detailImageWidth : 680
 
+    // 폭 최대치 조정 (비율 유지)
+    if (targetWidth > maxDetailWidth) {
+      const scale = maxDetailWidth / targetWidth
+      targetWidth = maxDetailWidth
+      targetHeight = Math.max(1, Math.floor(targetHeight * scale))
+    }
+
+    // JPEG 세로 한계 방어
+    if (targetHeight > MAX_JPEG_DIMENSION) {
+      const scale = MAX_JPEG_DIMENSION / targetHeight
+      targetWidth = Math.max(1, Math.floor(targetWidth * scale))
+      targetHeight = MAX_JPEG_DIMENSION
+    }
+
+    if (targetWidth !== mergedWidth || targetHeight !== mergedHeight) {
       pipeline = pipeline.resize({
         width: targetWidth,
         height: targetHeight,

@@ -298,20 +298,28 @@ export class S2BSourcing extends S2BBase {
 
   private _getScraper(vendorKey: VendorKey | null): Scraper | null {
     if (!vendorKey) return null
+    let scraper: Scraper | null = null
     switch (vendorKey) {
       case VendorKey.도매꾹:
-        return new DomeggookScraper()
+        scraper = new DomeggookScraper()
+        break
       case VendorKey.도매의신:
-        return new DomesinScraper()
+        scraper = new DomesinScraper()
+        break
       case VendorKey.쿠팡:
-        return new CoupangScraper()
+        scraper = new CoupangScraper()
+        break
       case VendorKey.학교장터:
-        return new S2BSchoolScraper()
+        scraper = new S2BSchoolScraper()
+        break
       case VendorKey.오너클랜:
-        return new OwnerClanScraper()
-      default:
-        return null
+        scraper = new OwnerClanScraper()
+        break
     }
+    if (scraper && scraper.setSettings) {
+      scraper.setSettings(this.settings)
+    }
+    return scraper
   }
 
   private _sanitizeFileName(name: string): string {
