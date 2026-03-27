@@ -95,6 +95,25 @@ export class DomeggookScraper extends BaseScraper {
     let price: number | null = null
     price = await this._extractDomeggookPrice(page)
 
+    // 가격 추출 실패 시: price_xpaths config 폴백
+    if (price === null && vendor.price_xpaths && vendor.price_xpaths.length > 0) {
+      for (const xpath of vendor.price_xpaths) {
+        const text = await this._textByXPath(page, xpath)
+        if (text) {
+          const parsed = this._parsePrice(text)
+          if (parsed !== null && parsed > 0) {
+            price = parsed
+            break
+          }
+        }
+      }
+    }
+
+    // 가격 추출 실패 시: OG 메타태그 폴백
+    if (price === null) {
+      price = await this._extractPriceFromOgMeta(page)
+    }
+
     const shippingFee = vendor.shipping_fee_xpath ? await this._textByXPath(page, vendor.shipping_fee_xpath) : null
 
     let minPurchase: number | undefined
@@ -263,6 +282,7 @@ export class DomeggookScraper extends BaseScraper {
   private async _extractDomeggookPrice(page: Page): Promise<number | null> {
     try {
       const priceResult = await page.evaluate(() => {
+        // 1. 최저가 표시
         const lowestPriceEl = document.querySelector('tr.lInfoAmt .lItemPrice')
         if (lowestPriceEl) {
           const text = lowestPriceEl.textContent?.trim() || ''
@@ -273,6 +293,7 @@ export class DomeggookScraper extends BaseScraper {
           }
         }
 
+        // 2. 즉시할인가 (b 태그)
         const discountEl = document.querySelector('tr.lInfoAmt .lDiscountAmt b:first-child')
         if (discountEl) {
           const text = discountEl.textContent?.trim() || ''
@@ -283,6 +304,7 @@ export class DomeggookScraper extends BaseScraper {
           }
         }
 
+        // 3. 즉시할인가 범위 (N원 ~ M원)
         const discountRangeEl = document.querySelector('tr.lInfoAmt .lDiscountAmt')
         if (discountRangeEl) {
           const text = discountRangeEl.textContent?.trim() || ''
@@ -293,21 +315,45 @@ export class DomeggookScraper extends BaseScraper {
           }
         }
 
-        const quantityTable = document.querySelector('tr.lInfoAmt table#lAmtSectionTbl')
+        // 4. 수량별 단가 테이블
+        const quantityTable = document.querySelector('tr.lInfoAmt table#lAmtSectionTbl, table#lAmtSectionTbl')
         if (quantityTable) {
-          const firstPriceCell = quantityTable.querySelector(
-            'tbody tr:nth-child(2) td.lSelected, tbody tr:nth-child(2) td:first-child',
-          )
-          if (firstPriceCell) {
-            const text = firstPriceCell.textContent?.trim() || ''
+          // 선택된(lSelected) 셀 우선 → 없으면 두 번째 행의 두 번째 td(첫 번째는 '단가(원)' 라벨)
+          const selectedCell = quantityTable.querySelector('tbody tr:nth-child(2) td.lSelected')
+          if (selectedCell) {
+            const text = selectedCell.textContent?.trim() || ''
             const match = text.match(/([0-9,]+)/)
             if (match) {
               const digits = match[1].replace(/[^0-9]/g, '')
               if (digits) return { type: 'quantity', price: Number(digits) }
             }
           }
+          // lSelected가 없으면 두 번째 행의 모든 td에서 숫자가 포함된 첫 번째 td 찾기
+          const priceCells = quantityTable.querySelectorAll('tbody tr:nth-child(2) td')
+          for (let i = 0; i < priceCells.length; i++) {
+            const text = priceCells[i].textContent?.trim() || ''
+            // '단가' 등 라벨 셀 건너뛰기
+            if (text.includes('단가') || text.includes('가격')) continue
+            const match = text.match(/([0-9,]+)/)
+            if (match) {
+              const digits = match[1].replace(/[^0-9]/g, '')
+              if (digits && Number(digits) > 0) return { type: 'quantity', price: Number(digits) }
+            }
+          }
+          // 세 번째 행에도 가격이 있을 수 있음 (일부 레이아웃)
+          const priceCells3 = quantityTable.querySelectorAll('tbody tr:nth-child(3) td')
+          for (let i = 0; i < priceCells3.length; i++) {
+            const text = priceCells3[i].textContent?.trim() || ''
+            if (text.includes('단가') || text.includes('가격')) continue
+            const match = text.match(/([0-9,]+)/)
+            if (match) {
+              const digits = match[1].replace(/[^0-9]/g, '')
+              if (digits && Number(digits) > 0) return { type: 'quantity', price: Number(digits) }
+            }
+          }
         }
 
+        // 5. 정가 폴백
         const regularPriceEl = document.querySelector('tr.lInfoAmt .lNotDiscountAmt b')
         if (regularPriceEl) {
           const text = regularPriceEl.textContent?.trim() || ''
@@ -318,10 +364,56 @@ export class DomeggookScraper extends BaseScraper {
           }
         }
 
+        // 6. lInfoAmt 영역 전체에서 숫자 추출 (최후의 폴백)
+        const amtRow = document.querySelector('tr.lInfoAmt td')
+        if (amtRow) {
+          const text = amtRow.textContent?.trim() || ''
+          // 범위 형식 우선 (N원 ~ M원)
+          const rangeMatch = text.match(/([0-9,]+)\s*원?\s*~\s*([0-9,]+)\s*원?/)
+          if (rangeMatch) {
+            const digits = rangeMatch[1].replace(/[^0-9]/g, '')
+            if (digits && Number(digits) > 0) return { type: 'amt_range', price: Number(digits) }
+          }
+          // 단일 가격
+          const match = text.match(/([0-9,]{2,})\s*원/)
+          if (match) {
+            const digits = match[1].replace(/[^0-9]/g, '')
+            if (digits && Number(digits) > 0) return { type: 'amt_fallback', price: Number(digits) }
+          }
+        }
+
         return null
       })
 
-      return (priceResult as any)?.price || null
+      return (priceResult as any)?.price ?? null
+    } catch {
+      return null
+    }
+  }
+
+  private async _extractPriceFromOgMeta(page: Page): Promise<number | null> {
+    try {
+      const price = await page.evaluate(() => {
+        const ogDesc = document.querySelector('meta[property="og:description"]')
+        if (ogDesc) {
+          const content = ogDesc.getAttribute('content') || ''
+          // OG description 형식: "3,500원 / 최소 2개" 또는 "1,200원"
+          const match = content.match(/([0-9,]+)\s*원/)
+          if (match) {
+            const digits = match[1].replace(/[^0-9]/g, '')
+            if (digits && Number(digits) > 0) return Number(digits)
+          }
+        }
+        // product:price:amount 메타태그도 확인
+        const priceMetaAmount = document.querySelector('meta[property="product:price:amount"]')
+        if (priceMetaAmount) {
+          const val = priceMetaAmount.getAttribute('content') || ''
+          const digits = val.replace(/[^0-9]/g, '')
+          if (digits && Number(digits) > 0) return Number(digits)
+        }
+        return null
+      })
+      return price
     } catch {
       return null
     }
@@ -406,6 +498,21 @@ export class DomeggookScraper extends BaseScraper {
       }
     }
     return levels
+  }
+
+  /**
+   * 도매꾹 상세 페이지는 가격 영역이 JS로 동적 렌더링되므로,
+   * domcontentloaded 후 가격 요소가 나타날 때까지 대기한다.
+   */
+  public async waitBeforeCapture(page: Page): Promise<void> {
+    try {
+      // 가격 영역(tr.lInfoAmt) 또는 상품 정보 영역이 나타날 때까지 최대 5초 대기
+      await page.waitForSelector('tr.lInfoAmt, #lInfoBody, #lAmtSectionTbl', { timeout: 5000 })
+      // 추가 렌더링 안정화 대기
+      await page.waitForTimeout(500)
+    } catch {
+      // 타임아웃 시에도 계속 진행 (폴백으로 OG 메타태그 등에서 추출)
+    }
   }
 
   async checkLoginRequired(page: Page): Promise<boolean> {

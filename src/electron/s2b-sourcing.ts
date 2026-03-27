@@ -158,7 +158,9 @@ export class S2BSourcing extends S2BBase {
         }
       })()
 
-      const effectiveListPrice = listPrice ?? listPriceFromUrl ?? undefined
+      const effectiveListPrice = (listPrice !== undefined && listPrice > 0) ? listPrice
+        : (listPriceFromUrl !== null && listPriceFromUrl > 0) ? listPriceFromUrl
+        : undefined
 
       const { vendorKey, vendor } = this._getVendor(url)
       const scraper = this._getScraper(vendorKey)
@@ -1179,6 +1181,7 @@ export class S2BSourcing extends S2BBase {
       switch (optionHandling) {
         case 'single': {
           // 여러 옵션 중 "가장 비싼 옵션"을 기준으로 가격 산정
+          // (단일 상품으로 묶을 때 모든 옵션 주문을 커버하기 위해 최고가 기준)
           const maxOptionExtraPrice = Math.max(...aiRefined.options.map((o: any) => Number(o?.price) || 0), 0)
           const singleBasePrice = originalPrice + maxOptionExtraPrice
 

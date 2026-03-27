@@ -54,7 +54,7 @@ export const VENDOR_CONFIG: Record<VendorKey, VendorConfig> = {
       '//li[starts-with(@id, "li")]/div[1]/a|//li[starts-with(@id, "li")]//a[contains(@href, "?from=lstGen") and contains(@class, "title")]',
     product_name_xpath: '//*[@id="lInfoItemTitle"]',
     product_price_list_xpath:
-      '//li[starts-with(@id, "li")]//span[contains(@class, "price") or contains(@class, "won") or contains(@class, "amt")]',
+      '//li[starts-with(@id, "li")]//em[contains(@class, "price")]|//li[starts-with(@id, "li")]//span[contains(@class, "price")]|//li[starts-with(@id, "li")]//b[contains(@class, "price")]',
     product_code_xpath: '//*[@id="lInfoHeader"]/span[1]',
     price_xpath: '//tr[@class="lInfoAmt"]//div[@class="lItemPrice"]',
     price_xpaths: [
@@ -67,16 +67,19 @@ export const VENDOR_CONFIG: Record<VendorKey, VendorConfig> = {
       // 3. 즉시할인가 경우 - 할인가 범위의 최소값
       '//tr[@class="lInfoAmt"]//div[@class="lDiscountAmt"]/b[contains(text(), "~")]/preceding-sibling::b[1]',
 
-      // 4. 수량범위별 단가 - 가장 왼쪽 첫 번째 단가 (최소 수량 기준)
+      // 4. 수량범위별 단가 - lSelected 우선
       '//tr[@class="lInfoAmt"]//table[@id="lAmtSectionTbl"]/tbody/tr[2]/td[@class="lSelected"]',
-      '//tr[@class="lInfoAmt"]//table[@id="lAmtSectionTbl"]/tbody/tr[2]/td[1]',
+      // 5. 수량범위별 단가 - td[2]가 실제 가격 (td[1]은 "단가(원)" 라벨)
+      '//tr[@class="lInfoAmt"]//table[@id="lAmtSectionTbl"]/tbody/tr[2]/td[2]',
+      // 6. lAmtSectionTbl이 tr.lInfoAmt 밖에 있을 때
+      '//*[@id="lAmtSectionTbl"]/tbody/tr[2]/td[@class="lSelected"]',
+      '//*[@id="lAmtSectionTbl"]/tbody/tr[2]/td[2]',
 
-      // 5. 정가 폴백
+      // 7. 정가 폴백
       '//tr[@class="lInfoAmt"]//div[@class="lNotDiscountAmt"]/b',
 
-      // 6. 기존 XPath 폴백들
+      // 8. 기존 XPath 폴백들
       '//*[@id="lInfoBody"]/div[2]/table/tbody/tr[1]/td/div[1]/div',
-      '//*[@id="lAmtSectionTbl"]/tbody/tr[2]/td[1]',
     ],
     shipping_fee_xpath: '//*[@id="lInfoBody"]/div[2]/table/tbody/tr[3]/td/div[2]',
     min_purchase_xpath: '//*[@id="lInfoBody"]//tr[contains(@class, "lInfoPurchase")]//b',
