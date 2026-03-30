@@ -6,6 +6,7 @@ import { VendorConfig, VendorKey } from '../sourcing-config'
 import type { ExtractedBasicInfo } from './BaseScraper'
 import { BaseScraper } from './BaseScraper'
 import { envConfig } from '../envConfig'
+import sharp from 'sharp'
 
 /**
  * 학교장터(S2B) Scraper
@@ -689,7 +690,8 @@ export class S2BSchoolScraper extends BaseScraper {
       const buf = await this.downloadToBuffer(normalized[i])
       if (!buf) continue
       const outPath = path.join(targetDir, names[i])
-      await this.saveJpg(buf, outPath, 90)
+      // 학교장터는 설정에 의한 리사이징을 적용하지 않고 원본 크기 유지
+      await sharp(buf).jpeg({ quality: 90 }).toFile(outPath)
       saved.push(outPath)
     }
 
@@ -729,7 +731,8 @@ export class S2BSchoolScraper extends BaseScraper {
     const buf = await this.downloadToBuffer(normalizedUrl)
     if (!buf) return null
 
-    await this.saveJpg(buf, outPath, 90)
+    // 학교장터는 설정에 의한 리사이징을 적용하지 않고 원본 크기 유지
+    await sharp(buf).jpeg({ quality: 90 }).toFile(outPath)
     return outPath
   }
 
