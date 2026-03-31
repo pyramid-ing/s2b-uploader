@@ -32,6 +32,27 @@ export class S2BRegistration extends S2BBase {
     this.baseFilePath = baseImagePath
   }
 
+  private async _type(selector: string, text: string): Promise<void> {
+    if (text === undefined || text === null) return
+    const strText = String(text)
+    if (!strText) return
+
+    const loc = this.page!.locator(selector)
+    try {
+      await loc.evaluate((el: HTMLInputElement) => {
+        el.value = ''
+      })
+    } catch {}
+    await loc.type(strText, { delay: 10 })
+    try {
+      await loc.evaluate((el: HTMLInputElement) => {
+        el.dispatchEvent(new Event('input', { bubbles: true }))
+        el.dispatchEvent(new Event('change', { bubbles: true }))
+        el.dispatchEvent(new Event('blur', { bubbles: true }))
+      })
+    } catch {}
+  }
+
   public setImageOptimize(optimize: boolean): void {
     this.imageOptimize = optimize
   }
@@ -286,21 +307,21 @@ export class S2BRegistration extends S2BBase {
 
   private async _setBasicInfo(data: ExcelRegistrationData): Promise<void> {
     await this.page!.selectOption('select[name="sale_type"]', SALE_TYPE_MAP[data.saleTypeText] || '1')
-    await this.page!.fill('input[name="f_goods_name"]', data.goodsName)
-    await this.page!.fill('input[name="f_size"]', data.spec)
+    await this._type('input[name="f_goods_name"]', data.goodsName)
+    await this._type('input[name="f_size"]', data.spec)
     await this.page!.evaluate(() => {
       const el = document.querySelector('input[name="f_assure"]') as HTMLInputElement
       if (el) el.value = ''
     })
-    await this.page!.fill('input[name="f_assure"]', data.assure)
+    await this._type('input[name="f_assure"]', data.assure)
     if (data.modelName) {
       await this.page!.check('input[name="f_model_yn"][value="N"]')
-      await this.page!.fill('input[name="f_model"]', data.modelName)
+      await this._type('input[name="f_model"]', data.modelName)
     }
-    await this.page!.fill('input[name="f_estimate_amt"]', data.estimateAmt)
-    await this.page!.fill('input[name="f_factory"]', data.factory)
-    await this.page!.fill('input[name="f_material"]', data.material)
-    await this.page!.fill('input[name="f_remain_qnt"]', data.remainQnt)
+    await this._type('input[name="f_estimate_amt"]', data.estimateAmt)
+    await this._type('input[name="f_factory"]', data.factory)
+    await this._type('input[name="f_material"]', data.material)
+    await this._type('input[name="f_remain_qnt"]', data.remainQnt)
     await this.page!.evaluate((code: string) => {
       const select = document.querySelector('select[name="f_delivery_limit"]') as HTMLSelectElement
       if (select) {
@@ -309,7 +330,7 @@ export class S2BRegistration extends S2BBase {
       }
     }, data.deliveryLimit)
     if (data.approvalRequest) {
-      await this.page!.fill('input[name="f_memo"]', data.approvalRequest)
+      await this._type('input[name="f_memo"]', data.approvalRequest)
     }
     if (data.estimateValidity) {
       const validityMap: { [key: string]: string } = {
@@ -325,7 +346,7 @@ export class S2BRegistration extends S2BBase {
 
   private async _setG2bInformation(g2bNumber: string): Promise<void> {
     if (!g2bNumber) return
-    await this.page!.fill('input[name="f_uid2"]', g2bNumber)
+    await this._type('input[name="f_uid2"]', g2bNumber)
     await this.page!.click('a[href^="javascript:fnCheckApiG2B();"]')
     await this.page!.waitForSelector('#apiData', { timeout: 10000 })
   }
@@ -336,14 +357,14 @@ export class S2BRegistration extends S2BBase {
         const el = document.querySelector('input[name="f_return_fee"]') as HTMLInputElement
         if (el) el.value = ''
       })
-      await this.page!.fill('input[name="f_return_fee"]', data.returnFee)
+      await this._type('input[name="f_return_fee"]', data.returnFee)
     }
     if (data.exchangeFee) {
       await this.page!.evaluate(() => {
         const el = document.querySelector('input[name="f_exchange_fee"]') as HTMLInputElement
         if (el) el.value = ''
       })
-      await this.page!.fill('input[name="f_exchange_fee"]', data.exchangeFee)
+      await this._type('input[name="f_exchange_fee"]', data.exchangeFee)
     }
   }
 
@@ -378,12 +399,12 @@ export class S2BRegistration extends S2BBase {
     const deliveryType = DELIVERY_TYPE_MAP[data.deliveryFeeKindText] || '1'
     await this.page!.check(`input[name="f_delivery_fee_kind"][value="${deliveryType}"]`)
     if (deliveryType === '2' && data.deliveryFee) {
-      await this.page!.fill('input[name="f_delivery_fee1"]', data.deliveryFee)
+      await this._type('input[name="f_delivery_fee1"]', data.deliveryFee)
     }
     await this.page!.check(`input[name="f_delivery_group_yn"][value="${data.deliveryGroupYn}"]`)
     if (data.jejuDeliveryYn === 'Y') {
       await this.page!.check('input[name="f_jeju_delivery_yn"]')
-      if (data.jejuDeliveryFee) await this.page!.fill('input[name="f_jeju_delivery_fee"]', data.jejuDeliveryFee)
+      if (data.jejuDeliveryFee) await this._type('input[name="f_jeju_delivery_fee"]', data.jejuDeliveryFee)
     }
   }
 
@@ -448,18 +469,19 @@ export class S2BRegistration extends S2BBase {
 
   private async _setCategoryDetails(data: ExcelRegistrationData): Promise<void> {
     if (data.validateRadio) {
-      await this.page!.check(`input[name="validateRadio"][value="${data.validateRadio}"]`)
+      const radioSelector = `input[name="validateRadio"][value="${data.validateRadio}"]`
+      await this.page!.locator(radioSelector).click({ force: true })
       if (data.validateRadio === 'date' && data.fValidate)
-        await this.page!.fill('input[name="f_validate"]', data.fValidate)
+        await this._type('input[name="f_validate"]', data.fValidate)
     }
-    if (data.selPower) await this.page!.fill('input[name="f_sel_power"]', data.selPower)
-    if (data.selWeight) await this.page!.fill('input[name="f_sel_weight"]', data.selWeight)
-    if (data.selSameDate) await this.page!.fill('input[name="f_sel_samedate"]', data.selSameDate)
-    if (data.selArea) await this.page!.fill('input[name="f_sel_area"]', data.selArea)
-    if (data.selProduct) await this.page!.fill('input[name="f_sel_product"]', data.selProduct)
-    if (data.selSafety) await this.page!.fill('input[name="f_sel_safety"]', data.selSafety)
-    if (data.selCapacity) await this.page!.fill('input[name="f_sel_capacity"]', data.selCapacity)
-    if (data.selSpecification) await this.page!.fill('input[name="f_sel_specification"]', data.selSpecification)
+    if (data.selPower) await this._type('input[name="f_sel_power"]', data.selPower)
+    if (data.selWeight) await this._type('input[name="f_sel_weight"]', data.selWeight)
+    if (data.selSameDate) await this._type('input[name="f_sel_samedate"]', data.selSameDate)
+    if (data.selArea) await this._type('input[name="f_sel_area"]', data.selArea)
+    if (data.selProduct) await this._type('input[name="f_sel_product"]', data.selProduct)
+    if (data.selSafety) await this._type('input[name="f_sel_safety"]', data.selSafety)
+    if (data.selCapacity) await this._type('input[name="f_sel_capacity"]', data.selCapacity)
+    if (data.selSpecification) await this._type('input[name="f_sel_specification"]', data.selSpecification)
   }
 
   private async _setCertifications(data: ExcelRegistrationData): Promise<void> {
@@ -495,34 +517,36 @@ export class S2BRegistration extends S2BBase {
     await se2Frame.locator('.se2_to_html').click()
     await new Promise(r => setTimeout(r, 500))
     await se2Frame.locator('.se2_input_htmlsrc').fill(html)
+    await se2Frame.locator('.se2_input_htmlsrc').dispatchEvent('input', { bubbles: true })
+    await se2Frame.locator('.se2_input_htmlsrc').dispatchEvent('change', { bubbles: true })
     await se2Frame.locator('.se2_to_editor').click()
   }
 
   private async _setKcCertifications(data: ExcelRegistrationData): Promise<void> {
     await this.page!.check(`input[name="kidsKcUseGubunChk"][value="${data.kidsKcType}"]`)
     if (data.kidsKcType === 'Y' && data.kidsKcCertId) {
-      await this.page!.fill('#kidsKcCertId', data.kidsKcCertId)
+      await this._type('#kidsKcCertId', data.kidsKcCertId)
       await this.page!.click('a[href="JavaScript:KcCertRegist(\'kids\');"]')
     } else if (data.kidsKcType === 'F' && data.kidsKcFile) {
       await this._uploadFile('#f_kcCertKidsImg_file', data.kidsKcFile)
     }
     await this.page!.check(`input[name="elecKcUseGubunChk"][value="${data.elecKcType}"]`)
     if (data.elecKcType === 'Y' && data.elecKcCertId) {
-      await this.page!.fill('#elecKcCertId', data.elecKcCertId)
+      await this._type('#elecKcCertId', data.elecKcCertId)
       await this.page!.click('a[href="JavaScript:KcCertRegist(\'elec\');"]')
     } else if (data.elecKcType === 'F' && data.elecKcFile) {
       await this._uploadFile('#f_kcCertElecImg_file', data.elecKcFile)
     }
     await this.page!.check(`input[name="dailyKcUseGubunChk"][value="${data.dailyKcType}"]`)
     if (data.dailyKcType === 'Y' && data.dailyKcCertId) {
-      await this.page!.fill('#dailyKcCertId', data.dailyKcCertId)
+      await this._type('#dailyKcCertId', data.dailyKcCertId)
       await this.page!.click('a[href="JavaScript:KcCertRegist(\'daily\');"]')
     } else if (data.dailyKcType === 'F' && data.dailyKcFile) {
       await this._uploadFile('#f_kcCertDailyImg_file', data.dailyKcFile)
     }
     await this.page!.check(`input[name="broadcastingKcUseGubunChk"][value="${data.broadcastingKcType}"]`)
     if (data.broadcastingKcType === 'Y' && data.broadcastingKcCertId) {
-      await this.page!.fill('#broadcastingKcCertId', data.broadcastingKcCertId)
+      await this._type('#broadcastingKcCertId', data.broadcastingKcCertId)
       await this.page!.click('a[href="JavaScript:KcCertRegist(\'broadcasting\');"]')
     } else if (data.broadcastingKcType === 'F' && data.broadcastingKcFile) {
       await this._uploadFile('#f_kcCertBroadcastingImg_file', data.broadcastingKcFile)
@@ -532,14 +556,14 @@ export class S2BRegistration extends S2BBase {
   private async _setOtherAttachments(data: ExcelRegistrationData): Promise<void> {
     await this.page!.check(`input[name="childexitcheckerKcUseGubunChk"][value="${data.childExitCheckerKcType}"]`)
     if (data.childExitCheckerKcType === 'Y' && data.childExitCheckerKcCertId) {
-      await this.page!.fill('#childexitcheckerKcCertId', data.childExitCheckerKcCertId)
+      await this._type('#childexitcheckerKcCertId', data.childExitCheckerKcCertId)
       await this.page!.click('a[href="JavaScript:KcCertRegist(\'childexitchecker\');"]')
     } else if (data.childExitCheckerKcType === 'F' && data.childExitCheckerKcFile) {
       await this._uploadFile('#f_kcCertChildExitCheckerImg_file', data.childExitCheckerKcFile)
     }
     await this.page!.check(`input[name="safetycheckKcUseGubunChk"][value="${data.safetyCheckKcType}"]`)
     if (data.safetyCheckKcType === 'Y' && data.safetyCheckKcCertId) {
-      await this.page!.fill('#safetycheckKcCertId', data.safetyCheckKcCertId)
+      await this._type('#safetycheckKcCertId', data.safetyCheckKcCertId)
     } else if (data.safetyCheckKcType === 'F' && data.safetyCheckKcFile) {
       await this._uploadFile('#f_kcCertSafetycheckImg_file', data.safetyCheckKcFile)
     }
@@ -653,11 +677,11 @@ export class S2BRegistration extends S2BBase {
   }
 
   private async _setAsInfo(data: ExcelRegistrationData): Promise<void> {
-    if (data.asTelephone1) await this.page!.fill('input[name="f_as_telephone1"]', data.asTelephone1)
-    if (data.asTelephone2) await this.page!.fill('input[name="f_as_telephone2"]', data.asTelephone2)
-    if (data.addressCode) await this.page!.fill('input[name="f_address_code"]', data.addressCode)
-    if (data.address) await this.page!.fill('input[name="f_address"]', data.address)
-    if (data.addressDetail) await this.page!.fill('input[name="f_address_detail"]', data.addressDetail)
+    if (data.asTelephone1) await this._type('input[name="f_as_telephone1"]', data.asTelephone1)
+    if (data.asTelephone2) await this._type('input[name="f_as_telephone2"]', data.asTelephone2)
+    if (data.addressCode) await this._type('input[name="f_address_code"]', data.addressCode)
+    if (data.address) await this._type('input[name="f_address"]', data.address)
+    if (data.addressDetail) await this._type('input[name="f_address_detail"]', data.addressDetail)
   }
 
   private async _setDeliveryInfo(data: ExcelRegistrationData): Promise<void> {
@@ -709,15 +733,15 @@ export class S2BRegistration extends S2BBase {
 
   private async _setNaraInformation(data: ExcelRegistrationData): Promise<void> {
     if (data.naraRegisterYn) await this.page!.check(`input[name="f_nara_register_yn"][value="${data.naraRegisterYn}"]`)
-    if (data.naraAmt) await this.page!.fill('input[name="f_nara_amt"]', data.naraAmt)
-    if (data.siteName) await this.page!.fill('input[name="f_site_name"]', data.siteName)
-    if (data.siteUrl) await this.page!.fill('input[name="f_site_url"]', data.siteUrl)
+    if (data.naraAmt) await this._type('input[name="f_nara_amt"]', data.naraAmt)
+    if (data.siteName) await this._type('input[name="f_site_name"]', data.siteName)
+    if (data.siteUrl) await this._type('input[name="f_site_url"]', data.siteUrl)
   }
 
   private async _setOtherSiteInformation(data: ExcelRegistrationData): Promise<void> {
     if (data.otherSiteRegisterYn)
       await this.page!.check(`input[name="f_site_register_yn"][value="${data.otherSiteRegisterYn}"]`)
-    if (data.otherSiteAmt) await this.page!.fill('input[name="f_site_amt"]', data.otherSiteAmt)
+    if (data.otherSiteAmt) await this._type('input[name="f_site_amt"]', data.otherSiteAmt)
   }
 
   private async _handleCaptcha(): Promise<void> {
@@ -761,7 +785,7 @@ export class S2BRegistration extends S2BBase {
 
       // 입력창에 번호 입력 (id="field_3eeov45g2c8")
       const inputSelector = '#field_3eeov45g2c8'
-      await this.page.fill(inputSelector, result)
+      await this._type(inputSelector, result)
 
       // 입력 후 잠시 대기
       await new Promise(resolve => setTimeout(resolve, 500))
@@ -896,13 +920,13 @@ export class S2BRegistration extends S2BBase {
   }
 
   private _getConsumptionPeriodCode(value: string): string {
-    const CONSUMPTION_PERIOD_MAP: Record<string, string> = {
-      '제품에 별도 표시': '제품에 별도 표시',
-      '제조일로부터 1년': '제조일로부터 1년',
-      '상세설명에 별도표시': '상세설명에 별도표시',
-      '제조일/가공일로부터 14일 이내 물품 발송': '제조일/가공일로부터 14일 이내 물품 발송',
-      직접입력: 'date',
-    }
-    return CONSUMPTION_PERIOD_MAP[value] || ''
+    if (!value) return ''
+    const cleanValue = value.normalize('NFC').replace(/\s+/g, '')
+    if (cleanValue === '제품에별도표시') return '제품에 별도 표시'
+    if (cleanValue === '제조일로부터1년') return '제조일로부터 1년'
+    if (cleanValue === '상세설명에별도표시') return '상세설명에 별도표시'
+    if (cleanValue.includes('14일이내')) return '제조일/가공일로부터 14일 이내 물품 발송'
+    if (cleanValue === '직접입력' || cleanValue === 'date') return 'date'
+    return ''
   }
 }
