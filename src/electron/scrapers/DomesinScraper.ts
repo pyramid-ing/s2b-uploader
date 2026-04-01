@@ -14,76 +14,109 @@ export class DomesinScraper extends BaseScraper {
     page: Page,
     vendor: VendorConfig,
   ): Promise<{ name: string; url: string; price?: number; listThumbnail?: string; vendor?: string }[]> {
-    const hrefs: string[] = await page.evaluate((xpath: string) => {
-      const result: string[] = []
-      const iterator = document.evaluate(xpath, document, null, XPathResult.ORDERED_NODE_ITERATOR_TYPE, null)
-      let node = iterator.iterateNext() as any
-      while (node) {
-        if (node instanceof HTMLAnchorElement && node.href) {
-          result.push(node.href)
-        } else if ((node as Element).getAttribute) {
-          const href = (node as Element).getAttribute('href')
-          if (href) result.push(href)
-        }
-        node = iterator.iterateNext() as any
-      }
-      return result
-    }, vendor.product_list_xpath)
+    const url = page.url()
+    const isWishlist = url.includes('p=my/wish_list.html') || url.includes('my/wish_list')
 
-    const names: string[] = await page.evaluate((xpath: string) => {
-      const result: string[] = []
-      const iterator = document.evaluate(xpath, document, null, XPathResult.ORDERED_NODE_ITERATOR_TYPE, null)
-      let node = iterator.iterateNext() as any
-      while (node) {
-        const text = (node as Element).textContent || ''
-        result.push(text.trim())
-        node = iterator.iterateNext() as any
-      }
-      return result
-    }, vendor.product_name_list_xpath)
+    // 보관함 페이지와 일반 목록 페이지의 XPath 구분
+    const productListXpath = isWishlist
+      ? '//tr[td/input[@name="n_check[]"]]'
+      : vendor.product_list_xpath
 
-    let thumbnails: (string | null)[] = []
-    if (vendor.product_thumbnail_list_xpath) {
-      thumbnails = await page.evaluate((xpath: string) => {
-        const result: (string | null)[] = []
-        const iterator = document.evaluate(xpath, document, null, XPathResult.ORDERED_NODE_ITERATOR_TYPE, null)
-        let node = iterator.iterateNext() as any
+    const productNameListXpath = isWishlist ? './/a[contains(@class, "itemname")]' : vendor.product_name_list_xpath
+
+    const productThumbnailListXpath = isWishlist ? './/a/img' : vendor.product_thumbnail_list_xpath
+
+    // 보관함에서는 행 전체 텍스트에서 가격을 찾으므로TD만 지정
+    const productPriceListXpath = isWishlist ? './/td' : vendor.product_price_list_xpath
+
+    const items: any[] = await page.evaluate(
+      (params: {
+        isWishlist: boolean
+        listXpath: string
+        nameXpath: string
+        thumbXpath: string | undefined
+        priceXpath: string | undefined
+        vendorKey: string
+      }) => {
+        const results: any[] = []
+        const iterator = document.evaluate(
+          params.listXpath,
+          document,
+          null,
+          XPathResult.ORDERED_NODE_ITERATOR_TYPE,
+          null,
+        )
+        let node = iterator.iterateNext() as Element
         while (node) {
-          if (node instanceof HTMLImageElement) {
-            result.push(node.src || null)
-          } else {
-            result.push(null)
+          const nameEl = document.evaluate(
+            params.nameXpath,
+            node,
+            null,
+            XPathResult.FIRST_ORDERED_NODE_TYPE,
+            null,
+          ).singleNodeValue as HTMLAnchorElement | Element | null
+
+          const thumbEl = params.thumbXpath
+            ? (document.evaluate(params.thumbXpath, node, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null)
+                .singleNodeValue as HTMLImageElement | null)
+            : null
+
+          let name = ''
+          let url = ''
+          if (nameEl instanceof HTMLAnchorElement) {
+            name = nameEl.textContent?.trim() || ''
+            url = nameEl.href
+          } else if (nameEl) {
+            name = nameEl.textContent?.trim() || ''
+            const anchor = node.querySelector('a')
+            if (anchor) url = anchor.href
           }
-          node = iterator.iterateNext() as any
+
+          let priceText = null
+          if (params.isWishlist) {
+            // 보관함에서는 행 전체 텍스트에서 '판매가' 패턴을 찾음
+            const rowText = node.textContent || ''
+            const match = rowText.match(/판매가\s*[:：]?\s*([0-9,]+)\s*원?/)
+            if (match) {
+              priceText = match[1]
+            }
+          } else {
+            // 일반 목록 페이지
+            const priceEl = params.priceXpath
+              ? (document.evaluate(params.priceXpath, node, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null)
+                  .singleNodeValue as Element | null)
+              : null
+            priceText = priceEl?.textContent?.trim() || null
+          }
+
+          if (url) {
+            results.push({
+              name,
+              url,
+              priceText,
+              listThumbnail: thumbEl?.src || undefined,
+              vendor: params.vendorKey,
+            })
+          }
+          node = iterator.iterateNext() as Element
         }
-        return result
-      }, vendor.product_thumbnail_list_xpath)
-    }
+        return results
+      },
+      {
+        isWishlist,
+        listXpath: productListXpath,
+        nameXpath: productNameListXpath,
+        thumbXpath: productThumbnailListXpath,
+        priceXpath: productPriceListXpath,
+        vendorKey: this.vendorKey,
+      },
+    )
 
-    let priceTexts: string[] = []
-    if (vendor.product_price_list_xpath) {
-      priceTexts = await page.evaluate((xpath: string) => {
-        const result: string[] = []
-        const iterator = document.evaluate(xpath, document, null, XPathResult.ORDERED_NODE_ITERATOR_TYPE, null)
-        let node = iterator.iterateNext() as any
-        while (node) {
-          const text = (node as Element).textContent || ''
-          result.push(text.trim())
-          node = iterator.iterateNext() as any
-        }
-        return result
-      }, vendor.product_price_list_xpath)
-    }
-
-    const items = hrefs.map((href, idx) => {
-      const url = normalizeUrl(href, vendor)
-      const name = names[idx] || ''
-      const listThumbnail = thumbnails[idx] || undefined
-      const price = this._parsePrice(priceTexts[idx] || null)
-      return { name, url, price: price ?? undefined, listThumbnail, vendor: this.vendorKey }
-    })
-
-    return items
+    return items.map(item => ({
+      ...item,
+      url: normalizeUrl(item.url, vendor),
+      price: this._parsePrice(item.priceText),
+    }))
   }
 
   async extractBasicInfo(page: Page, vendorKey: VendorKey, vendor: VendorConfig): Promise<ExtractedBasicInfo> {
@@ -508,6 +541,21 @@ export class DomesinScraper extends BaseScraper {
 
       // 도매의신 로그인 페이지 체크
       if (currentUrl.includes('domesin.com') && currentUrl.includes('member/login_form.html')) {
+        // 제공된 계정 정보로 자동 로그인 시도
+        const id = 'iron'
+        const pw = 'fad!qkv*xeg4KRM*mqx'
+
+        const hasForm = await page.$('input[name="id"], input[name="pw"]')
+        if (hasForm) {
+          await page.fill('input[name="id"]', id)
+          await page.fill('input[name="pw"]', pw)
+          await Promise.all([
+            page.waitForNavigation({ waitUntil: 'domcontentloaded' }).catch(() => {}),
+            page.click('button.login-btn, input[type="submit"], .btn_login'),
+          ])
+          // 로그인 후 다시 체크 (재귀적으로 한 번 더 확인)
+          return await this.checkLoginRequired(page)
+        }
         return true
       }
 
@@ -519,6 +567,13 @@ export class DomesinScraper extends BaseScraper {
           return true
         }
       }
+
+      // '로그인' 텍스트 검사 (일부 페이지에서 URL은 그대로인데 로그인이 풀린 경우)
+      const isLoggedOut = await page.evaluate(() => {
+        const text = document.body.textContent || ''
+        return text.includes('로그인을 해주세요') || text.includes('로그인이 필요합니다')
+      })
+      if (isLoggedOut) return true
 
       return false
     } catch (error) {

@@ -95,6 +95,7 @@ const Sourcing: React.FC = () => {
     requestRegister,
     downloadExcel,
     openVendorSite,
+    openSourcingUrl,
     cancelSourcing,
   } = useSourcing()
 
@@ -620,6 +621,16 @@ const Sourcing: React.FC = () => {
                 사이트 열기
               </Button>
             </Form.Item>
+            {vendor === 'domeosin' && (
+              <Form.Item>
+                <Button
+                  onClick={() => openSourcingUrl('https://www.domesin.com/index.html?p=my/wish_list.html')}
+                  loading={loading}
+                >
+                  상품보관함 열기
+                </Button>
+              </Form.Item>
+            )}
             <Form.Item>
               <Button onClick={handleFetchCurrentPage} loading={listLoading}>
                 현재페이지 제품 가져오기 (자동)

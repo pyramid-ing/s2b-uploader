@@ -100,6 +100,17 @@ export class S2BSourcing extends S2BBase {
     return await scraper.collectList(this.page, vendor)
   }
 
+  public async handleLogin(url: string): Promise<boolean> {
+    if (!this.page) throw new Error('Browser page not initialized')
+    const vendorKey = this._detectVendorByUrl(url)
+    if (!vendorKey) return false
+    const scraper = this._getScraper(vendorKey)
+    if (!scraper) return false
+
+    // checkLoginRequired 안에서 자동 로그인이 구현되어 있다면 수행됨
+    return await scraper.checkLoginRequired(this.page)
+  }
+
   public async collectS2BFilteredList(params: {
     keyword: string
     minPrice?: number

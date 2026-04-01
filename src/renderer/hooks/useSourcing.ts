@@ -365,6 +365,19 @@ export const useSourcing = () => {
     [],
   )
 
+  const openSourcingUrl = useRecoilCallback(
+    () => async (url: string) => {
+      try {
+        const res = await ipcRenderer.invoke('sourcing-open-url', { url })
+        if (!res?.success) throw new Error(res?.error || 'URL 열기 실패')
+        message.success('URL을 열었습니다.')
+      } catch (e) {
+        message.error('URL 열기에 실패했습니다.')
+      }
+    },
+    [],
+  )
+
   // 수집 중단
   const cancelSourcing = useRecoilCallback(
     ({ set }) =>
@@ -403,6 +416,7 @@ export const useSourcing = () => {
     requestRegister,
     downloadExcel,
     openVendorSite,
+    openSourcingUrl,
     cancelSourcing,
   }
 }

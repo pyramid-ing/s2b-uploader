@@ -935,11 +935,49 @@ function setupIpcHandlers() {
       }
 
       await sourcing.openUrl(baseUrl)
+
+      // 도매의신/오너클랜 등 자동 로그인이 구현된 경우 시도
+      try {
+        await sourcing.handleLogin(baseUrl)
+      } catch (e) {
+        console.warn('자동 로그인 시도 중 오류 (무시하고 계속):', e)
+      }
+
       return { success: true, url: sourcing.getCurrentUrl() }
     } catch (error) {
       console.error('Error opening sourcing site:', error)
       sendLogToRenderer(`사이트 열기 실패: ${error.message || '알 수 없는 오류'}`, 'error')
       return { success: false, error: error.message || '사이트 열기 실패' }
+    }
+  })
+
+  ipcMain.handle('sourcing-open-url', async (_, { url }: { url: string }) => {
+    try {
+      const settings = store.get('settings')
+      const configSets = (store.get('configSets') || []) as ConfigSet[]
+      const activeConfigSetId = store.get('activeConfigSetId')
+      const activeConfigSet = configSets.find(cs => cs.id === activeConfigSetId) || configSets.find(cs => cs.isActive)
+
+      // 공통 S2BSourcing 사용
+      if (!sourcing) {
+        sourcing = new S2BSourcing(settings.fileDir, sendLogToRenderer, settings.headless, settings, activeConfigSet)
+      }
+      sourcing.setConfigSet(activeConfigSet)
+      await sourcing.launch()
+      await sourcing.openUrl(url)
+
+      // 자동 로그인 시도
+      try {
+        await sourcing.handleLogin(url)
+      } catch (e) {
+        console.warn('URL 자동 로그인 시도 중 오류:', e)
+      }
+
+      return { success: true, url: sourcing.getCurrentUrl() }
+    } catch (error) {
+      console.error('Error opening sourcing url:', error)
+      sendLogToRenderer(`URL 열기 실패: ${error.message || '알 수 없는 오류'}`, 'error')
+      return { success: false, error: error.message || 'URL 열기 실패' }
     }
   })
 
