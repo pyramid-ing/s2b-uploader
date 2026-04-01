@@ -75,7 +75,8 @@
     "build:renderer": "cross-env NODE_ENV=production webpack --config webpack.config.js --mode production",
     "package": "yarn build && electron-builder",
     "package-mac": "yarn build && electron-builder --mac",
-    "package-win": "yarn build && electron-builder --win --publish=always"
+    "package-win": "yarn build && electron-builder --win --publish=always",
+    "release:patch": "npm version patch && git push origin master --follow-tags"
   },
   "dependencies": {
     "@ant-design/icons": "^5.5.1",
