@@ -770,7 +770,7 @@ export class S2BRegistration extends S2BBase {
 
       // 캡차 이미지 추출 (id="field_xtnqu0t4n4" 안의 img)
       const base64Image = await this.page.evaluate(() => {
-        const img = document.querySelector('#field_xtnqu0t4n4 img') as HTMLImageElement
+        const img = document.querySelector('#capchaDiv img') as HTMLImageElement
         return img?.src || null
       })
 
@@ -784,7 +784,7 @@ export class S2BRegistration extends S2BBase {
       this._log(`보안 인증 번호 인식 성공: ${result}`, 'info')
 
       // 입력창에 번호 입력 (id="field_3eeov45g2c8")
-      const inputSelector = '#field_3eeov45g2c8'
+      const inputSelector = '#capchaDiv [name="captcha"]'
       await this._type(inputSelector, result)
 
       // 입력 후 잠시 대기

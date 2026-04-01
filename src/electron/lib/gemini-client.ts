@@ -1,8 +1,31 @@
 import axios from 'axios'
 
 export class GeminiClient {
-  private static readonly MODEL = 'gemini-1.5-flash'
+  private static readonly MODEL = 'gemini-2.5-flash'
   private static readonly API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${this.MODEL}:generateContent`
+  private static readonly MAX_RETRIES = 2
+
+  private static extractText(responseData: any): string {
+    const candidate = responseData?.candidates?.[0]
+    const parts = candidate?.content?.parts
+
+    if (Array.isArray(parts)) {
+      const text = parts
+        .map((part: any) => (typeof part?.text === 'string' ? part.text : ''))
+        .join('')
+        .trim()
+
+      if (text) {
+        return text
+      }
+    }
+
+    if (typeof responseData?.text === 'string' && responseData.text.trim()) {
+      return responseData.text.trim()
+    }
+
+    return ''
+  }
 
   /**
    * Gemini API를 호출하여 이미지 내의 6자리 보안숫자를 추출합니다.
@@ -15,63 +38,95 @@ export class GeminiClient {
       throw new Error('Gemini API Key가 설정되지 않았습니다.')
     }
 
-    try {
-      // 데이터 URL 형식(data:image/png;base64,...)인 경우 접두어 제거
-      const cleanBase64 = base64Image.replace(/^data:image\/\w+;base64,/, '')
+    // 데이터 URL 형식(data:image/png;base64,...)인 경우 접두어 제거
+    const cleanBase64 = base64Image.replace(/^data:image\/\w+;base64,/, '')
 
-      const response = await axios.post(
-        `${this.API_URL}?key=${apiKey}`,
-        {
-          contents: [
-            {
-              parts: [
-                {
-                  text: 'Extract the 6-digit number from this image. Output ONLY the number, nothing else.',
-                },
-                {
-                  inline_data: {
-                    mime_type: 'image/png',
-                    data: cleanBase64,
+    for (let attempt = 1; attempt <= this.MAX_RETRIES; attempt += 1) {
+      try {
+        const response = await axios.post(
+          this.API_URL,
+          {
+            contents: [
+              {
+                parts: [
+                  {
+                    text: 'Extract the 6-digit number from this image. Output ONLY the 6-digit number.',
                   },
-                },
-              ],
+                  {
+                    inline_data: {
+                      mime_type: 'image/png',
+                      data: cleanBase64,
+                    },
+                  },
+                ],
+              },
+            ],
+            generationConfig: {
+              temperature: 0.1,
+              topP: 0.95,
+              topK: 64,
+              maxOutputTokens: 32,
+              responseMimeType: 'text/plain',
+              thinkingConfig: {
+                thinkingBudget: 0,
+              },
             },
-          ],
-          generationConfig: {
-            temperature: 0.1,
-            topP: 0.95,
-            topK: 64,
-            maxOutputTokens: 10,
-            responseMimeType: 'text/plain',
           },
-        },
-        {
-          headers: {
-            'Content-Type': 'application/json',
+          {
+            headers: {
+              'Content-Type': 'application/json',
+              'x-goog-api-key': apiKey,
+            },
           },
-        },
-      )
+        )
 
-      const text = response.data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim()
+        const text = this.extractText(response.data)
 
-      if (!text) {
-        throw new Error('Gemini AI로부터 답변을 받지 못했습니다.')
+        if (!text) {
+          console.warn('Gemini CAPTCHA empty response candidate:', {
+            attempt,
+            finishReason: response.data?.candidates?.[0]?.finishReason,
+            finishMessage: response.data?.candidates?.[0]?.finishMessage,
+            promptFeedback: response.data?.promptFeedback,
+            candidate: response.data?.candidates?.[0],
+            usageMetadata: response.data?.usageMetadata,
+          })
+
+          if (attempt < this.MAX_RETRIES) {
+            continue
+          }
+
+          const finishReason = response.data?.candidates?.[0]?.finishReason
+          if (finishReason === 'MAX_TOKENS') {
+            throw new Error('Gemini 응답이 토큰 제한에 걸렸습니다. thinkingBudget 또는 maxOutputTokens 설정을 확인해주세요.')
+          }
+
+          throw new Error('Gemini AI로부터 답변을 받지 못했습니다.')
+        }
+
+        // 숫자 이외의 문자 제거
+        const result = text.replace(/[^0-9]/g, '')
+
+        if (result.length !== 6) {
+          throw new Error(`6자리 보안숫자를 추출하지 못했습니다. (추출결과: ${result})`)
+        }
+
+        return result
+      } catch (error: any) {
+        const apiMessage = error?.response?.data?.error?.message
+
+        console.error('Gemini CAPTCHA solving error:', error?.response?.data || error.message)
+
+        if (apiMessage) {
+          throw new Error(`Gemini API 에러: ${apiMessage}`)
+        }
+
+        if (attempt >= this.MAX_RETRIES) {
+          throw error
+        }
       }
-
-      // 숫자 이외의 문자 제거
-      const result = text.replace(/[^0-9]/g, '')
-
-      if (result.length !== 6) {
-        throw new Error(`6자리 보안숫자를 추출하지 못했습니다. (추출결과: ${result})`)
-      }
-
-      return result
-    } catch (error: any) {
-      console.error('Gemini CAPTCHA solving error:', error?.response?.data || error.message)
-      if (error?.response?.data?.error?.message) {
-        throw new Error(`Gemini API 에러: ${error.response.data.error.message}`)
-      }
-      throw error
     }
+
+    throw new Error('Gemini CAPTCHA solving error: 최대 재시도 횟수를 초과했습니다.')
   }
 }
