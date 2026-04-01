@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react'
-import { Alert, Button, Card, Collapse, DatePicker, Input, Radio, Space } from 'antd'
+import { Alert, Button, Card, Collapse, DatePicker, Input, Radio, Space, Typography } from 'antd'
 import { useRecoilState } from 'recoil'
 import { useLog } from '../hooks/useLog'
 import { useManagement } from '../hooks/useManagement'
@@ -12,6 +12,8 @@ dayjs.locale('ko')
 
 const { RangePicker } = DatePicker
 
+const { shell } = window.require('electron')
+
 const Management: React.FC = () => {
   const { logs, clearLogs } = useLog()
   const {
@@ -23,7 +25,6 @@ const Management: React.FC = () => {
     updateRegistrationStatus,
     updateSearchQuery,
   } = useManagement()
-  const [videoCollapsed, setVideoCollapsed] = useRecoilState(managementVideoCollapsedState)
 
   useEffect(() => {
     checkPermission()
@@ -50,43 +51,20 @@ const Management: React.FC = () => {
         />
       )}
 
-      <Collapse
-        activeKey={videoCollapsed ? [] : ['video']}
-        onChange={keys => setVideoCollapsed(!keys.includes('video'))}
-        items={[
-          {
-            key: 'video',
-            label: '사용 방법',
-            children: (
-              <div
-                style={{
-                  position: 'relative',
-                  paddingBottom: '56.25%', // 16:9 비율
-                  height: 0,
-                  overflow: 'hidden',
-                  maxWidth: '100%',
-                  borderRadius: '8px',
-                }}
-              >
-                <iframe
-                  style={{
-                    position: 'absolute',
-                    top: 0,
-                    left: 0,
-                    width: '100%',
-                    height: '100%',
-                    border: 0,
-                  }}
-                  src="https://www.youtube.com/embed/dkLT_swmnio?si=E_gLnmW52ClwwpbT"
-                  title="판매관리일 연장 사용 방법"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                  referrerPolicy="strict-origin-when-cross-origin"
-                  allowFullScreen
-                />
-              </div>
-            ),
-          },
-        ]}
+      <Alert
+        message={
+          <Space>
+            <span>도움말:</span>
+            <Typography.Link
+              onClick={() => shell.openExternal('https://www.youtube.com/watch?v=dkLT_swmnio')}
+              style={{ fontWeight: 'bold' }}
+            >
+              판매관리일 연장 사용 방법 영상 보기 (Youtube)
+            </Typography.Link>
+          </Space>
+        }
+        type="info"
+        showIcon
       />
 
       <Card

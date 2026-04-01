@@ -71,7 +71,6 @@ const Sourcing: React.FC = () => {
   const [listLoading, setListLoading] = useState(false)
   const [credits, setCredits] = useState<number | null>(null)
   const [creditsLoading, setCreditsLoading] = useState(false)
-  const [videoCollapsed, setVideoCollapsed] = useRecoilState(videoCollapsedState)
   const [optionHandling, setOptionHandling] = useState<'split' | 'single'>('split')
   const [configSets] = useRecoilState(sourcingConfigSetsState)
   const [activeConfigSetId] = useRecoilState(activeConfigSetIdState)
@@ -558,43 +557,20 @@ const Sourcing: React.FC = () => {
         />
       )}
 
-      <Collapse
-        activeKey={videoCollapsed ? [] : ['video']}
-        onChange={keys => setVideoCollapsed(!keys.includes('video'))}
-        items={[
-          {
-            key: 'video',
-            label: '사용 방법',
-            children: (
-              <div
-                style={{
-                  position: 'relative',
-                  paddingBottom: '56.25%', // 16:9 비율
-                  height: 0,
-                  overflow: 'hidden',
-                  maxWidth: '100%',
-                  borderRadius: '8px',
-                }}
-              >
-                <iframe
-                  style={{
-                    position: 'absolute',
-                    top: 0,
-                    left: 0,
-                    width: '100%',
-                    height: '100%',
-                    border: 0,
-                  }}
-                  src="https://www.youtube.com/embed/vJAv-a1xxEs?si=N3ctiCzTS57Qaluy"
-                  title="소싱 페이지 사용 방법"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                  referrerPolicy="strict-origin-when-cross-origin"
-                  allowFullScreen
-                />
-              </div>
-            ),
-          },
-        ]}
+      <Alert
+        message={
+          <Space>
+            <span>도움말:</span>
+            <Typography.Link
+              onClick={() => shell.openExternal('https://www.youtube.com/watch?v=vJAv-a1xxEs')}
+              style={{ fontWeight: 'bold' }}
+            >
+              소싱 페이지 사용 방법 영상 보기 (Youtube)
+            </Typography.Link>
+          </Space>
+        }
+        type="info"
+        showIcon
       />
 
       <Card
