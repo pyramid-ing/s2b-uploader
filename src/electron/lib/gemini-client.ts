@@ -28,7 +28,7 @@ export class GeminiClient {
   }
 
   /**
-   * Gemini API를 호출하여 이미지 내의 6자리 보안숫자를 추출합니다.
+   * Gemini API를 호출하여 이미지 내의 6자리 보안문자를 추출합니다.
    * @param base64Image - 데이터 URL 형식이 아닌 순수 base64 문자열
    * @param apiKey - Gemini API Key
    * @returns 추출된 6자리 숫자 문자열
@@ -83,7 +83,7 @@ export class GeminiClient {
         const text = this.extractText(response.data)
 
         if (!text) {
-          console.warn('Gemini CAPTCHA empty response candidate:', {
+          console.warn('Gemini 보안문자 해독 응답 없음:', {
             attempt,
             finishReason: response.data?.candidates?.[0]?.finishReason,
             finishMessage: response.data?.candidates?.[0]?.finishMessage,
@@ -115,7 +115,7 @@ export class GeminiClient {
       } catch (error: any) {
         const apiMessage = error?.response?.data?.error?.message
 
-        console.error('Gemini CAPTCHA solving error:', error?.response?.data || error.message)
+        console.error('보안문자 해독 에러:', error?.response?.data || error.message)
 
         if (apiMessage) {
           throw new Error(`Gemini API 에러: ${apiMessage}`)
@@ -127,6 +127,6 @@ export class GeminiClient {
       }
     }
 
-    throw new Error('Gemini CAPTCHA solving error: 최대 재시도 횟수를 초과했습니다.')
+    throw new Error('보안문자 해독 실패: 최대 재시도 횟수를 초과했습니다.')
   }
 }

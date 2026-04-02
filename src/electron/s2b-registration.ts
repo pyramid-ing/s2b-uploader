@@ -748,7 +748,7 @@ export class S2BRegistration extends S2BBase {
     if (!this.page) return
 
     try {
-      // 캡차 영역 존재 여부 확인 (id="capchaDiv")
+      // 보안문자 영역 존재 여부 확인 (id="capchaDiv")
       const captchaDiv = await this.page.$('#capchaDiv')
       if (!captchaDiv) return
 
@@ -762,13 +762,13 @@ export class S2BRegistration extends S2BBase {
 
       if (!isVisible) return
 
-      this._log('⚠️ 보안 인증(CAPTCHA)이 감지되었습니다. 자동 풀이를 시작합니다.', 'warning')
+      this._log('⚠️ 보안문자 인증이 감지되었습니다. 보안문자 해독을 시작합니다.', 'warning')
 
       if (!this.geminiApiKey) {
         throw new Error('Gemini API Key가 설정되지 않았습니다. 설정에서 API Key를 입력해주세요.')
       }
 
-      // 캡차 이미지 추출 (id="field_xtnqu0t4n4" 안의 img)
+      // 보안문자 이미지 추출 (id="field_xtnqu0t4n4" 안의 img)
       const base64Image = await this.page.evaluate(() => {
         const img = document.querySelector('#capchaDiv img') as HTMLImageElement
         return img?.src || null
@@ -778,8 +778,8 @@ export class S2BRegistration extends S2BBase {
         throw new Error('보안 인증 이미지를 찾을 수 없습니다.')
       }
 
-      // Gemini AI를 통해 캡차 풀기
-      this._log('Gemini AI에게 캡차 풀이 요청 중...', 'info')
+      // Gemini AI를 통해 보안문자 해독
+      this._log('Gemini AI에게 보안문자 해독 요청 중...', 'info')
       const result = await GeminiClient.solveCaptcha(base64Image, this.geminiApiKey)
       this._log(`보안 인증 번호 인식 성공: ${result}`, 'info')
 
@@ -803,7 +803,7 @@ export class S2BRegistration extends S2BBase {
     const isChecked = await this.page!.isChecked('#uprightContract')
     if (!isChecked) await this.page!.check('#uprightContract')
 
-    // 캡차 처리 (있을 경우에만 동작)
+    // 보안문자 처리 (있을 경우에만 동작)
     await this._handleCaptcha()
 
     // 등록 버튼 클릭 후 5초 대기 후 결과 URL 확인

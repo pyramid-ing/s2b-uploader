@@ -810,7 +810,7 @@ function setupIpcHandlers() {
 
         if (settings.geminiApiKey) {
           registration.setGeminiApiKey(settings.geminiApiKey)
-          sendLogToRenderer('Gemini AI 캡차 풀이 활성화됨', 'info')
+          sendLogToRenderer('AI 보안문자 해독 모드 활성화', 'info')
         }
 
         const deliveryPresetLabel =
