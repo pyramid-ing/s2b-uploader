@@ -799,43 +799,65 @@ export class S2BRegistration extends S2BBase {
 
   private async _submitRegistration(): Promise<void> {
     const SUCCESS_BASE_URL = 'https://www.s2b.kr/S2BNVendor/rema100.do'
+    const MAX_RETRIES = 3
 
-    const isChecked = await this.page!.isChecked('#uprightContract')
-    if (!isChecked) await this.page!.check('#uprightContract')
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      this._log(`등록 시도 ${attempt}/${MAX_RETRIES}...`, 'info')
 
-    // 보안문자 처리 (있을 경우에만 동작)
-    await this._handleCaptcha()
+      const isChecked = await this.page!.isChecked('#uprightContract')
+      if (!isChecked) await this.page!.check('#uprightContract')
 
-    // 등록 버튼 클릭 후 5초 대기 후 결과 URL 확인
-    await this.page!.click('a[href="javascript:register(\'1\');"]')
-    await new Promise(resolve => setTimeout(resolve, 5000))
+      // 보안문자 처리 (있을 경우에만 동작)
+      await this._handleCaptcha()
 
-    if (this.dialogErrorMessage) {
-      // 다이얼로그에서 이미 에러 메시지를 받은 경우 즉시 실패 처리
-      throw new Error(this.dialogErrorMessage)
+      // 에러 메시지 초기화 후 등록 버튼 클릭
+      this.dialogErrorMessage = null
+      await this.page!.click('a[href="javascript:register(\'1\');"]')
+
+      // 등록 버튼 클릭 후 결과 대기 (URL 이동 또는 Alert 발생)
+      await new Promise(resolve => setTimeout(resolve, 5000))
+
+      const currentUrl = this.page!.url()
+      let isSuccess = false
+
+      try {
+        const url = new URL(currentUrl)
+        const base = `${url.origin}${url.pathname}`
+        const forwardName = url.searchParams.get('forwardName')
+
+        // 등록 성공 시: rema100.do 로 이동하되, 최초 등록화면인 forwardName=goRegistView 가 아닌 경우
+        isSuccess = base === SUCCESS_BASE_URL && forwardName !== 'goRegistView'
+      } catch {
+        isSuccess = false
+      }
+
+      if (isSuccess) {
+        this._log(`✅ 등록 성공 페이지 이동 확인: ${currentUrl}`, 'info')
+        return
+      }
+
+      // 실패했을 때, 에러 메시지가 보안문자 관련인지 확인
+      const errorMsg = this.dialogErrorMessage || ''
+      const isCaptchaError = errorMsg.includes('보안문자') || errorMsg.includes('보안인증')
+
+      if (isCaptchaError && attempt < MAX_RETRIES) {
+        this._log(`보안 인증 오류 감지 (${attempt}/${MAX_RETRIES}): "${errorMsg}". 재시도합니다...`, 'warning')
+        this.dialogErrorMessage = null
+        continue
+      }
+
+      // 보안문자 오류가 아니거나, 최대 시도 횟수를 초과한 경우 에러 발생
+      const finalErrorMessage = this.dialogErrorMessage
+        ? this.dialogErrorMessage
+        : `등록 성공 페이지(${SUCCESS_BASE_URL})로 이동하지 않았습니다. (현재 URL: ${currentUrl})`
+
+      if (attempt === MAX_RETRIES) {
+        throw new Error(`최대 시도 횟수(${MAX_RETRIES}회) 초과: ${finalErrorMessage}`)
+      } else if (!isCaptchaError) {
+        // 보안문자 외의 다른 에러(예: 필수값 누락 등)면 즉시 중단
+        throw new Error(finalErrorMessage)
+      }
     }
-
-    const currentUrl = this.page!.url()
-    let isSuccess = false
-
-    try {
-      const url = new URL(currentUrl)
-      const base = `${url.origin}${url.pathname}`
-      const forwardName = url.searchParams.get('forwardName')
-
-      // 등록 성공 시: rema100.do 로 이동하되, 최초 등록화면인 forwardName=goRegistView 가 아닌 경우
-      isSuccess = base === SUCCESS_BASE_URL && forwardName !== 'goRegistView'
-    } catch {
-      // URL 파싱 실패 시에도 확실한 성공 신호가 아니므로 실패로 간주
-      isSuccess = false
-    }
-
-    if (!isSuccess) {
-      const message = `등록 성공 페이지(${SUCCESS_BASE_URL})로 이동하지 않았습니다. 현재 URL: ${currentUrl}`
-      throw new Error(message)
-    }
-
-    this._log(`✅ 등록 성공 페이지 이동 확인: ${currentUrl}`, 'info')
   }
 
   private async _readExcelStream(stream: fs.ReadStream): Promise<ExcelRawData[]> {
