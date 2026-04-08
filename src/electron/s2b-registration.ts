@@ -287,6 +287,7 @@ export class S2BRegistration extends S2BBase {
       case 'alert':
         // 예상가능 alert
         this._log(`Alert 메시지: ${message}`, 'warning')
+        this.dialogErrorMessage = message
         if (
           message.includes('S2B의 "견적정보 등록"은 지방자치단체를 당사자로 하는 계약에 관한 법률 시행령 제30조') ||
           message.includes('등록대기 상태로 변경되었으며') ||
@@ -471,8 +472,7 @@ export class S2BRegistration extends S2BBase {
     if (data.validateRadio) {
       const radioSelector = `input[name="validateRadio"][value="${data.validateRadio}"]`
       await this.page!.locator(radioSelector).click({ force: true })
-      if (data.validateRadio === 'date' && data.fValidate)
-        await this._type('input[name="f_validate"]', data.fValidate)
+      if (data.validateRadio === 'date' && data.fValidate) await this._type('input[name="f_validate"]', data.fValidate)
     }
     if (data.selPower) await this._type('input[name="f_sel_power"]', data.selPower)
     if (data.selWeight) await this._type('input[name="f_sel_weight"]', data.selWeight)
@@ -788,7 +788,7 @@ export class S2BRegistration extends S2BBase {
       await this._type(inputSelector, result)
 
       // 입력 후 잠시 대기
-      await new Promise(resolve => setTimeout(resolve, 500))
+      await new Promise(resolve => setTimeout(resolve, 10_000))
 
       this._log('✅ 보안 인증 번호가 입력되었습니다.', 'info')
     } catch (error: any) {
@@ -838,7 +838,11 @@ export class S2BRegistration extends S2BBase {
 
       // 실패했을 때, 에러 메시지가 보안문자 관련인지 확인
       const errorMsg = this.dialogErrorMessage || ''
-      const isCaptchaError = errorMsg.includes('보안문자') || errorMsg.includes('보안인증')
+      const isCaptchaError =
+        errorMsg.includes('보안문자') ||
+        errorMsg.includes('보안인증') ||
+        errorMsg.includes('숫자가 틀립니다') ||
+        errorMsg.includes('캡챠')
 
       if (isCaptchaError && attempt < MAX_RETRIES) {
         this._log(`보안 인증 오류 감지 (${attempt}/${MAX_RETRIES}): "${errorMsg}". 재시도합니다...`, 'warning')
