@@ -394,6 +394,7 @@ interface StoreSchema {
     geminiApiKey?: string
     thumbnailSize?: number
     detailImageWidth?: number
+    typeDelay: number
   }
   configSets: any[]
   activeConfigSetId: string | null
@@ -517,6 +518,8 @@ function normalizeSettings(settings: Partial<StoreSchema['settings']> | undefine
       merged.detailImageWidth !== undefined && (merged.detailImageWidth as any) !== ''
         ? Number(merged.detailImageWidth)
         : 680,
+    typeDelay:
+      merged.typeDelay !== undefined && (merged.typeDelay as any) !== '' ? Number(merged.typeDelay) : 10,
   }
 }
 
@@ -583,6 +586,7 @@ const store = new Store<StoreSchema>({
       detailHtmlTemplate: '<p>상세설명을 입력하세요.</p>',
       useAIForSourcing: false,
       geminiApiKey: '',
+      typeDelay: 10,
     },
     configSets: [],
     activeConfigSetId: null,
@@ -735,6 +739,7 @@ function setupIpcHandlers() {
       sendLogToRenderer(`엑셀 데이터 로드 시작: ${resolvedExcelPath}`, 'info')
       const settings = store.get('settings')
       const registration = new S2BRegistration(resolvedFileDir, sendLogToRenderer, settings.headless)
+      registration.setTypeDelay(settings.typeDelay || 10)
       const data = await registration.readExcelFile(resolvedExcelPath)
       return data
     } catch (error) {
@@ -799,6 +804,7 @@ function setupIpcHandlers() {
         }
 
         registration = new S2BRegistration(settings.fileDir, sendLogToRenderer, settings.headless)
+        registration.setTypeDelay(settings.typeDelay || 10)
 
         await registration.launch()
 

@@ -16,12 +16,14 @@ const SALE_TYPE_MAP: Record<SaleType, string> = { 물품: '1', 용역: '3' }
 
 const DELIVERY_TYPE_MAP: Record<'무료' | '유료' | '조건부무료', string> = { 무료: '1', 유료: '2', 조건부무료: '3' }
 
+
 export class S2BRegistration extends S2BBase {
   private baseFilePath: string
   private dialogErrorMessage: string | null = null
   private imageOptimize: boolean = false
   private popupHandlersSetup: boolean = false
   private geminiApiKey: string = ''
+  private typeDelay: number = 10
 
   constructor(
     baseImagePath: string,
@@ -43,7 +45,7 @@ export class S2BRegistration extends S2BBase {
         el.value = ''
       })
     } catch {}
-    await loc.type(strText, { delay: 10 })
+    await loc.type(strText, { delay: this.typeDelay })
     try {
       await loc.evaluate((el: HTMLInputElement) => {
         el.dispatchEvent(new Event('input', { bubbles: true }))
@@ -59,6 +61,10 @@ export class S2BRegistration extends S2BBase {
 
   public setGeminiApiKey(apiKey: string): void {
     this.geminiApiKey = apiKey
+  }
+
+  public setTypeDelay(delay: number): void {
+    this.typeDelay = delay
   }
 
   public async launch(): Promise<void> {

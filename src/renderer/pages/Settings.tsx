@@ -55,6 +55,7 @@ interface SettingsForm {
   headless: boolean
   thumbnailSize: number
   detailImageWidth: number
+  typeDelay: number
 }
 
 type ValidityStatus = 'unknown' | 'checking' | 'valid' | 'invalid'
@@ -165,6 +166,7 @@ const Settings: React.FC = () => {
           registrationDelayMax,
           thumbnailSize: typeof settings.thumbnailSize === 'number' ? settings.thumbnailSize : 240,
           detailImageWidth: typeof settings.detailImageWidth === 'number' ? settings.detailImageWidth : 680,
+          typeDelay: typeof settings.typeDelay === 'number' ? settings.typeDelay : 10,
         })
         await checkAllAccountValidity(normalizedAccounts)
         console.log('Settings loaded successfully:', settings)
@@ -552,6 +554,17 @@ const Settings: React.FC = () => {
           }
         >
           <Input.Password placeholder="Gemini API Key를 입력하세요" />
+        </Form.Item>
+
+        <Divider type="horizontal" />
+
+        <Form.Item
+          label="타이핑 지연 시간 (ms)"
+          name="typeDelay"
+          initialValue={10}
+          tooltip="입력 시 각 글자 사이의 지연 시간입니다. 100~200ms 정도로 설정하면 사람이 입력하는 것과 유사한 속도가 됩니다. (기본값: 10ms)"
+        >
+          <Input type="number" min={0} max={1000} addonAfter="ms" placeholder="예: 10" />
         </Form.Item>
 
         <Form.Item>
