@@ -216,7 +216,7 @@ export const VENDOR_CONFIG: Record<VendorKey, VendorConfig> = {
     login_url: 'https://www.ownerclan.com/V2/member/loginform.php',
     product_list_xpath: '//ul[@id="productList-content"]/li',
     product_name_list_xpath: './/p[contains(@class, "new_title02")]/a',
-    product_price_list_xpath: './/p[@class="price2"]//span[@class="won_color1"]',
+    product_price_list_xpath: './/p[@class="price2"]//span[contains(@style, "color: #D60020")] | .//p[@class="price2"]//span[@class="won_color1"]',
     product_thumbnail_list_xpath: './/div[@class="new_img"]//img',
     product_name_xpath: '//p[@class="product_information_right_title_text"]',
     product_code_xpath: '//div[@class="product_information_header"]',

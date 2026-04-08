@@ -220,7 +220,9 @@ export class S2BSourcing extends S2BBase {
         options: basicInfo.options,
         mainImages: savedMainImages,
         detailImages: detailCapturePath ? [detailCapturePath] : [],
-        listThumbnail: product?.listThumbnail,
+        listThumbnail: await this._imageToBase64(
+          product?.listThumbnail || (savedMainImages && savedMainImages.length > 0 ? savedMainImages[0] : undefined),
+        ),
         downloadDir: productDir,
         특성,
       }
@@ -952,6 +954,21 @@ export class S2BSourcing extends S2BBase {
       this._log(`카테고리 매핑 실패: ${error.message}`, 'error')
       return {}
     }
+  }
+
+  private async _imageToBase64(imagePath: string | undefined): Promise<string | undefined> {
+    if (!imagePath) return undefined
+    if (imagePath.startsWith('http')) return imagePath
+    try {
+      if (fsSync.existsSync(imagePath)) {
+        const buffer = await fs.readFile(imagePath)
+        const ext = path.extname(imagePath).toLowerCase().replace('.', '') || 'jpeg'
+        return `data:image/${ext};base64,${buffer.toString('base64')}`
+      }
+    } catch (e) {
+      this._log(`Base64 변환 실패: ${imagePath} - ${e}`, 'error')
+    }
+    return imagePath
   }
 
   private _mapToExcelFormat(

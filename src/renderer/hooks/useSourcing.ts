@@ -1,5 +1,5 @@
 import { useRecoilState, useRecoilCallback } from 'recoil'
-import { message } from 'antd'
+import { message, Modal } from 'antd'
 import { random } from 'lodash'
 import {
   sourcingItemsState,
@@ -333,15 +333,41 @@ export const useSourcing = () => {
           // 현재 활성화된 설정값 세트 찾기
           const activeConfigSet = configSets.find(cs => cs.id === activeConfigSetId)
 
-          const result = await ipcRenderer.invoke('download-sourcing-excel', {
-            sourcingItems: selectedItems,
-            configSet: activeConfigSet,
-          })
+          // 상세 수집(isCollected: true)되지 않은 항목이 있는지 체크
+          const collectedItems = selectedItems.filter(item => item.isCollected)
+          const uncollectedCount = selectedItems.length - collectedItems.length
 
-          if (result.success) {
-            message.success(`선택된 소싱 데이터 엑셀 파일이 성공적으로 저장되었습니다: ${result.fileName}`)
+          if (collectedItems.length === 0) {
+            Modal.warning({
+              title: '내보낼 데이터 없음',
+              content: '선택된 항목 중 상세 수집(성공)된 전용 데이터가 없습니다. 먼저 등록 요청을 눌러 상세 정보를 수집해 주세요.',
+            })
+            return
+          }
+
+          const startDownload = async () => {
+            const result = await ipcRenderer.invoke('download-sourcing-excel', {
+              sourcingItems: collectedItems,
+              configSet: activeConfigSet,
+            })
+
+            if (result.success) {
+              message.success(`선택된 소싱 데이터 엑셀 파일이 성공적으로 저장되었습니다: ${result.fileName}`)
+            } else {
+              message.error(`엑셀 다운로드 실패: ${result.error}`)
+            }
+          }
+
+          if (uncollectedCount > 0) {
+            Modal.confirm({
+              title: '엑셀 다운로드 안내',
+              content: `선택된 ${selectedItems.length}개 항목 중 ${uncollectedCount}개는 아직 상세 수집이 처리되지 않았습니다. 상세 수집된 ${collectedItems.length}개 항목만 엑셀로 내보내집니다. 계속하시겠습니까?`,
+              okText: '계속',
+              cancelText: '취소',
+              onOk: startDownload,
+            })
           } else {
-            message.error(`엑셀 다운로드 실패: ${result.error}`)
+            await startDownload()
           }
         } catch (error) {
           console.error('Sourcing Excel download failed:', error)
