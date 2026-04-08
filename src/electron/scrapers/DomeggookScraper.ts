@@ -222,10 +222,61 @@ export class DomeggookScraper extends BaseScraper {
     if (!fsSync.existsSync(targetDir)) fsSync.mkdirSync(targetDir, { recursive: true })
 
     const outPath = path.join(targetDir, `상세이미지.jpg`)
-    const locator = page.locator(`xpath=${vendor.detail_image_xpath}`)
+    const detailSelector = vendor.detail_image_xpath
+    const locator = page.locator(`xpath=${detailSelector}`).first()
+
+    // 1. "상세설명 더보기" 버튼이 있으면 클릭 (도매꾹 특화)
+    try {
+      const moreBtn = page.locator('#lBtnItemContentsMore').first()
+      if (await moreBtn.isVisible({ timeout: 2000 })) {
+        await moreBtn.click()
+        // 애니메이션 및 내용 확장 대기
+        await page.waitForTimeout(1000)
+      }
+    } catch {
+      // 버튼이 없거나 클릭 실패 시에도 진행
+    }
+
+    // 2. 지연 로딩 이미지들을 로드하기 위해 상세 영역 스크롤 및 이미지 로드 확인
+    await page.evaluate(async (sel: string) => {
+      const result = document.evaluate(sel, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null)
+      const wrapper = result.singleNodeValue as HTMLElement | null
+      if (!wrapper) return
+
+      // 상세 영역 끝까지 스크롤하여 지연 로딩 트리거
+      const rect = wrapper.getBoundingClientRect()
+      const scrollStep = 1000
+      let currentPos = window.scrollY
+      const startPos = rect.top + window.scrollY
+      const targetPos = rect.bottom + window.scrollY
+
+      // 상세 영역 시작점으로 이동 후 순차 스크롤
+      window.scrollTo(0, startPos)
+      currentPos = startPos
+      while (currentPos < targetPos) {
+        window.scrollBy(0, scrollStep)
+        currentPos += scrollStep
+        await new Promise(r => setTimeout(r, 150))
+      }
+      window.scrollTo(0, 0) // 다시 최상단으로 (좌표 계산을 위해 필요)
+
+      // 모든 이미지 로드 대기
+      const images = Array.from(wrapper.querySelectorAll('img'))
+      await Promise.all(
+        images.map(img => {
+          if (img.complete && img.naturalHeight !== 0) return Promise.resolve()
+          return new Promise(resolve => {
+            img.onload = img.onerror = resolve
+            setTimeout(resolve, 5000) // 부족할 수 있으므로 5초까지 대기
+          })
+        }),
+      )
+    }, detailSelector)
+
+    await page.waitForTimeout(500) // 안정화 대기
 
     // 공통 긴 캡처 헬퍼를 사용하여 상세 영역 전체를 여러 구간으로 나눠 캡처 후 하나로 합침
-    await this.screenshotLongElement(page, locator.first(), outPath, 4000)
+    await this.screenshotLongElement(page, locator, outPath, 4000)
     return outPath
   }
 
