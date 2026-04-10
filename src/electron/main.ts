@@ -392,6 +392,7 @@ interface StoreSchema {
     detailHtmlTemplate: string
     useAIForSourcing?: boolean
     geminiApiKey?: string
+    captchaMaxRetries?: number
     thumbnailSize?: number
     detailImageWidth?: number
     typeDelay: number
@@ -512,6 +513,10 @@ function normalizeSettings(settings: Partial<StoreSchema['settings']> | undefine
       typeof merged.detailHtmlTemplate === 'string' ? merged.detailHtmlTemplate : '<p>상세설명을 입력하세요.</p>',
     useAIForSourcing: Boolean(merged.useAIForSourcing),
     geminiApiKey: typeof merged.geminiApiKey === 'string' ? merged.geminiApiKey : '',
+    captchaMaxRetries:
+      merged.captchaMaxRetries !== undefined && (merged.captchaMaxRetries as any) !== ''
+        ? Number(merged.captchaMaxRetries)
+        : 3,
     thumbnailSize:
       merged.thumbnailSize !== undefined && (merged.thumbnailSize as any) !== '' ? Number(merged.thumbnailSize) : 240,
     detailImageWidth:
@@ -586,6 +591,7 @@ const store = new Store<StoreSchema>({
       detailHtmlTemplate: '<p>상세설명을 입력하세요.</p>',
       useAIForSourcing: false,
       geminiApiKey: '',
+      captchaMaxRetries: 3,
       typeDelay: 10,
     },
     configSets: [],
@@ -817,6 +823,10 @@ function setupIpcHandlers() {
         if (settings.geminiApiKey) {
           registration.setGeminiApiKey(settings.geminiApiKey)
           sendLogToRenderer('AI 보안문자 해독 모드 활성화', 'info')
+        }
+
+        if (settings.captchaMaxRetries) {
+          registration.setCaptchaMaxRetries(settings.captchaMaxRetries)
         }
 
         const deliveryPresetLabel =

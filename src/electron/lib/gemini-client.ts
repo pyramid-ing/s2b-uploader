@@ -50,7 +50,7 @@ export class GeminiClient {
               {
                 parts: [
                   {
-                    text: 'Extract the 6-digit number from this image. Output ONLY the 6-digit number.',
+                    text: 'This is a CAPTCHA image containing exactly 6 digits (0-9). The digits are rendered in various colors over a noisy background with wavy lines and mesh patterns. Each digit may be slightly rotated or distorted. Read all 6 digits from left to right carefully. Output ONLY the 6 digits with no spaces or other characters.',
                   },
                   {
                     inline_data: {

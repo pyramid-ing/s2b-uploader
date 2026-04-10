@@ -23,6 +23,7 @@ export class S2BRegistration extends S2BBase {
   private imageOptimize: boolean = false
   private popupHandlersSetup: boolean = false
   private geminiApiKey: string = ''
+  private captchaMaxRetries: number = 3
   private typeDelay: number = 10
 
   constructor(
@@ -61,6 +62,10 @@ export class S2BRegistration extends S2BBase {
 
   public setGeminiApiKey(apiKey: string): void {
     this.geminiApiKey = apiKey
+  }
+
+  public setCaptchaMaxRetries(maxRetries: number): void {
+    this.captchaMaxRetries = maxRetries
   }
 
   public setTypeDelay(delay: number): void {
@@ -805,10 +810,10 @@ export class S2BRegistration extends S2BBase {
 
   private async _submitRegistration(): Promise<void> {
     const SUCCESS_BASE_URL = 'https://www.s2b.kr/S2BNVendor/rema100.do'
-    const MAX_RETRIES = 3
+    const maxRetries = this.captchaMaxRetries
 
-    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-      this._log(`등록 시도 ${attempt}/${MAX_RETRIES}...`, 'info')
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      this._log(`등록 시도 ${attempt}/${maxRetries}...`, 'info')
 
       const isChecked = await this.page!.isChecked('#uprightContract')
       if (!isChecked) await this.page!.check('#uprightContract')
@@ -850,8 +855,8 @@ export class S2BRegistration extends S2BBase {
         errorMsg.includes('숫자가 틀립니다') ||
         errorMsg.includes('캡챠')
 
-      if (isCaptchaError && attempt < MAX_RETRIES) {
-        this._log(`보안 인증 오류 감지 (${attempt}/${MAX_RETRIES}): "${errorMsg}". 재시도합니다...`, 'warning')
+      if (isCaptchaError && attempt < maxRetries) {
+        this._log(`보안 인증 오류 감지 (${attempt}/${maxRetries}): "${errorMsg}". 재시도합니다...`, 'warning')
         this.dialogErrorMessage = null
         continue
       }
@@ -861,8 +866,8 @@ export class S2BRegistration extends S2BBase {
         ? this.dialogErrorMessage
         : `등록 성공 페이지(${SUCCESS_BASE_URL})로 이동하지 않았습니다. (현재 URL: ${currentUrl})`
 
-      if (attempt === MAX_RETRIES) {
-        throw new Error(`최대 시도 횟수(${MAX_RETRIES}회) 초과: ${finalErrorMessage}`)
+      if (attempt === maxRetries) {
+        throw new Error(`최대 시도 횟수(${maxRetries}회) 초과: ${finalErrorMessage}`)
       } else if (!isCaptchaError) {
         // 보안문자 외의 다른 에러(예: 필수값 누락 등)면 즉시 중단
         throw new Error(finalErrorMessage)

@@ -166,6 +166,7 @@ const Settings: React.FC = () => {
           registrationDelayMax,
           thumbnailSize: typeof settings.thumbnailSize === 'number' ? settings.thumbnailSize : 240,
           detailImageWidth: typeof settings.detailImageWidth === 'number' ? settings.detailImageWidth : 680,
+          captchaMaxRetries: typeof settings.captchaMaxRetries === 'number' ? settings.captchaMaxRetries : 3,
           typeDelay: typeof settings.typeDelay === 'number' ? settings.typeDelay : 10,
         })
         await checkAllAccountValidity(normalizedAccounts)
@@ -554,6 +555,15 @@ const Settings: React.FC = () => {
           }
         >
           <Input.Password placeholder="Gemini API Key를 입력하세요" />
+        </Form.Item>
+
+        <Form.Item
+          label="보안문자 최대 시도 횟수"
+          name="captchaMaxRetries"
+          initialValue={3}
+          tooltip="상품 등록 시 보안문자(캡챠) 인식 실패 시 최대 재시도 횟수입니다. (기본값: 3)"
+        >
+          <Input type="number" min={1} max={10} addonAfter="회" placeholder="예: 3" />
         </Form.Item>
 
         <Divider type="horizontal" />
