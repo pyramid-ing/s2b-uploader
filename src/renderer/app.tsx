@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { Layout, Menu, theme, Typography } from 'antd'
+import { ConfigProvider, Layout, Menu, theme, Typography } from 'antd'
 import {
   AppstoreOutlined,
   SettingOutlined,
@@ -79,68 +79,74 @@ const App: React.FC = () => {
 
   return (
     <RecoilRoot>
-      <Layout style={{ minHeight: '100vh' }}>
-        <Sider collapsible collapsed={collapsed} onCollapse={setCollapsed}>
-          <div
-            style={{
-              color: '#FFF',
-              padding: '20px',
-              textAlign: 'center',
-              backgroundColor: '#001529',
-              borderBottom: '1px solid #ccc',
-            }}
-          >
-            <div style={{ fontSize: '18px', fontWeight: 'bold' }}>S2B 업로더</div>
-            <div style={{ fontSize: '12px', marginTop: '8px', color: '#BBB' }}>
-              버전 <span style={{ fontWeight: 'bold' }}>{appVersion}</span>
-            </div>
-          </div>
-          <div
-            style={{
-              padding: '16px',
-              borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
-              textAlign: 'center',
-              fontSize: '12px',
-              color: '#BBB',
-            }}
-          >
-            <Typography.Text style={{ color: '#BBB', fontSize: '12px' }}>
-              추가구매 & 문의사항
-              <br />
-              <Typography.Link
-                href="mailto:busidev22@gmail.com"
-                style={{ color: '#1890ff', fontSize: '12px' }}
-                onClick={e => {
-                  e.preventDefault()
-                  shell.openExternal('mailto:busidev22@gmail.com')
-                }}
+      <ConfigProvider theme={{ token: { fontSize: 16 } }}>
+        <Layout style={{ minHeight: '100vh' }}>
+          <Sider collapsible collapsed={collapsed} onCollapse={setCollapsed}>
+            <div
+              style={{
+                color: '#FFF',
+                padding: '20px',
+                textAlign: 'center',
+                backgroundColor: '#001529',
+                borderBottom: '1px solid #ccc',
+              }}
+            >
+              <div style={{ fontSize: '18px', fontWeight: 'bold' }}>
+                S2B 업로더
+              </div>
+              <div
+                style={{ fontSize: '12px', marginTop: '8px', color: '#E0E0E0' }}
               >
-                busidev22@gmail.com
-              </Typography.Link>
-            </Typography.Text>
-          </div>
-          <Menu
-            theme="dark"
-            mode="inline"
-            selectedKeys={[location.pathname]}
-            items={menuItems}
-            onClick={({ key }) => navigate(key)}
-          />
-        </Sider>
-        <Layout>
-          <Header style={{ padding: 0, background: colorBgContainer }} />
-          <Content style={{ margin: '16px' }}>
-            <Routes>
-              <Route path="/register" element={<Register />} />
-              <Route path="/sourcing" element={<Sourcing />} />
-              <Route path="/management" element={<Management />} />
-              <Route path="/pricing" element={<Pricing />} />
-              <Route path="/settings" element={<Settings />} />
-              <Route path="/license" element={<License />} />
-            </Routes>
-          </Content>
+                버전 <span style={{ fontWeight: 'bold' }}>{appVersion}</span>
+              </div>
+            </div>
+            <div
+              style={{
+                padding: '16px',
+                borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+                textAlign: 'center',
+                fontSize: '12px',
+                color: '#E0E0E0',
+              }}
+            >
+              <Typography.Text style={{ color: '#E0E0E0', fontSize: '12px' }}>
+                추가구매 & 문의사항
+                <br />
+                <Typography.Link
+                  href="mailto:busidev22@gmail.com"
+                  style={{ color: '#1890ff', fontSize: '12px' }}
+                  onClick={e => {
+                    e.preventDefault()
+                    shell.openExternal('mailto:busidev22@gmail.com')
+                  }}
+                >
+                  busidev22@gmail.com
+                </Typography.Link>
+              </Typography.Text>
+            </div>
+            <Menu
+              theme="dark"
+              mode="inline"
+              selectedKeys={[location.pathname]}
+              items={menuItems}
+              onClick={({ key }) => navigate(key)}
+            />
+          </Sider>
+          <Layout>
+            <Header style={{ padding: 0, background: colorBgContainer }} />
+            <Content style={{ margin: '16px' }}>
+              <Routes>
+                <Route path="/register" element={<Register />} />
+                <Route path="/sourcing" element={<Sourcing />} />
+                <Route path="/management" element={<Management />} />
+                <Route path="/pricing" element={<Pricing />} />
+                <Route path="/settings" element={<Settings />} />
+                <Route path="/license" element={<License />} />
+              </Routes>
+            </Content>
+          </Layout>
         </Layout>
-      </Layout>
+      </ConfigProvider>
     </RecoilRoot>
   )
 }

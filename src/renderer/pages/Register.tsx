@@ -1,6 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { Alert, Button, Card, Space, Table, Input, Select, Tag } from 'antd'
-import { FolderOpenOutlined, ReloadOutlined, StopOutlined, UploadOutlined } from '@ant-design/icons'
+import {
+  FolderOpenOutlined,
+  ReloadOutlined,
+  StopOutlined,
+  UploadOutlined,
+} from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import { useLog } from '../hooks/useLog'
 import { useRegister } from '../hooks/useRegister'
@@ -30,7 +35,9 @@ const Register: React.FC = () => {
   useEffect(() => {
     ;(async () => {
       const synced = await syncAccountPresets()
-      const targetAccount = synced.accounts.find((account: any) => account.id === synced.selectedAccountId)
+      const targetAccount = synced.accounts.find(
+        (account: any) => account.id === synced.selectedAccountId,
+      )
       await checkPermission(targetAccount?.loginId)
       const ipResult = await ipcRenderer.invoke('get-current-public-ip')
       setCurrentPublicIp(ipResult?.success ? ipResult.ip : '')
@@ -62,7 +69,9 @@ const Register: React.FC = () => {
       key: 'modelName',
     },
   ]
-  const selectedAccount = settings.accounts.find(account => account.id === settings.selectedAccountId)
+  const selectedAccount = settings.accounts.find(
+    account => account.id === settings.selectedAccountId,
+  )
   const selectedCount = selectedKeys.length
   const totalCount = products.length
 
@@ -76,7 +85,10 @@ const Register: React.FC = () => {
               현재 계정으로는 상품 등록이 불가능합니다. 관리자에게 문의하세요.
               {permission.accountInfo?.periodEnd && (
                 <div style={{ marginTop: '8px', fontSize: '14px' }}>
-                  계정 만료일: {new Date(permission.accountInfo.periodEnd).toLocaleDateString('ko-KR')}
+                  계정 만료일:{' '}
+                  {new Date(
+                    permission.accountInfo.periodEnd,
+                  ).toLocaleDateString('ko-KR')}
                 </div>
               )}
             </>
@@ -87,7 +99,13 @@ const Register: React.FC = () => {
         />
       )}
 
-      <Card title="상품 등록" style={{ marginBottom: '20px', opacity: permission.hasPermission === false ? 0.5 : 1 }}>
+      <Card
+        title="상품 등록"
+        style={{
+          marginBottom: '20px',
+          opacity: permission.hasPermission === false ? 0.5 : 1,
+        }}
+      >
         <div
           style={{
             marginBottom: 16,
@@ -114,14 +132,18 @@ const Register: React.FC = () => {
                 placeholder="사업자(계정) 선택"
                 value={settings.selectedAccountId}
                 options={settings.accounts.map((account, index) => ({
-                  label: account.name?.trim() || account.loginId || `계정 ${index + 1}`,
+                  label:
+                    account.name?.trim() ||
+                    account.loginId ||
+                    `계정 ${index + 1}`,
                   value: account.id,
                 }))}
                 onChange={updateSelectedAccountId}
                 disabled={settings.loading}
               />
               <Tag color={selectedCount > 0 ? 'blue' : 'default'}>
-                선택 {selectedCount.toLocaleString()} / 전체 {totalCount.toLocaleString()}
+                선택 {selectedCount.toLocaleString()} / 전체{' '}
+                {totalCount.toLocaleString()}
               </Tag>
             </Space>
 
@@ -140,7 +162,9 @@ const Register: React.FC = () => {
                 onClick={registerProducts}
                 loading={settings.loading}
                 disabled={
-                  selectedKeys.length === 0 || permission.hasPermission === false || !settings.selectedAccountId
+                  selectedKeys.length === 0 ||
+                  permission.hasPermission === false ||
+                  !settings.selectedAccountId
                 }
               >
                 선택 상품 등록
@@ -177,7 +201,9 @@ const Register: React.FC = () => {
                   onClick={async () => {
                     const filePath = await ipcRenderer.invoke('select-excel')
                     if (filePath) {
-                      await ipcRenderer.invoke('save-settings', { excelPath: filePath })
+                      await ipcRenderer.invoke('save-settings', {
+                        excelPath: filePath,
+                      })
                       await loadExcelData()
                     }
                   }}
@@ -187,12 +213,18 @@ const Register: React.FC = () => {
                 </Button>
               }
             />
-            <Button type="default" icon={<FolderOpenOutlined />} onClick={openResultFolder}>
+            <Button
+              type="default"
+              icon={<FolderOpenOutlined />}
+              onClick={openResultFolder}
+            >
               결과 폴더 열기
             </Button>
           </div>
 
-          <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 12 }}>
+          <div
+            style={{ display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 12 }}
+          >
             <div
               style={{
                 padding: '6px 10px',
@@ -202,7 +234,15 @@ const Register: React.FC = () => {
               }}
             >
               <span style={{ color: '#666' }}>현재IP</span>
-              <span style={{ marginLeft: 8, fontFamily: 'monospace', color: '#111' }}>{currentPublicIp || '-'}</span>
+              <span
+                style={{
+                  marginLeft: 8,
+                  fontFamily: 'monospace',
+                  color: '#111',
+                }}
+              >
+                {currentPublicIp || '-'}
+              </span>
             </div>
             <div
               style={{
@@ -213,7 +253,13 @@ const Register: React.FC = () => {
               }}
             >
               <span style={{ color: '#666' }}>계정마지막IP</span>
-              <span style={{ marginLeft: 8, fontFamily: 'monospace', color: '#111' }}>
+              <span
+                style={{
+                  marginLeft: 8,
+                  fontFamily: 'monospace',
+                  color: '#111',
+                }}
+              >
                 {selectedAccount?.lastRegisteredIp || '-'}
               </span>
             </div>
@@ -232,7 +278,11 @@ const Register: React.FC = () => {
             }),
           }}
           loading={settings.loading}
-          pagination={{ defaultPageSize: 50, showSizeChanger: true, pageSizeOptions: [10, 20, 50, 100, 200, 500] }}
+          pagination={{
+            defaultPageSize: 50,
+            showSizeChanger: true,
+            pageSizeOptions: [10, 20, 50, 100, 200, 500],
+          }}
         />
       </Card>
 
@@ -254,13 +304,21 @@ const Register: React.FC = () => {
             overflowY: 'auto',
             padding: '10px',
             fontFamily: 'monospace',
+            fontSize: '16px',
             borderRadius: '5px',
           }}
         >
           {logs.map((log, index) => (
             <div
               key={index}
-              style={{ color: log.level === 'error' ? '#FF0000' : log.level === 'warning' ? '#FFA500' : '#00FF00' }}
+              style={{
+                color:
+                  log.level === 'error'
+                    ? '#FF0000'
+                    : log.level === 'warning'
+                      ? '#FFA500'
+                      : '#90EE90',
+              }}
             >
               {log.log}
             </div>

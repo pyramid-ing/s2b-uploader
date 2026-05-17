@@ -61,17 +61,23 @@ const Sourcing: React.FC = () => {
   const [s2bKeyword, setS2bKeyword] = useState<string>('')
   const [s2bKeywordInvalid, setS2bKeywordInvalid] = useState<boolean>(false)
   const [s2bMinPrice, setS2bMinPrice] = useState<number | null>(null)
-  const [s2bMaxPrice, setS2bMaxPrice] = useState<number | null>(S2B_DEFAULT_MAX_PRICE)
-  const [s2bMaxCount, setS2bMaxCount] = useState<number>(50)
-  const [s2bSortCode, setS2bSortCode] = useState<'PCAC' | 'RANK' | 'CERT' | 'TRUST' | 'DATE' | 'PCDC' | 'REVIEW_COUNT'>(
-    'RANK',
+  const [s2bMaxPrice, setS2bMaxPrice] = useState<number | null>(
+    S2B_DEFAULT_MAX_PRICE,
   )
-  const [s2bPageDelaySec, setS2bPageDelaySec] = useState<number>(S2B_DEFAULT_PAGE_DELAY_SEC)
+  const [s2bMaxCount, setS2bMaxCount] = useState<number>(50)
+  const [s2bSortCode, setS2bSortCode] = useState<
+    'PCAC' | 'RANK' | 'CERT' | 'TRUST' | 'DATE' | 'PCDC' | 'REVIEW_COUNT'
+  >('RANK')
+  const [s2bPageDelaySec, setS2bPageDelaySec] = useState<number>(
+    S2B_DEFAULT_PAGE_DELAY_SEC,
+  )
   const [loading, setLoading] = useState(false)
   const [listLoading, setListLoading] = useState(false)
   const [credits, setCredits] = useState<number | null>(null)
   const [creditsLoading, setCreditsLoading] = useState(false)
-  const [optionHandling, setOptionHandling] = useState<'split' | 'single'>('split')
+  const [optionHandling, setOptionHandling] = useState<'split' | 'single'>(
+    'split',
+  )
   const [configSets] = useRecoilState(sourcingConfigSetsState)
   const [activeConfigSetId] = useRecoilState(activeConfigSetIdState)
   const [lastUseAI, setLastUseAI] = useState<boolean | null>(null)
@@ -112,7 +118,7 @@ const Sourcing: React.FC = () => {
   const getLogColor = (level: string) => {
     switch (level) {
       case 'info':
-        return '#00FF00' // 초록
+        return '#90EE90' // 연한 초록
       case 'warning':
         return '#FFA500' // 주황
       case 'error':
@@ -141,7 +147,8 @@ const Sourcing: React.FC = () => {
   // 활성화된 설정값 세트 기준으로 기본 옵션 처리 방법 설정
   useEffect(() => {
     const activeConfigSet: SourcingConfigSet | undefined =
-      configSets.find(cs => cs.id === activeConfigSetId) || configSets.find(cs => cs.isActive)
+      configSets.find(cs => cs.id === activeConfigSetId) ||
+      configSets.find(cs => cs.isActive)
     if (activeConfigSet?.config?.optionHandling) {
       setOptionHandling(activeConfigSet.config.optionHandling)
     }
@@ -150,7 +157,9 @@ const Sourcing: React.FC = () => {
   const handleFetchCredits = async () => {
     try {
       setCreditsLoading(true)
-      const settingsData = await (window as any).require('electron').ipcRenderer.invoke('get-settings')
+      const settingsData = await (window as any)
+        .require('electron')
+        .ipcRenderer.invoke('get-settings')
       const s2bId = settingsData?.loginId
       const credits = await fetchCredits(s2bId)
       setCredits(credits)
@@ -215,7 +224,11 @@ const Sourcing: React.FC = () => {
         key: 'name',
         render: (text: string, record: SourcingItem) => (
           <Space>
-            {record.isCollected && <CheckCircleOutlined style={{ color: '#52c41a', fontSize: '16px' }} />}
+            {record.isCollected && (
+              <CheckCircleOutlined
+                style={{ color: '#52c41a', fontSize: '16px' }}
+              />
+            )}
             {record.vendor === '학교장터' ? (
               <Typography.Text type="secondary">{text}</Typography.Text>
             ) : (
@@ -262,7 +275,15 @@ const Sourcing: React.FC = () => {
             )
           }
           if (record.result) {
-            return <span style={{ color: record.result === '성공' ? '#52c41a' : '#ff4d4f' }}>{record.result}</span>
+            return (
+              <span
+                style={{
+                  color: record.result === '성공' ? '#52c41a' : '#ff4d4f',
+                }}
+              >
+                {record.result}
+              </span>
+            )
           }
           if (record.isCollected) {
             return <span style={{ color: '#52c41a' }}>수집완료</span>
@@ -275,17 +296,23 @@ const Sourcing: React.FC = () => {
         key: 'action',
         render: (_, record) => (
           <Space>
-            <Button type="link" icon={<SendOutlined />} onClick={() => handleRequestRegister([record.key])}>
+            <Button
+              size="middle"
+              icon={<SendOutlined />}
+              onClick={() => handleRequestRegister([record.key])}
+            >
               수집하기
             </Button>
             <Button
-              type="link"
+              size="middle"
               icon={<DownloadOutlined />}
               disabled={!record.isCollected}
               onClick={() => {
                 try {
                   if (!record.downloadDir) {
-                    message.warning('저장 폴더 정보가 없습니다. 먼저 수집을 실행하세요.')
+                    message.warning(
+                      '저장 폴더 정보가 없습니다. 먼저 수집을 실행하세요.',
+                    )
                     return
                   }
                   shell.openPath(record.downloadDir)
@@ -296,7 +323,12 @@ const Sourcing: React.FC = () => {
             >
               폴더 열기
             </Button>
-            <Button type="link" danger icon={<DeleteOutlined />} onClick={() => handleDelete(record.key)}>
+            <Button
+              size="middle"
+              danger
+              icon={<DeleteOutlined />}
+              onClick={() => handleDelete(record.key)}
+            >
               삭제
             </Button>
           </Space>
@@ -332,7 +364,10 @@ const Sourcing: React.FC = () => {
         maxCount: s2bMaxCount,
         sortCode: s2bSortCode,
         viewCount: 50,
-        pageDelayMs: Math.max(0, Math.round((Number(s2bPageDelaySec) || 0) * 1000)),
+        pageDelayMs: Math.max(
+          0,
+          Math.round((Number(s2bPageDelaySec) || 0) * 1000),
+        ),
       })
     } finally {
       setListLoading(false)
@@ -356,7 +391,9 @@ const Sourcing: React.FC = () => {
       width: 500,
       content: (
         <div style={{ padding: '16px 0' }}>
-          <Typography.Text>입력한 URL 기준으로 1개 항목을 가져오시겠습니까?</Typography.Text>
+          <Typography.Text>
+            입력한 URL 기준으로 1개 항목을 가져오시겠습니까?
+          </Typography.Text>
           <Divider style={{ margin: '16px 0' }} />
           <Form.Item style={{ marginBottom: 0 }}>
             <Checkbox
@@ -376,7 +413,9 @@ const Sourcing: React.FC = () => {
         const useAI = useAIRef.value
         setLastUseAI(useAI)
         const { ipcRenderer } = window.require('electron')
-        ipcRenderer.invoke('save-settings', { useAIForSourcing: useAI }).catch(console.error)
+        ipcRenderer
+          .invoke('save-settings', { useAIForSourcing: useAI })
+          .catch(console.error)
 
         try {
           setLoading(true)
@@ -423,7 +462,9 @@ const Sourcing: React.FC = () => {
         width: 500,
         content: (
           <div style={{ padding: '16px 0' }}>
-            <Typography.Text>{count}개의 상품을 수집하겠습니까?</Typography.Text>
+            <Typography.Text>
+              {count}개의 상품을 수집하겠습니까?
+            </Typography.Text>
             <Divider style={{ margin: '16px 0' }} />
             <Form.Item label="소싱 딜레이(최소초)" style={{ marginBottom: 16 }}>
               <InputNumber
@@ -473,13 +514,18 @@ const Sourcing: React.FC = () => {
           // 마지막 설정값 저장
           setLastUseAI(useAI)
           const { ipcRenderer } = window.require('electron')
-          ipcRenderer.invoke('save-settings', { useAIForSourcing: useAI }).catch(console.error)
+          ipcRenderer
+            .invoke('save-settings', { useAIForSourcing: useAI })
+            .catch(console.error)
           requestRegister(targetKeys, optionHandling, finalMin, finalMax, useAI)
         },
       })
     } else {
       // 1개이거나 학교장터가 아니면 기존 방식
-      const content = count === 1 ? `${firstItemName}을 수집하겠습니까?` : `${count}개의 상품을 수집하겠습니까?`
+      const content =
+        count === 1
+          ? `${firstItemName}을 수집하겠습니까?`
+          : `${count}개의 상품을 수집하겠습니까?`
 
       Modal.confirm({
         title: '수집 시 정말로 수집하겠습니까?',
@@ -507,8 +553,16 @@ const Sourcing: React.FC = () => {
           // 마지막 설정값 저장
           setLastUseAI(useAI)
           const { ipcRenderer } = window.require('electron')
-          ipcRenderer.invoke('save-settings', { useAIForSourcing: useAI }).catch(console.error)
-          requestRegister(targetKeys, optionHandling, undefined, undefined, useAI)
+          ipcRenderer
+            .invoke('save-settings', { useAIForSourcing: useAI })
+            .catch(console.error)
+          requestRegister(
+            targetKeys,
+            optionHandling,
+            undefined,
+            undefined,
+            useAI,
+          )
         },
       })
     }
@@ -546,7 +600,10 @@ const Sourcing: React.FC = () => {
               현재 계정으로는 소싱 기능이 제한됩니다. 관리자에게 문의하세요.
               {permission.accountInfo?.periodEnd && (
                 <div style={{ marginTop: '8px', fontSize: '14px' }}>
-                  계정 만료일: {new Date(permission.accountInfo.periodEnd).toLocaleDateString('ko-KR')}
+                  계정 만료일:{' '}
+                  {new Date(
+                    permission.accountInfo.periodEnd,
+                  ).toLocaleDateString('ko-KR')}
                 </div>
               )}
             </>
@@ -562,7 +619,11 @@ const Sourcing: React.FC = () => {
           <Space>
             <span>도움말:</span>
             <Typography.Link
-              onClick={() => shell.openExternal('https://www.youtube.com/watch?v=vJAv-a1xxEs')}
+              onClick={() =>
+                shell.openExternal(
+                  'https://www.youtube.com/watch?v=vJAv-a1xxEs',
+                )
+              }
               style={{ fontWeight: 'bold' }}
             >
               소싱 페이지 사용 방법 영상 보기 (Youtube)
@@ -579,9 +640,17 @@ const Sourcing: React.FC = () => {
           <Space>
             <Typography.Text>
               사용권:{' '}
-              {creditsLoading ? '조회 중…' : credits === null ? '알 수 없음' : `${credits.toLocaleString('ko-KR')}회`}
+              {creditsLoading
+                ? '조회 중…'
+                : credits === null
+                  ? '알 수 없음'
+                  : `${credits.toLocaleString('ko-KR')}회`}
             </Typography.Text>
-            <Button size="small" onClick={handleFetchCredits} loading={creditsLoading}>
+            <Button
+              size="small"
+              onClick={handleFetchCredits}
+              loading={creditsLoading}
+            >
               새로고침
             </Button>
           </Space>
@@ -590,17 +659,30 @@ const Sourcing: React.FC = () => {
         <Space wrap>
           <Form form={form} layout="inline">
             <Form.Item label="업체">
-              <Select style={{ width: 160 }} options={VENDORS} value={vendor} onChange={setVendor} />
+              <Select
+                style={{ width: 160 }}
+                options={VENDORS}
+                value={vendor}
+                onChange={setVendor}
+              />
             </Form.Item>
             <Form.Item>
-              <Button type="primary" onClick={handleOpenVendorSite} loading={loading}>
+              <Button
+                type="primary"
+                onClick={handleOpenVendorSite}
+                loading={loading}
+              >
                 사이트 열기
               </Button>
             </Form.Item>
             {vendor === 'domeosin' && (
               <Form.Item>
                 <Button
-                  onClick={() => openSourcingUrl('https://www.domesin.com/index.html?p=my/wish_list.html')}
+                  onClick={() =>
+                    openSourcingUrl(
+                      'https://www.domesin.com/index.html?p=my/wish_list.html',
+                    )
+                  }
                   loading={loading}
                 >
                   상품보관함 열기
@@ -624,7 +706,10 @@ const Sourcing: React.FC = () => {
                     border: '1px solid #e8e8e8',
                   }}
                 >
-                  <Typography.Title level={5} style={{ marginTop: 0, marginBottom: 16 }}>
+                  <Typography.Title
+                    level={5}
+                    style={{ marginTop: 0, marginBottom: 16 }}
+                  >
                     학교장터 필터 검색
                   </Typography.Title>
 
@@ -636,39 +721,60 @@ const Sourcing: React.FC = () => {
                       onChange={e => {
                         const v = e.target.value
                         setS2bKeyword(v)
-                        if (s2bKeywordInvalid && v.trim().length > 0) setS2bKeywordInvalid(false)
+                        if (s2bKeywordInvalid && v.trim().length > 0)
+                          setS2bKeywordInvalid(false)
                       }}
                       onPressEnter={handleS2BFilterSearch}
-                      status={s2bKeywordInvalid && (s2bKeyword || '').trim().length === 0 ? 'error' : undefined}
+                      status={
+                        s2bKeywordInvalid &&
+                        (s2bKeyword || '').trim().length === 0
+                          ? 'error'
+                          : undefined
+                      }
                     />
                   </Form.Item>
 
                   {/* 그룹 2: 금액 최소/최대 */}
                   <Space.Compact style={{ width: '100%', marginBottom: 16 }}>
-                    <Form.Item label="금액(최소)" style={{ flex: 1, marginRight: 8, marginBottom: 0 }}>
+                    <Form.Item
+                      label="금액(최소)"
+                      style={{ flex: 1, marginRight: 8, marginBottom: 0 }}
+                    >
                       <InputNumber
                         style={{ width: '100%' }}
                         min={0}
                         max={S2B_DEFAULT_MAX_PRICE}
                         value={s2bMinPrice}
-                        onChange={v => setS2bMinPrice(typeof v === 'number' ? v : null)}
+                        onChange={v =>
+                          setS2bMinPrice(typeof v === 'number' ? v : null)
+                        }
                         placeholder="0"
                       />
                     </Form.Item>
-                    <Form.Item label="금액(최대)" style={{ flex: 1, marginBottom: 0 }}>
+                    <Form.Item
+                      label="금액(최대)"
+                      style={{ flex: 1, marginBottom: 0 }}
+                    >
                       <InputNumber
                         style={{ width: '100%' }}
                         min={0}
                         max={S2B_DEFAULT_MAX_PRICE}
                         value={s2bMaxPrice}
-                        onChange={v => setS2bMaxPrice(typeof v === 'number' ? v : S2B_DEFAULT_MAX_PRICE)}
+                        onChange={v =>
+                          setS2bMaxPrice(
+                            typeof v === 'number' ? v : S2B_DEFAULT_MAX_PRICE,
+                          )
+                        }
                       />
                     </Form.Item>
                   </Space.Compact>
 
                   {/* 그룹 3: 페이지딜레이, 정렬, 최대갯수 */}
                   <Space.Compact style={{ width: '100%', marginBottom: 16 }}>
-                    <Form.Item label="페이지 딜레이(초)" style={{ flex: 1, marginRight: 8, marginBottom: 0 }}>
+                    <Form.Item
+                      label="페이지 딜레이(초)"
+                      style={{ flex: 1, marginRight: 8, marginBottom: 0 }}
+                    >
                       <InputNumber
                         style={{ width: '100%' }}
                         min={0}
@@ -676,10 +782,19 @@ const Sourcing: React.FC = () => {
                         step={1}
                         precision={0}
                         value={s2bPageDelaySec}
-                        onChange={v => setS2bPageDelaySec(typeof v === 'number' ? v : S2B_DEFAULT_PAGE_DELAY_SEC)}
+                        onChange={v =>
+                          setS2bPageDelaySec(
+                            typeof v === 'number'
+                              ? v
+                              : S2B_DEFAULT_PAGE_DELAY_SEC,
+                          )
+                        }
                       />
                     </Form.Item>
-                    <Form.Item label="정렬" style={{ flex: 1, marginRight: 8, marginBottom: 0 }}>
+                    <Form.Item
+                      label="정렬"
+                      style={{ flex: 1, marginRight: 8, marginBottom: 0 }}
+                    >
                       <Select
                         style={{ width: '100%' }}
                         value={s2bSortCode}
@@ -695,13 +810,18 @@ const Sourcing: React.FC = () => {
                         ]}
                       />
                     </Form.Item>
-                    <Form.Item label="최대갯수" style={{ flex: 1, marginBottom: 0 }}>
+                    <Form.Item
+                      label="최대갯수"
+                      style={{ flex: 1, marginBottom: 0 }}
+                    >
                       <InputNumber
                         style={{ width: '100%' }}
                         min={1}
                         max={5000}
                         value={s2bMaxCount}
-                        onChange={v => setS2bMaxCount(typeof v === 'number' ? v : 50)}
+                        onChange={v =>
+                          setS2bMaxCount(typeof v === 'number' ? v : 50)
+                        }
                       />
                     </Form.Item>
                   </Space.Compact>
@@ -734,7 +854,11 @@ const Sourcing: React.FC = () => {
                   />
                 </Form.Item>
                 <Form.Item>
-                  <Button type="primary" icon={<PlusOutlined />} onClick={handleFetchOneByUrl}>
+                  <Button
+                    type="primary"
+                    icon={<PlusOutlined />}
+                    onClick={handleFetchOneByUrl}
+                  >
                     1개 가져오기 (수동)
                   </Button>
                 </Form.Item>
@@ -746,7 +870,13 @@ const Sourcing: React.FC = () => {
 
       <ConfigSetManager />
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+        }}
+      >
         <div>
           {hasSelection && (
             <Space>
@@ -756,8 +886,12 @@ const Sourcing: React.FC = () => {
                 value={optionHandling}
                 onChange={value => setOptionHandling(value)}
               >
-                <Select.Option value="split">옵션별로 풀어서 여러 개 상품 생성</Select.Option>
-                <Select.Option value="single">옵션을 묶어서 1개 상품 생성</Select.Option>
+                <Select.Option value="split">
+                  옵션별로 풀어서 여러 개 상품 생성
+                </Select.Option>
+                <Select.Option value="single">
+                  옵션을 묶어서 1개 상품 생성
+                </Select.Option>
               </Select>
               <Button
                 type="primary"
@@ -768,10 +902,20 @@ const Sourcing: React.FC = () => {
               >
                 수집하기({selectedRowKeys.length}개)
               </Button>
-              <Button danger icon={<DeleteOutlined />} onClick={handleBulkDelete}>
+              <Button
+                danger
+                icon={<DeleteOutlined />}
+                onClick={handleBulkDelete}
+              >
                 선택 삭제({selectedRowKeys.length}개)
               </Button>
-              <Button type="primary" danger icon={<StopOutlined />} onClick={cancelSourcing} disabled={!loading}>
+              <Button
+                type="primary"
+                danger
+                icon={<StopOutlined />}
+                onClick={cancelSourcing}
+                disabled={!loading}
+              >
                 중단
               </Button>
             </Space>
@@ -798,7 +942,11 @@ const Sourcing: React.FC = () => {
             columns={columns}
             dataSource={items}
             rowSelection={{ selectedRowKeys, onChange: setSelectedRowKeys }}
-            pagination={{ defaultPageSize: 50, showSizeChanger: true, pageSizeOptions: [10, 20, 50, 100, 200, 500] }}
+            pagination={{
+              defaultPageSize: 50,
+              showSizeChanger: true,
+              pageSizeOptions: [10, 20, 50, 100, 200, 500],
+            }}
           />
         </Card>
       </Spin>
@@ -821,6 +969,7 @@ const Sourcing: React.FC = () => {
             overflowY: 'auto',
             padding: '10px',
             fontFamily: 'monospace',
+            fontSize: '16px',
             borderRadius: '5px',
           }}
         >
