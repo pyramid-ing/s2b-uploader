@@ -188,7 +188,7 @@ export class S2BSourcing extends S2BBase {
       if (typeof scraper.navigateToDetail === 'function') {
         await scraper.navigateToDetail(this.page, vendor, url)
       } else {
-        await this.page.goto(url, { waitUntil: 'domcontentloaded' })
+        await this._gotoDetailUrlWithFallback(url, vendorKey)
       }
 
       await scraper.waitBeforeCapture(this.page)
@@ -335,6 +335,48 @@ export class S2BSourcing extends S2BBase {
       scraper.setSettings(this.settings)
     }
     return scraper
+  }
+
+  private async _gotoDetailUrlWithFallback(url: string, vendorKey: VendorKey | null): Promise<void> {
+    if (!this.page) throw new Error('Browser page not initialized')
+
+    const timeoutMs = vendorKey === VendorKey.도매꾹 ? 60_000 : 30_000
+    try {
+      await this.page.goto(url, { waitUntil: 'domcontentloaded', timeout: timeoutMs })
+      return
+    } catch (error: any) {
+      const message = String(error?.message || error || '')
+      const isTimeout = /timeout|timed out/i.test(message)
+      if (!isTimeout || vendorKey !== VendorKey.도매꾹) {
+        throw error
+      }
+
+      const hasUsableDomeggookDom = await this.page
+        .evaluate(() => {
+          return Boolean(
+            document.querySelector(
+              [
+                'meta[property="og:title"]',
+                '#lInfoBody',
+                '#lAmtSectionTbl',
+                'tr.lInfoAmt',
+                '#lInfoViewItemContents',
+                '#lItemContents',
+              ].join(','),
+            ),
+          )
+        })
+        .catch(() => false)
+
+      if (hasUsableDomeggookDom) {
+        this._log('도매꾹 페이지 로딩이 지연됐지만 상품 정보가 확인되어 수집을 계속합니다.', 'warning')
+        return
+      }
+
+      throw new Error(
+        '도매꾹 상품 페이지 로딩이 60초를 초과했습니다. 도매꾹 로그인 상태와 URL 접근 가능 여부를 확인한 뒤 다시 시도하세요.',
+      )
+    }
   }
 
   private _sanitizeFileName(name: string): string {
