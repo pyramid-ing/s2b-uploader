@@ -224,7 +224,6 @@ export class DomeggookScraper extends BaseScraper {
     const outPath = path.join(targetDir, `상세이미지.jpg`)
     const detailSelector = vendor.detail_image_xpath
     const locator = page.locator(`xpath=${detailSelector}`).first()
-    const previousDefaultTimeout = (page as any)._timeoutSettings?.timeout?.()
     page.setDefaultTimeout(90_000)
 
     try {
@@ -282,7 +281,7 @@ export class DomeggookScraper extends BaseScraper {
       await this.screenshotLongElement(page, locator, outPath, 4000)
       return outPath
     } finally {
-      page.setDefaultTimeout(typeof previousDefaultTimeout === 'number' ? previousDefaultTimeout : 30_000)
+      page.setDefaultTimeout(30_000)
     }
   }
 
